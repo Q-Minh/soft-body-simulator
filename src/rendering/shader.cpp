@@ -5,6 +5,10 @@
 namespace sbs {
 namespace rendering {
 
+const char* shader_t::vertex_shader_position_attribute_name = "VertexShaderVertexPosition";
+const char* shader_t::vertex_shader_normal_attribute_name   = "VertexShaderVertexNormal";
+const char* shader_t::vertex_shader_color_attribute_name    = "VertexShaderVertexColor";
+
 shader_t::shader_t(
     std::filesystem::path const& vertex_shader_path,
     std::filesystem::path const& fragment_shader_path)
@@ -100,9 +104,6 @@ shader_t::shader_t(
         error_messages_.push_back(oss.str());
     }
 
-    glDeleteShader(vertex_shader_id);
-    glDeleteShader(fragment_shader_id);
-
     should_use_ = static_cast<bool>(vertex_shader_compilation_success) &&
                   static_cast<bool>(fragment_shader_compilation_success) &&
                   static_cast<bool>(shader_program_link_success);
@@ -111,6 +112,9 @@ shader_t::shader_t(
     {
         return;
     }
+
+    glDeleteShader(vertex_shader_id);
+    glDeleteShader(fragment_shader_id);
 
     id_ = shader_program_id;
 }

@@ -19,6 +19,13 @@ int main(int argc, char** argv)
     bool const shader_loading_success =
         renderer.use_shaders(vertex_shader_path, fragment_shader_path);
 
+    /**
+     * physics update goes here
+     */
+    renderer.on_new_frame = [](double render_frame_dt, sbs::common::scene_t& scene) {
+
+    };
+
     if (initialization_success && shader_loading_success)
     {
         renderer.launch();

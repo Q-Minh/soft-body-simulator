@@ -105,7 +105,7 @@ bool renderer_t::initialize(std::filesystem::path const& scene_path)
 
     this->set_as_active_renderer();
     glfwSetFramebufferSizeCallback(window, renderer_base_t::framebuffer_size_callback_dispatcher);
-    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, renderer_base_t::mouse_callback_dispatcher);
     glfwSetScrollCallback(window, renderer_base_t::scroll_callback_dispatcher);
 
@@ -142,6 +142,13 @@ bool renderer_t::use_shaders(
 void renderer_t::launch()
 {
     glEnable(GL_DEPTH_TEST);
+
+    auto const position_attribute_location =
+        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_position_attribute_name);
+    auto const normal_attribute_location =
+        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_normal_attribute_name);
+    auto const color_attribute_location =
+        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_color_attribute_name);
 
     float last_frame_time = 0.f;
     while (!glfwWindowShouldClose(window_))
@@ -284,31 +291,31 @@ void renderer_t::launch()
             auto constexpr vertex_color_offset = vertex_normal_offset + 3u * num_bytes_per_float;
 
             glVertexAttribPointer(
-                vertex_position_attribute_location_,
+                position_attribute_location,
                 3u,
                 GL_FLOAT,
                 GL_FALSE,
                 stride_between_vertices,
                 reinterpret_cast<void*>(vertex_position_offset));
-            glEnableVertexAttribArray(vertex_position_attribute_location_);
+            glEnableVertexAttribArray(position_attribute_location);
 
             glVertexAttribPointer(
-                vertex_normal_attribute_location_,
+                normal_attribute_location,
                 3u,
                 GL_FLOAT,
                 GL_FALSE,
                 stride_between_vertices,
                 reinterpret_cast<void*>(vertex_normal_offset));
-            glEnableVertexAttribArray(vertex_normal_attribute_location_);
+            glEnableVertexAttribArray(normal_attribute_location);
 
             glVertexAttribPointer(
-                vertex_color_attribute_location_,
+                color_attribute_location,
                 3u,
                 GL_FLOAT,
                 GL_FALSE,
                 stride_between_vertices,
                 reinterpret_cast<void*>(vertex_color_offset));
-            glEnableVertexAttribArray(vertex_color_attribute_location_);
+            glEnableVertexAttribArray(color_attribute_location);
 
             /**
              * Draw the mesh

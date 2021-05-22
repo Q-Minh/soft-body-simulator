@@ -40,6 +40,10 @@ class shader_t
     void set_mat4_uniform(const std::string& name, const glm::mat4& mat) const;
     void destroy() const;
 
+    static const char* vertex_shader_position_attribute_name;
+    static const char* vertex_shader_normal_attribute_name;
+    static const char* vertex_shader_color_attribute_name;
+
   private:
     unsigned int id_;
     bool should_use_;

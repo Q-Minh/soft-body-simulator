@@ -11,6 +11,7 @@
 #include "shader.h"
 
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <iterator>
 
@@ -67,6 +68,8 @@ class renderer_t : public renderer_base_t
     std::uint32_t constexpr get_initial_window_width() const { return 800u; }
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
+    std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene_*/)> on_new_frame;
+
   private:
     void process_input(GLFWwindow* window, double dt);
 
@@ -76,10 +79,6 @@ class renderer_t : public renderer_base_t
 
     GLFWwindow* window_;
     shader_t shader_;
-
-    unsigned int vertex_position_attribute_location_ = 0;
-    unsigned int vertex_normal_attribute_location_   = 1;
-    unsigned int vertex_color_attribute_location_    = 2;
 };
 
 } // namespace rendering

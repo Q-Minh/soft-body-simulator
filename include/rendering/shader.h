@@ -23,6 +23,8 @@ class shader_t
 
     unsigned int id() const;
     bool should_use() const;
+    std::vector<std::string> error_messages() const { return error_messages_; }
+
     void use() const;
     void set_bool_uniform(const std::string& name, bool value) const;
     void set_int_uniform(const std::string& name, int value) const;

@@ -142,9 +142,9 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 auto const z = geometry->positions[i + 2u];
 
                 physics::shared_vertex_triangle_mesh_t::position_t position{};
-                position.x = gx + x;
-                position.y = gy + y;
-                position.z = gz + z;
+                position.x = static_cast<double>(gx + x);
+                position.y = static_cast<double>(gy + y);
+                position.z = static_cast<double>(gz + z);
 
                 physics::shared_vertex_triangle_mesh_t::velocity_t velocity{};
                 velocity.vx = vx;
@@ -199,6 +199,7 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 triangle_mesh_node->mesh.triangles.push_back(triangle);
             }
 
+            triangle_mesh_node->mesh.rescale();
             scene.objects.push_back(triangle_mesh_node);
         }
         else if (geometry_type == "tetrahedral mesh")
@@ -216,9 +217,9 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 auto const z = geometry->positions[i + 2u];
 
                 physics::shared_vertex_tetrahedral_mesh_t::position_t position{};
-                position.x = gx + x;
-                position.y = gy + y;
-                position.z = gz + z;
+                position.x = static_cast<double>(gx + x);
+                position.y = static_cast<double>(gy + y);
+                position.z = static_cast<double>(gz + z);
 
                 physics::shared_vertex_tetrahedral_mesh_t::velocity_t velocity{};
                 velocity.vx = vx;
@@ -275,6 +276,7 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 tetrahedral_mesh_node->mesh.tetrahedra.push_back(tetrahedron);
             }
 
+            tetrahedral_mesh_node->mesh.rescale();
             scene.objects.push_back(tetrahedral_mesh_node);
         }
     }

@@ -20,7 +20,16 @@ int main(int argc, char** argv)
         renderer.use_shaders(vertex_shader_path, fragment_shader_path);
 
     if (initialization_success && shader_loading_success)
+    {
         renderer.launch();
+    }
+    else
+    {
+        for (auto const& error_message : renderer.get_error_messages())
+        {
+            std::cout << error_message << "\n";
+        }
+    }
 
     return 0;
 }

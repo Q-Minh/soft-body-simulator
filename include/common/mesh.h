@@ -18,6 +18,10 @@ struct shared_vertex_triangle_mesh_t
         std::uint32_t v1, v2, v3;
     };
 
+    void rescale(
+        position_t const& boxmin = position_t{-1., -1., -1.},
+        position_t const& boxmax = position_t{+1., +1., +1.});
+
     std::vector<position_t> positions;
     std::vector<triangle_t> triangles;
 };
@@ -33,6 +37,10 @@ struct shared_vertex_tetrahedral_mesh_t
     {
         std::uint32_t v1, v2, v3, v4;
     };
+
+    void rescale(
+        position_t const& boxmin = position_t{-1., -1., -1.},
+        position_t const& boxmax = position_t{+1., +1., +1.});
 
     std::vector<position_t> positions;
     std::vector<tetrahedron_t> tetrahedra;

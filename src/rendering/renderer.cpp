@@ -147,7 +147,7 @@ void renderer_t::launch()
     while (!glfwWindowShouldClose(window_))
     {
         float const now = glfwGetTime();
-        double const dt = static_cast<double>(now - last_frame_time);
+        double const dt = static_cast<double>(now) - static_cast<double>(last_frame_time);
         last_frame_time = now;
 
         process_input(window_, dt);

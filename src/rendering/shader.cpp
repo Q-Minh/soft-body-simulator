@@ -8,7 +8,7 @@ namespace rendering {
 shader_t::shader_t(
     std::filesystem::path const& vertex_shader_path,
     std::filesystem::path const& fragment_shader_path)
-    : id_(0u)
+    : id_(0u), should_use_{false}
 {
     bool const is_vertex_shader_path_valid =
         std::filesystem::exists(vertex_shader_path) && vertex_shader_path.has_filename() &&
@@ -20,7 +20,7 @@ shader_t::shader_t(
 
     if (!is_vertex_shader_path_valid || !is_fragment_shader_path_valid)
     {
-        should_use_ = false;
+        error_messages_.push_back("Invalid shader paths");
         return;
     }
 
@@ -33,6 +33,18 @@ shader_t::shader_t(
     std::string const fragment_shader_source_code{
         std::istreambuf_iterator<char>(fragment_ifs),
         std::istreambuf_iterator<char>{}};
+
+    if (!vertex_ifs.is_open())
+    {
+        error_messages_.push_back("Cannot open vertex shader");
+        return;
+    }
+
+    if (!fragment_ifs.is_open())
+    {
+        error_messages_.push_back("Cannot open fragment shader");
+        return;
+    }
 
     /**
      * Compile vertex shader
@@ -91,9 +103,9 @@ shader_t::shader_t(
     glDeleteShader(vertex_shader_id);
     glDeleteShader(fragment_shader_id);
 
-    bool const should_use_ = static_cast<bool>(vertex_shader_compilation_success) &&
-                             static_cast<bool>(fragment_shader_compilation_success) &&
-                             static_cast<bool>(shader_program_link_success);
+    should_use_ = static_cast<bool>(vertex_shader_compilation_success) &&
+                  static_cast<bool>(fragment_shader_compilation_success) &&
+                  static_cast<bool>(shader_program_link_success);
 
     if (!should_use_)
     {
@@ -178,7 +190,7 @@ void shader_t::set_mat4_uniform(const std::string& name, const glm::mat4& mat) c
     glUniformMatrix4fv(glGetUniformLocation(id_, name.c_str()), 1, GL_FALSE, &mat[0][0]);
 }
 
-void shader_t::destroy() const 
+void shader_t::destroy() const
 {
     glDeleteProgram(id_);
 }

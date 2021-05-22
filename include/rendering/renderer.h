@@ -58,6 +58,8 @@ class renderer_t : public renderer_base_t
 
     void close();
 
+    std::vector<std::string> get_error_messages() const { return shader_.error_messages(); }
+
     virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) override;
     virtual void mouse_callback(GLFWwindow* window, double xpos, double ypos) override;
     virtual void scroll_callback(GLFWwindow* window, double dx, double dy) override;

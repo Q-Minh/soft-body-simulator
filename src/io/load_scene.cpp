@@ -111,11 +111,6 @@ common::scene_t load_scene(std::filesystem::path const& path)
         if (!should_process_asset)
             continue;
 
-        auto const& position = object_spec["position"];
-        auto const gx        = position["x"].get<float>();
-        auto const gy        = position["y"].get<float>();
-        auto const gz        = position["z"].get<float>();
-
         auto const& physics_spec               = object_spec["physics"];
         std::string const body_type_str        = physics_spec["type"].get<std::string>();
         physics::node_t::body_type_t body_type = body_type_str == "soft" ?
@@ -127,6 +122,17 @@ common::scene_t load_scene(std::filesystem::path const& path)
         double const vy              = velocity_spec["y"].get<double>();
         double const vz              = velocity_spec["z"].get<double>();
 
+        auto const& box_spec = object_spec["box"];
+        auto const& box_min_spec = box_spec["min"];
+        auto const& box_max_spec = box_spec["max"];
+
+        double const xmin = box_min_spec["x"].get<double>();
+        double const ymin = box_min_spec["y"].get<double>();
+        double const zmin = box_min_spec["z"].get<double>();
+        double const xmax = box_max_spec["x"].get<double>();
+        double const ymax = box_max_spec["y"].get<double>();
+        double const zmax = box_max_spec["z"].get<double>();
+        
         if (geometry_type == "triangle mesh")
         {
             std::optional<io::geometry_t> geometry = io::read_ply(asset_path);
@@ -142,9 +148,9 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 auto const z = geometry->positions[i + 2u];
 
                 physics::shared_vertex_triangle_mesh_t::position_t position{};
-                position.x = static_cast<double>(gx + x);
-                position.y = static_cast<double>(gy + y);
-                position.z = static_cast<double>(gz + z);
+                position.x = static_cast<double>(x);
+                position.y = static_cast<double>(y);
+                position.z = static_cast<double>(z);
 
                 physics::shared_vertex_triangle_mesh_t::velocity_t velocity{};
                 velocity.vx = vx;
@@ -199,7 +205,7 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 triangle_mesh_node->mesh.triangles.push_back(triangle);
             }
 
-            triangle_mesh_node->mesh.rescale();
+            triangle_mesh_node->mesh.rescale({xmin, ymin, zmin}, {xmax, ymax, zmax});
             scene.objects.push_back(triangle_mesh_node);
         }
         else if (geometry_type == "tetrahedral mesh")
@@ -217,9 +223,9 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 auto const z = geometry->positions[i + 2u];
 
                 physics::shared_vertex_tetrahedral_mesh_t::position_t position{};
-                position.x = static_cast<double>(gx + x);
-                position.y = static_cast<double>(gy + y);
-                position.z = static_cast<double>(gz + z);
+                position.x = static_cast<double>(x);
+                position.y = static_cast<double>(y);
+                position.z = static_cast<double>(z);
 
                 physics::shared_vertex_tetrahedral_mesh_t::velocity_t velocity{};
                 velocity.vx = vx;
@@ -276,7 +282,7 @@ common::scene_t load_scene(std::filesystem::path const& path)
                 tetrahedral_mesh_node->mesh.tetrahedra.push_back(tetrahedron);
             }
 
-            tetrahedral_mesh_node->mesh.rescale();
+            tetrahedral_mesh_node->mesh.rescale({xmin, ymin, zmin}, {xmax, ymax, zmax});
             scene.objects.push_back(tetrahedral_mesh_node);
         }
     }

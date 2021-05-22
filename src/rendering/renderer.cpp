@@ -105,7 +105,7 @@ bool renderer_t::initialize(std::filesystem::path const& scene_path)
 
     this->set_as_active_renderer();
     glfwSetFramebufferSizeCallback(window, renderer_base_t::framebuffer_size_callback_dispatcher);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, renderer_base_t::mouse_callback_dispatcher);
     glfwSetScrollCallback(window, renderer_base_t::scroll_callback_dispatcher);
 

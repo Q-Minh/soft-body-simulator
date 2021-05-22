@@ -18,7 +18,7 @@ camera_t::camera_t(
       yaw_(yaw),
       pitch_(pitch),
       speed_(2.5f),
-      mouse_sensitivity_(0.01f),
+      mouse_sensitivity_(0.1f),
       zoom_(45.f),
       near_(near),
       far_(far)
@@ -80,6 +80,11 @@ void camera_t::update_camera_vectors()
     front_  = glm::normalize(front);
     right_  = glm::normalize(glm::cross(front_, world_up_));
     up_     = glm::normalize(glm::cross(right_, front_));
+}
+
+void camera_t::set_mouse_sensitivity(float sensitivity)
+{
+    mouse_sensitivity_ = sensitivity;
 }
 
 } // namespace rendering

@@ -33,6 +33,8 @@ class camera_t
 
     void handle_mouse_scroll(float yoffset);
 
+    void set_mouse_sensitivity(float sensitivity);
+
   private:
     void update_camera_vectors();
 

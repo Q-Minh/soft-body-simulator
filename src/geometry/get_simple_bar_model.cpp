@@ -14,8 +14,8 @@ io::geometry_t get_simple_bar_model(std::size_t width, std::size_t height, std::
         {
             for (auto k = 0; k < depth; ++k)
             {
-                auto const row = i * height * depth + j * depth + k;
-                auto const idx = row * 3u;
+                auto const row               = i * height * depth + j * depth + k;
+                auto const idx               = row * 3u;
                 geometry.positions[idx + 0u] = static_cast<float>(i);
                 geometry.positions[idx + 1u] = static_cast<float>(j);
                 geometry.positions[idx + 2u] = static_cast<float>(k);
@@ -115,6 +115,8 @@ io::geometry_t get_simple_bar_model(std::size_t width, std::size_t height, std::
             }
         }
     }
+
+    geometry.geometry_type = io::geometry_t::geometry_type_t::tetrahedron;
 
     return geometry;
 }

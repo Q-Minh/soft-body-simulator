@@ -36,6 +36,8 @@ io::geometry_t get_simple_cloth_model(int rows, int cols)
         }
     }
 
+    geometry.geometry_type = io::geometry_t::geometry_type_t::triangle;
+
     return geometry;
 }
 

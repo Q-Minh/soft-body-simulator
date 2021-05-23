@@ -4,14 +4,6 @@ element vertex 8
 property float x
 property float y
 property float z
-comment property float nx
-comment property float ny
-comment property float nz
-comment property float r
-comment property float g
-comment property float b
-comment property float u
-comment property float v
 element tet 6
 property list uchar int indices
 end_header

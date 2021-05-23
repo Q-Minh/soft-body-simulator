@@ -26,8 +26,8 @@
         "point": {
             "position": {
                 "x": 0,
-                "y": 0,
-                "z": 5.0
+                "y": 5.0,
+                "z": -2.0
             },
             "ambient": {
                 "r": 0.1,
@@ -35,19 +35,19 @@
                 "b": 0.1
             },
             "diffuse": {
-                "r": 0.4,
-                "g": 0.4,
-                "b": 0.4
+                "r": 0.7,
+                "g": 0.7,
+                "b": 0.7
             },
             "specular": {
-                "r": 0.1,
-                "g": 0.1,
-                "b": 0.1,
-                "exp": 10.0
+                "r": 0.4,
+                "g": 0.4,
+                "b": 0.4,
+                "exp": 100.0
             },
             "attenuation": {
                 "constant": 1.0,
-                "linear": 0.09,
+                "linear": 0.3,
                 "quadratic": 0.032
             }
         }
@@ -77,6 +77,38 @@
                     "x": 1.0,
                     "y": 1.0,
                     "z": 1.0
+                }
+            },
+            "color": {
+                "r": 255,
+                "g": 0,
+                "b": 0
+            }
+        },
+        {
+            "geometry": {
+                "type": "tetrahedral mesh",
+                "path": "../meshes/bar_tet.ply"
+            },
+            "physics": {
+                "type": "soft",
+                "mass": 1.0,
+                "velocity": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 1.0
+                }
+            },
+            "box": {
+                "min": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "max": {
+                    "x": 5.0,
+                    "y": 2.0,
+                    "z": 2.0
                 }
             },
             "color": {

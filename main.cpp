@@ -10,6 +10,7 @@ int main(int argc, char** argv)
                      "<path/to/vertex_shader.vs> <path/to/fragment_shader.fs>\n";
         return 1;
     }
+
     std::filesystem::path const scene_specification_path{argv[1]};
     std::filesystem::path const vertex_shader_path{argv[2]};
     std::filesystem::path const fragment_shader_path{argv[3]};

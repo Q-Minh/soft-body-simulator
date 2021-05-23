@@ -9,27 +9,31 @@
 namespace sbs {
 namespace physics {
 
-void triangle_mesh_node_t::prepare_for_rendering()
+static void from_triangle_mesh(
+    common::shared_vertex_triangle_mesh_t const& mesh,
+    std::vector<float>& positions,
+    std::vector<float>& normals,
+    std::vector<std::uint32_t>& indices)
 {
     /**
      * We assume the mesh deforms and might change topology constantly, so we always rebuild
      * positions, normals and topology.
      */
-    this->positions.clear();
-    this->normals.clear();
-    this->indices.clear();
+    positions.clear();
+    normals.clear();
+    indices.clear();
 
-    this->positions.reserve(this->mesh.positions.size() * 3u);
-    for (auto const& position : this->mesh.positions)
+    positions.reserve(mesh.positions.size() * 3u);
+    for (auto const& position : mesh.positions)
     {
-        this->positions.push_back(position.x);
-        this->positions.push_back(position.y);
-        this->positions.push_back(position.z);
+        positions.push_back(position.x);
+        positions.push_back(position.y);
+        positions.push_back(position.z);
     }
 
     std::unordered_map<std::uint32_t, std::vector<glm::vec3>> one_ring_neighbour_normals{};
 
-    for (auto const& triangle : this->mesh.triangles)
+    for (auto const& triangle : mesh.triangles)
     {
         auto const& v1 = triangle.v1;
         auto const& v2 = triangle.v2;
@@ -58,78 +62,29 @@ void triangle_mesh_node_t::prepare_for_rendering()
         std::vector<glm::vec3> const& neighbour_normals = one_ring_neighbour_normals[vi];
         auto const sum = std::reduce(neighbour_normals.begin(), neighbour_normals.end());
         glm::vec3 const vertex_normal = glm::normalize(sum);
-        this->normals.push_back(vertex_normal.x);
-        this->normals.push_back(vertex_normal.y);
-        this->normals.push_back(vertex_normal.z);
+        normals.push_back(vertex_normal.x);
+        normals.push_back(vertex_normal.y);
+        normals.push_back(vertex_normal.z);
     }
 
-    this->indices.reserve(this->mesh.triangles.size() * 3u);
-    for (auto const& triangle : this->mesh.triangles)
+    indices.reserve(mesh.triangles.size() * 3u);
+    for (auto const& triangle : mesh.triangles)
     {
-        this->indices.push_back(triangle.v1);
-        this->indices.push_back(triangle.v2);
-        this->indices.push_back(triangle.v3);
+        indices.push_back(triangle.v1);
+        indices.push_back(triangle.v2);
+        indices.push_back(triangle.v3);
     }
+}
+
+void triangle_mesh_node_t::prepare_for_rendering()
+{
+    from_triangle_mesh(this->mesh, this->positions, this->normals, this->indices);
 }
 
 void tetrahedral_mesh_node_t::prepare_for_rendering()
 {
-    this->positions.clear();
-    this->normals.clear();
-    this->indices.clear();
-
-    using triangle_type = std::array<std::uint32_t, 3u>;
-    std::vector<triangle_type> triangles{};
-    triangles.reserve(this->mesh.tetrahedra.size() * 4u);
-
-    for (auto const& tetrahedron : this->mesh.tetrahedra)
-    {
-        triangle_type f1{}, f2{}, f3{}, f4{};
-
-        f1[0] = tetrahedron.v1;
-        f1[1] = tetrahedron.v3;
-        f1[2] = tetrahedron.v2;
-
-        f2[0] = tetrahedron.v1;
-        f2[1] = tetrahedron.v2;
-        f2[2] = tetrahedron.v4;
-
-        f3[0] = tetrahedron.v2;
-        f3[1] = tetrahedron.v3;
-        f3[2] = tetrahedron.v4;
-
-        f4[0] = tetrahedron.v1;
-        f4[1] = tetrahedron.v4;
-        f4[2] = tetrahedron.v3;
-
-        triangles.push_back(f1);
-        triangles.push_back(f2);
-        triangles.push_back(f3);
-        triangles.push_back(f4);
-    }
-
-    auto const rotate_triangle_indices = [](triangle_type const& f) {
-        return triangle_type{f[1], f[2], f[0]};
-    };
-
-    auto const is_same_triangle =
-        [rotate_triangle_indices](triangle_type const& f1, triangle_type const& f2) {
-            triangle_type shifted_triangle{f2};
-            if (f1 == shifted_triangle)
-                return true;
-
-            shifted_triangle = rotate_triangle_indices(shifted_triangle);
-            if (f1 == shifted_triangle)
-                return true;
-
-            shifted_triangle = rotate_triangle_indices(shifted_triangle);
-            if (f1 == shifted_triangle)
-                return true;
-
-            return false;
-        };
-
-
+    auto const boundary_mesh = this->mesh.extract_boundary_surface_mesh();
+    from_triangle_mesh(boundary_mesh, this->positions, this->normals, this->indices);
 }
 
 } // namespace physics

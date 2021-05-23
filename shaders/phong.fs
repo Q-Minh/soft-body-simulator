@@ -44,7 +44,6 @@ void main()
     vec3 PointLightIntensity = GetIntensityFromPointLight(PointLight, NormalizedVertexNormal, FragmentShaderVertexPosition, ViewingDirection);
 
     vec3 LightIntensity = DirectionalLightIntensity + PointLightIntensity;
-    //FragmentColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
     FragmentColor = vec4(LightIntensity, 1.0f);
 }
 

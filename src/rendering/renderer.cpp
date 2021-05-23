@@ -203,7 +203,7 @@ void renderer_t::launch()
         shader_.set_float_uniform("DirectionalLight.exponent", directional_light.specular.exp);
 
         shader_.set_vec3_uniform(
-            "PointLight.direction",
+            "PointLight.position",
             glm::vec3{point_light.x, point_light.y, point_light.z});
         shader_.set_vec3_uniform(
             "PointLight.ambient",

@@ -24,7 +24,7 @@ ply_format_t string_to_format(std::string const& s)
 
 void write_ply(
     std::filesystem::path const& filepath,
-    geometry_t const& geometry,
+    common::geometry_t const& geometry,
     ply_format_t format)
 {
     if (!filepath.has_extension() || filepath.extension() != ".ply")
@@ -38,7 +38,7 @@ void write_ply(
     write_ply(ofs, geometry, format);
 }
 
-void write_ply(std::ostream& os, geometry_t const& geometry, ply_format_t format)
+void write_ply(std::ostream& os, common::geometry_t const& geometry, ply_format_t format)
 {
     std::string const color_component_type_str  = "uchar";
     std::string const normal_component_type_str = "float";
@@ -57,9 +57,9 @@ void write_ply(std::ostream& os, geometry_t const& geometry, ply_format_t format
     if (format == ply_format_t::binary_big_endian)
         header_stream << "format binary_big_endian 1.0\n";
 
-    geometry_t::geometry_type_t const geometry_type = geometry.geometry_type;
-    bool const is_tet_mesh      = geometry_type == geometry_t::geometry_type_t::tetrahedron;
-    bool const is_triangle_mesh = geometry_type == geometry_t::geometry_type_t::triangle;
+    common::geometry_t::geometry_type_t const geometry_type = geometry.geometry_type;
+    bool const is_tet_mesh      = geometry_type == common::geometry_t::geometry_type_t::tetrahedron;
+    bool const is_triangle_mesh = geometry_type == common::geometry_t::geometry_type_t::triangle;
 
     std::uint32_t const vertex_count = geometry.positions.size() / 3u;
     bool const has_normals           = geometry.normals.size() == geometry.positions.size();
@@ -163,7 +163,7 @@ void write_ply(std::ostream& os, geometry_t const& geometry, ply_format_t format
         }
     }
 
-    auto const write_binary_data = [&](geometry_t const& endian_correct_geometry) {
+    auto const write_binary_data = [&](common::geometry_t const& endian_correct_geometry) {
         // write vertices
         {
             for (std::size_t i = 0u; i < vertex_count; ++i)
@@ -255,8 +255,8 @@ void write_ply(std::ostream& os, geometry_t const& geometry, ply_format_t format
         }
     };
 
-    auto const transform_endianness = [](geometry_t const& geometry) {
-        geometry_t endian_correct_geometry{geometry};
+    auto const transform_endianness = [](common::geometry_t const& geometry) {
+        common::geometry_t endian_correct_geometry{geometry};
 
         for (float& coordinate : endian_correct_geometry.positions)
             coordinate = reverse_endianness(coordinate);
@@ -276,7 +276,7 @@ void write_ply(std::ostream& os, geometry_t const& geometry, ply_format_t format
     {
         if (!is_machine_little_endian())
         {
-            geometry_t const endian_correct_geometry = transform_endianness(geometry);
+            common::geometry_t const endian_correct_geometry = transform_endianness(geometry);
             write_binary_data(endian_correct_geometry);
         }
         else
@@ -289,7 +289,7 @@ void write_ply(std::ostream& os, geometry_t const& geometry, ply_format_t format
     {
         if (!is_machine_big_endian())
         {
-            geometry_t const endian_correct_geometry = transform_endianness(geometry);
+            common::geometry_t const endian_correct_geometry = transform_endianness(geometry);
             write_binary_data(endian_correct_geometry);
         }
         else
@@ -299,7 +299,7 @@ void write_ply(std::ostream& os, geometry_t const& geometry, ply_format_t format
     }
 }
 
-std::optional<geometry_t> read_ply(std::filesystem::path const& path)
+std::optional<common::geometry_t> read_ply(std::filesystem::path const& path)
 {
     if (!path.has_filename())
         return {};
@@ -318,7 +318,7 @@ std::optional<geometry_t> read_ply(std::filesystem::path const& path)
     return read_ply(fs);
 }
 
-std::optional<geometry_t> read_ply(std::istream& is)
+std::optional<common::geometry_t> read_ply(std::istream& is)
 {
     ply_header_description_t description;
 
@@ -575,10 +575,10 @@ std::vector<T> get_property_list_from_stream(
     return value_list;
 }
 
-std::optional<geometry_t>
+std::optional<common::geometry_t>
 read_ply_ascii(std::istream& is, ply_header_description_t const& description)
 {
-    geometry_t geometry;
+    common::geometry_t geometry;
 
     std::string line;
 
@@ -623,7 +623,7 @@ read_ply_ascii(std::istream& is, ply_header_description_t const& description)
             {
                 geometry.indices.resize(element.count * 3u);
             }
-            geometry.geometry_type = geometry_t::geometry_type_t::triangle;
+            geometry.geometry_type = common::geometry_t::geometry_type_t::triangle;
         }
         if (element.name == "tet")
         {
@@ -636,7 +636,7 @@ read_ply_ascii(std::istream& is, ply_header_description_t const& description)
             {
                 geometry.indices.resize(element.count * 4u);
             }
-            geometry.geometry_type = geometry_t::geometry_type_t::tetrahedron;
+            geometry.geometry_type = common::geometry_t::geometry_type_t::tetrahedron;
         }
     }
 
@@ -777,10 +777,10 @@ read_ply_ascii(std::istream& is, ply_header_description_t const& description)
     return geometry;
 }
 
-std::optional<geometry_t>
+std::optional<common::geometry_t>
 read_ply_binary(std::istream& is, ply_header_description_t const& description)
 {
-    geometry_t geometry{};
+    common::geometry_t geometry{};
 
     for (auto const& element : description.elements)
     {
@@ -825,7 +825,7 @@ read_ply_binary(std::istream& is, ply_header_description_t const& description)
             {
                 geometry.indices.resize(element.count * 3u);
             }
-            geometry.geometry_type = geometry_t::geometry_type_t::triangle;
+            geometry.geometry_type = common::geometry_t::geometry_type_t::triangle;
         }
         if (element.name == "tet")
         {
@@ -839,7 +839,7 @@ read_ply_binary(std::istream& is, ply_header_description_t const& description)
             {
                 geometry.indices.resize(element.count * 4u);
             }
-            geometry.geometry_type = geometry_t::geometry_type_t::tetrahedron;
+            geometry.geometry_type = common::geometry_t::geometry_type_t::tetrahedron;
         }
     }
 

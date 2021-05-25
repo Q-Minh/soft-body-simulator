@@ -3,9 +3,9 @@
 namespace sbs {
 namespace geometry {
 
-io::geometry_t get_simple_cloth_model(int rows, int cols)
+common::geometry_t get_simple_cloth_model(int rows, int cols)
 {
-    io::geometry_t geometry;
+    common::geometry_t geometry;
 
     for (int i = 0; i < rows; ++i)
     {
@@ -36,7 +36,7 @@ io::geometry_t get_simple_cloth_model(int rows, int cols)
         }
     }
 
-    geometry.geometry_type = io::geometry_t::geometry_type_t::triangle;
+    geometry.geometry_type = common::geometry_t::geometry_type_t::triangle;
 
     return geometry;
 }

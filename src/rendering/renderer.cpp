@@ -230,8 +230,6 @@ void renderer_t::launch()
          */
         for (auto& object : scene_.objects)
         {
-            object->prepare_for_rendering();
-
             unsigned int& VAO = object->VAO;
             unsigned int& VBO = object->VBO;
             unsigned int& EBO = object->EBO;
@@ -245,25 +243,40 @@ void renderer_t::launch()
                 3u * num_bytes_per_float /* nx,ny,nz normal components */ +
                 3u * num_bytes_per_float /* r,g,b colors */;
 
-            auto const number_of_vertices = object->positions.size() / 3u;
-            cpu_buffer.reserve(number_of_vertices);
+            auto const number_of_vertices = object->mesh.boundary_vertices().cols();
+            cpu_buffer.reserve(number_of_vertices * size_of_one_vertex);
             for (std::size_t i = 0u; i < number_of_vertices; ++i)
             {
-                auto const position_idx = i * 3u;
-                auto const normal_idx   = i * 3u;
-                auto const color_idx    = i * 3u;
+                float const x = static_cast<float>(object->mesh.boundary_vertices()(0u, i));
+                float const y = static_cast<float>(object->mesh.boundary_vertices()(1u, i));
+                float const z = static_cast<float>(object->mesh.boundary_vertices()(2u, i));
+                cpu_buffer.push_back(x);
+                cpu_buffer.push_back(y);
+                cpu_buffer.push_back(z);
 
-                cpu_buffer.push_back(object->positions[position_idx]);
-                cpu_buffer.push_back(object->positions[position_idx + 1u]);
-                cpu_buffer.push_back(object->positions[position_idx + 2u]);
+                float const nx = static_cast<float>(object->mesh.normals()(0u, i));
+                float const ny = static_cast<float>(object->mesh.normals()(1u, i));
+                float const nz = static_cast<float>(object->mesh.normals()(2u, i));
+                cpu_buffer.push_back(nx);
+                cpu_buffer.push_back(ny);
+                cpu_buffer.push_back(nz);
 
-                cpu_buffer.push_back(object->normals[normal_idx]);
-                cpu_buffer.push_back(object->normals[normal_idx + 1u]);
-                cpu_buffer.push_back(object->normals[normal_idx + 2u]);
+                float const r = static_cast<float>(object->mesh.colors()(0u, i));
+                float const g = static_cast<float>(object->mesh.colors()(1u, i));
+                float const b = static_cast<float>(object->mesh.colors()(2u, i));
+                cpu_buffer.push_back(r);
+                cpu_buffer.push_back(g);
+                cpu_buffer.push_back(b);
+            }
 
-                cpu_buffer.push_back(object->colors[color_idx]);
-                cpu_buffer.push_back(object->colors[color_idx + 1u]);
-                cpu_buffer.push_back(object->colors[color_idx + 2u]);
+            auto const number_of_faces = object->mesh.faces().cols();
+            std::vector<std::uint32_t> indices{};
+            indices.reserve(number_of_faces);
+            for (std::size_t f = 0u; f < number_of_faces; ++f)
+            {
+                indices.push_back(object->mesh.faces()(0u, f));
+                indices.push_back(object->mesh.faces()(1u, f));
+                indices.push_back(object->mesh.faces()(2u, f));
             }
 
             /**
@@ -276,13 +289,13 @@ void renderer_t::launch()
                 cpu_buffer.data(),
                 GL_DYNAMIC_DRAW);
 
-            auto constexpr num_bytes_per_index = sizeof(decltype(object->indices.front()));
+            auto constexpr num_bytes_per_index = sizeof(decltype(indices.front()));
 
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
             glBufferData(
                 GL_ELEMENT_ARRAY_BUFFER,
-                object->indices.size() * num_bytes_per_index,
-                object->indices.data(),
+                indices.size() * num_bytes_per_index,
+                indices.data(),
                 GL_DYNAMIC_DRAW);
 
             /**
@@ -324,7 +337,7 @@ void renderer_t::launch()
             /**
              * Draw the mesh
              */
-            glDrawElements(GL_TRIANGLES, object->indices.size(), GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
 
             /**
              * Unbind buffers and vertex arrays

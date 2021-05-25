@@ -1,51 +1,86 @@
 #ifndef SBS_COMMON_MESH_H
 #define SBS_COMMON_MESH_H
 
+#include "geometry.h"
+
+#include <Eigen/Core>
 #include <vector>
 
 namespace sbs {
 namespace common {
 
-struct shared_vertex_triangle_mesh_t
+/**
+ * @brief Tetrahedral mesh type
+ */
+class shared_vertex_mesh_t
 {
-    struct position_t
-    {
-        double x, y, z;
-    };
+  public:
+    using index_type       = std::uint32_t;
+    using positions_type   = Eigen::Matrix3Xd;
+    using tetrahedra_type  = Eigen::Matrix<index_type, 4, Eigen::Dynamic>;
+    using triangles_type   = Eigen::Matrix<index_type, 3, Eigen::Dynamic>;
+    using masses_type      = Eigen::VectorXd;
+    using velocities_type  = Eigen::Matrix3Xd;
+    using tetrahedron_type = Eigen::Matrix<index_type, 4, 1>;
+    using triangle_type    = Eigen::Matrix<index_type, 3, 1>;
 
-    struct triangle_t
-    {
-        std::uint32_t v1, v2, v3;
-    };
+    shared_vertex_mesh_t() = default;
+    shared_vertex_mesh_t(common::geometry_t const& geometry);
 
     void rescale(
-        position_t const& boxmin = position_t{-1., -1., -1.},
-        position_t const& boxmax = position_t{+1., +1., +1.});
+        Eigen::Vector3d const& boxmin = Eigen::Vector3d{-1., -1., -1.},
+        Eigen::Vector3d const& boxmax = Eigen::Vector3d{+1., +1., +1.});
 
-    std::vector<position_t> positions;
-    std::vector<triangle_t> triangles;
-};
+    positions_type const& positions() const;
+    positions_type& positions();
 
-struct shared_vertex_tetrahedral_mesh_t
-{
-    struct position_t
-    {
-        double x, y, z;
-    };
+    tetrahedra_type const& elements() const;
+    tetrahedra_type& elements();
 
-    struct tetrahedron_t
-    {
-        std::uint32_t v1, v2, v3, v4;
-    };
+    triangles_type const& faces() const;
+    triangles_type& faces();
 
-    void rescale(
-        position_t const& boxmin = position_t{-1., -1., -1.},
-        position_t const& boxmax = position_t{+1., +1., +1.});
+    masses_type const& masses() const;
+    masses_type& masses();
 
-    std::vector<position_t> positions;
-    std::vector<tetrahedron_t> tetrahedra;
+    velocities_type const& velocities() const;
+    velocities_type& velocities();
 
-    shared_vertex_triangle_mesh_t extract_boundary_surface_mesh() const;
+    /**
+     * Rendering
+     */
+    using uv_coordinates_type = Eigen::Matrix2Xf;
+    using normals_type        = Eigen::Matrix3Xd;
+    using colors_type         = Eigen::Matrix3Xf;
+
+    positions_type const& boundary_vertices() const;
+    positions_type& boundary_vertices();
+
+    uv_coordinates_type const& uvs() const;
+    uv_coordinates_type& uvs();
+
+    normals_type const& normals() const;
+    normals_type& normals();
+
+    colors_type const& colors() const;
+    colors_type& colors();
+
+    void extract_boundary_surface_mesh();
+    void extract_boundary_normals();
+
+  private:
+    positions_type positions_;
+    tetrahedra_type tetrahedra_;
+    masses_type masses_;
+    velocities_type velocities_;
+    uv_coordinates_type uvs_;
+    colors_type colors_;
+
+    triangles_type boundary_faces_;
+    positions_type boundary_vertices_;
+    uv_coordinates_type boundary_uvs_;
+    colors_type boundary_colors_;
+    normals_type normals_;
 };
 
 } // namespace common

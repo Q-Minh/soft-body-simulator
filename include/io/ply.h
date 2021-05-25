@@ -6,7 +6,7 @@
  * @ingroup io
  */
 
-#include "io/geometry.h"
+#include "common/geometry.h"
 
 #include <array>
 #include <filesystem>
@@ -59,7 +59,7 @@ ply_format_t string_to_format(std::string const& s);
  */
 void write_ply(
     std::filesystem::path const& filepath,
-    geometry_t const& geometry,
+    common::geometry_t const& geometry,
     ply_format_t format = ply_format_t::ascii);
 
 /**
@@ -68,33 +68,33 @@ void write_ply(
  */
 void write_ply(
     std::ostream& os,
-    geometry_t const& geometry,
+    common::geometry_t const& geometry,
     ply_format_t format = ply_format_t::ascii);
 
 /**
  * @ingroup io-ply
  * @brief
  */
-std::optional<geometry_t> read_ply(std::filesystem::path const& path);
+std::optional<common::geometry_t> read_ply(std::filesystem::path const& path);
 
 /**
  * @ingroup io-ply
  * @brief
  */
-std::optional<geometry_t> read_ply(std::istream& is);
+std::optional<common::geometry_t> read_ply(std::istream& is);
 
 /**
  * @ingroup io-ply
  * @brief
  */
-std::optional<geometry_t>
+std::optional<common::geometry_t>
 read_ply_ascii(std::istream& is, ply_header_description_t const& description);
 
 /**
  * @ingroup io-ply
  * @brief
  */
-std::optional<geometry_t>
+std::optional<common::geometry_t>
 read_ply_binary(std::istream& is, ply_header_description_t const& description);
 
 } // namespace io

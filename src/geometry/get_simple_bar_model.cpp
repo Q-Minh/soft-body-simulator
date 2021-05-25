@@ -3,9 +3,9 @@
 namespace sbs {
 namespace geometry {
 
-io::geometry_t get_simple_bar_model(std::size_t width, std::size_t height, std::size_t depth)
+common::geometry_t get_simple_bar_model(std::size_t width, std::size_t height, std::size_t depth)
 {
-    io::geometry_t geometry;
+    common::geometry_t geometry;
     geometry.positions.resize(width * height * depth * 3u);
 
     for (auto i = 0; i < width; ++i)
@@ -116,7 +116,7 @@ io::geometry_t get_simple_bar_model(std::size_t width, std::size_t height, std::
         }
     }
 
-    geometry.geometry_type = io::geometry_t::geometry_type_t::tetrahedron;
+    geometry.geometry_type = common::geometry_t::geometry_type_t::tetrahedron;
 
     return geometry;
 }

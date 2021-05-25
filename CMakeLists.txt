@@ -32,6 +32,7 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/main.cpp"
 
     # common
+    "${CMAKE_CURRENT_LIST_DIR}/include/common/geometry.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/common/mesh.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/common/node.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/common/scene.h"
@@ -49,7 +50,6 @@ PRIVATE
 
     # io
     "${CMAKE_CURRENT_LIST_DIR}/include/io/endianness.hpp"
-    "${CMAKE_CURRENT_LIST_DIR}/include/io/geometry.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/io/load_scene.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/io/ply.h"
 
@@ -57,13 +57,15 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/src/io/ply.cpp"
 
     # physics
-    "${CMAKE_CURRENT_LIST_DIR}/include/physics/mesh.h"
-    "${CMAKE_CURRENT_LIST_DIR}/include/physics/node.h"
-    "${CMAKE_CURRENT_LIST_DIR}/include/physics/scene.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/constraint.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/distance_constraint.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/green_constraint.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/solver.h"
 
-    "${CMAKE_CURRENT_LIST_DIR}/src/physics/mesh.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/src/physics/node.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/src/physics/scene.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/constraint.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/distance_constraint.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/green_constraint.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/solver.cpp"
 
     # rendering
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/camera.h"

@@ -4,7 +4,7 @@
 #include <vector>
 
 namespace sbs {
-namespace io {
+namespace common {
 
 struct geometry_t
 {
@@ -18,7 +18,7 @@ struct geometry_t
     geometry_type_t geometry_type;
 };
 
-} // namespace io
+} // namespace common
 } // namespace sbs
 
 #endif // SBS_IO_GEOMETRY_H

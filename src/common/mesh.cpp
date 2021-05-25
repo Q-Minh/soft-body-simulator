@@ -1,140 +1,249 @@
 #include "common/mesh.h"
 
+#include <Eigen/Geometry>
 #include <algorithm>
 #include <array>
 #include <map>
-#include <numeric>
+#include <optional>
 
 namespace sbs {
 namespace common {
 
-template <class PositionType>
-static void rescale_internal(
-    PositionType const& boxmin,
-    PositionType const& boxmax,
-    std::vector<PositionType>& positions)
+shared_vertex_mesh_t::shared_vertex_mesh_t(common::geometry_t const& geometry)
 {
-    using position_t = PositionType;
+    auto const num_vertices = geometry.positions.size() / 3u;
+    positions_.resize(3u, num_vertices);
+    for (std::size_t i = 0u; i < num_vertices; ++i)
+    {
+        auto const xidx = i * 3u;
+        auto const yidx = i * 3u + 1u;
+        auto const zidx = i * 3u + 2u;
 
-    auto const min_reduce_op = [](position_t const& current_min, position_t const& p) {
-        position_t new_min{current_min};
-        if (p.x < current_min.x)
-            new_min.x = p.x;
-        if (p.y < current_min.y)
-            new_min.y = p.y;
-        if (p.z < current_min.z)
-            new_min.z = p.z;
+        auto const x = static_cast<double>(geometry.positions[xidx]);
+        auto const y = static_cast<double>(geometry.positions[yidx]);
+        auto const z = static_cast<double>(geometry.positions[zidx]);
 
-        return new_min;
-    };
+        positions_.col(i) = Eigen::Vector3d{x, y, z};
+    }
 
-    auto const max_reduce_op = [](position_t const& current_max, position_t const& p) {
-        position_t new_max{current_max};
-        if (p.x > current_max.x)
-            new_max.x = p.x;
-        if (p.y > current_max.y)
-            new_max.y = p.y;
-        if (p.z > current_max.z)
-            new_max.z = p.z;
+    auto const num_colors = geometry.colors.size() / 3u;
+    colors_.resize(3u, num_colors);
+    for (std::size_t i = 0u; i < num_colors; ++i)
+    {
+        auto const ridx = i * 3u;
+        auto const gidx = i * 3u + 1u;
+        auto const bidx = i * 3u + 2u;
 
-        return new_max;
-    };
+        auto const r = static_cast<float>(geometry.colors[ridx]) / 255.f;
+        auto const g = static_cast<float>(geometry.colors[gidx]) / 255.f;
+        auto const b = static_cast<float>(geometry.colors[bidx]) / 255.f;
 
-    position_t const min_position =
-        std::reduce(positions.begin(), positions.end(), positions.front(), min_reduce_op);
+        colors_.col(i) = Eigen::Vector3f{r, g, b};
+    }
 
-    position_t const max_position =
-        std::reduce(positions.begin(), positions.end(), positions.front(), max_reduce_op);
+    auto const num_uvs = geometry.uvs.size() / 2u;
+    uvs_.resize(2u, num_uvs);
+    for (std::size_t i = 0u; i < num_uvs; ++i)
+    {
+        auto const uidx = i * 2u;
+        auto const vidx = i * 2u + 1u;
 
-    double const dx = max_position.x - min_position.x;
-    double const dy = max_position.y - min_position.y;
-    double const dz = max_position.z - min_position.z;
+        auto const u = geometry.uvs[uidx];
+        auto const v = geometry.uvs[vidx];
 
-    double constexpr eps           = 1e-8;
-    bool const dx_division_by_zero = std::abs(dx) < eps;
-    bool const dy_division_by_zero = std::abs(dy) < eps;
-    bool const dz_division_by_zero = std::abs(dz) < eps;
+        uvs_.col(i) = Eigen::Vector2f{u, v};
+    }
 
-    auto const map_to_new_box = [=](position_t const& pos) {
-        position_t rescaled_p{};
-        rescaled_p.x = dx_division_by_zero ?
-                           pos.x :
-                           boxmin.x + (boxmax.x - boxmin.x) * (pos.x - min_position.x) / dx;
-        rescaled_p.y = dy_division_by_zero ?
-                           pos.y :
-                           boxmin.y + (boxmax.y - boxmin.y) * (pos.y - min_position.y) / dy;
-        rescaled_p.z = dz_division_by_zero ?
-                           pos.z :
-                           boxmin.z + (boxmax.z - boxmin.z) * (pos.z - min_position.z) / dz;
-        return rescaled_p;
-    };
+    if (geometry.geometry_type == common::geometry_t::geometry_type_t::triangle)
+    {
+        auto const num_triangles = geometry.indices.size() / 3u;
+        boundary_faces_.resize(3u, num_triangles);
+        for (std::size_t f = 0u; f < num_triangles; ++f)
+        {
+            auto const v1idx = f * 3u;
+            auto const v2idx = f * 3u + 1u;
+            auto const v3idx = f * 3u + 2u;
 
-    std::transform(
-        positions.begin(),
-        positions.end(),
-        positions.begin(),
-        [map_to_new_box](position_t const& pos) { return map_to_new_box(pos); });
+            auto const v1 = static_cast<std::uint32_t>(geometry.indices[v1idx]);
+            auto const v2 = static_cast<std::uint32_t>(geometry.indices[v2idx]);
+            auto const v3 = static_cast<std::uint32_t>(geometry.indices[v3idx]);
+
+            boundary_faces_.col(f) = triangle_type{v1, v2, v3};
+        }
+        boundary_vertices_ = positions_;
+        boundary_colors_   = colors_;
+    }
+
+    if (geometry.geometry_type == common::geometry_t::geometry_type_t::tetrahedron)
+    {
+        auto const num_tets = geometry.indices.size() / 4u;
+        tetrahedra_.resize(4u, num_tets);
+        for (std::size_t e = 0u; e < num_tets; ++e)
+        {
+            auto const v1idx = e * 4u;
+            auto const v2idx = e * 4u + 1u;
+            auto const v3idx = e * 4u + 2u;
+            auto const v4idx = e * 4u + 3u;
+
+            auto const v1 = static_cast<std::uint32_t>(geometry.indices[v1idx]);
+            auto const v2 = static_cast<std::uint32_t>(geometry.indices[v2idx]);
+            auto const v3 = static_cast<std::uint32_t>(geometry.indices[v3idx]);
+            auto const v4 = static_cast<std::uint32_t>(geometry.indices[v4idx]);
+
+            tetrahedra_.col(e) = tetrahedron_type{v1, v2, v3, v4};
+        }
+        this->extract_boundary_surface_mesh();
+    }
+
+    this->extract_boundary_normals();
 }
 
-void shared_vertex_triangle_mesh_t::rescale(position_t const& boxmin, position_t const& boxmax)
+shared_vertex_mesh_t::positions_type const& shared_vertex_mesh_t::positions() const
 {
-    rescale_internal(boxmin, boxmax, this->positions);
+    return positions_;
 }
 
-void shared_vertex_tetrahedral_mesh_t::rescale(position_t const& boxmin, position_t const& boxmax)
+shared_vertex_mesh_t::positions_type& shared_vertex_mesh_t::positions()
 {
-    rescale_internal(boxmin, boxmax, this->positions);
+    return positions_;
 }
 
-shared_vertex_triangle_mesh_t
-shared_vertex_tetrahedral_mesh_t::extract_boundary_surface_mesh() const
+shared_vertex_mesh_t::tetrahedra_type const& shared_vertex_mesh_t::elements() const
 {
-    using triangle_type = std::array<std::uint32_t, 3u>;
-    std::vector<triangle_type> triangles{};
-    triangles.reserve(this->tetrahedra.size() * 4u);
+    return tetrahedra_;
+}
+
+shared_vertex_mesh_t::tetrahedra_type& shared_vertex_mesh_t::elements()
+{
+    return tetrahedra_;
+}
+
+shared_vertex_mesh_t::masses_type const& shared_vertex_mesh_t::masses() const
+{
+    return masses_;
+}
+
+shared_vertex_mesh_t::masses_type& shared_vertex_mesh_t::masses()
+{
+    return masses_;
+}
+
+shared_vertex_mesh_t::velocities_type const& shared_vertex_mesh_t::velocities() const
+{
+    return velocities_;
+}
+
+shared_vertex_mesh_t::velocities_type& shared_vertex_mesh_t::velocities()
+{
+    return velocities_;
+}
+
+shared_vertex_mesh_t::positions_type const& shared_vertex_mesh_t::boundary_vertices() const
+{
+    return boundary_vertices_;
+}
+
+shared_vertex_mesh_t::positions_type& shared_vertex_mesh_t::boundary_vertices()
+{
+    return boundary_vertices_;
+}
+
+shared_vertex_mesh_t::uv_coordinates_type const& shared_vertex_mesh_t::uvs() const
+{
+    return boundary_uvs_;
+}
+shared_vertex_mesh_t::uv_coordinates_type& shared_vertex_mesh_t::uvs()
+{
+    return boundary_uvs_;
+}
+
+shared_vertex_mesh_t::normals_type const& shared_vertex_mesh_t::normals() const
+{
+    return normals_;
+}
+shared_vertex_mesh_t::normals_type& shared_vertex_mesh_t::normals()
+{
+    return normals_;
+}
+
+shared_vertex_mesh_t::colors_type const& shared_vertex_mesh_t::colors() const
+{
+    return boundary_colors_;
+}
+shared_vertex_mesh_t::colors_type& shared_vertex_mesh_t::colors()
+{
+    return boundary_colors_;
+}
+
+shared_vertex_mesh_t::triangles_type const& shared_vertex_mesh_t::faces() const
+{
+    return boundary_faces_;
+}
+
+shared_vertex_mesh_t::triangles_type& shared_vertex_mesh_t::faces()
+{
+    return boundary_faces_;
+}
+
+void shared_vertex_mesh_t::extract_boundary_surface_mesh()
+{
+    triangles_type triangles{};
+    triangles.resize(3u, tetrahedra_.cols() * 4u);
 
     /**
      * Extract all triangles from tet mesh (all 4 faces of all tets)
      */
-    for (auto const& tetrahedron : this->tetrahedra)
+    for (std::size_t e = 0u; e < tetrahedra_.cols(); ++e)
     {
-        triangle_type f1{}, f2{}, f3{}, f4{};
+        tetrahedron_type const tetrahedron = tetrahedra_.col(e);
+        auto const v1                      = tetrahedron(0u);
+        auto const v2                      = tetrahedron(1u);
+        auto const v3                      = tetrahedron(2u);
+        auto const v4                      = tetrahedron(3u);
 
-        f1[0] = tetrahedron.v1;
-        f1[1] = tetrahedron.v3;
-        f1[2] = tetrahedron.v2;
+        std::size_t const f1 = e * 4u;
+        std::size_t const f2 = e * 4u + 1u;
+        std::size_t const f3 = e * 4u + 2u;
+        std::size_t const f4 = e * 4u + 3u;
 
-        f2[0] = tetrahedron.v1;
-        f2[1] = tetrahedron.v2;
-        f2[2] = tetrahedron.v4;
+        triangles(0u, f1) = v1;
+        triangles(1u, f1) = v3;
+        triangles(2u, f1) = v2;
 
-        f3[0] = tetrahedron.v2;
-        f3[1] = tetrahedron.v3;
-        f3[2] = tetrahedron.v4;
+        triangles(0u, f2) = v1;
+        triangles(1u, f2) = v2;
+        triangles(2u, f2) = v4;
 
-        f4[0] = tetrahedron.v1;
-        f4[1] = tetrahedron.v4;
-        f4[2] = tetrahedron.v3;
+        triangles(0u, f3) = v2;
+        triangles(1u, f3) = v3;
+        triangles(2u, f3) = v4;
 
-        triangles.push_back(f1);
-        triangles.push_back(f2);
-        triangles.push_back(f3);
-        triangles.push_back(f4);
+        triangles(0u, f4) = v1;
+        triangles(1u, f4) = v4;
+        triangles(2u, f4) = v3;
     }
 
     /**
      * Reorder triangle indices in the same order for all triangles
      */
-    std::vector<triangle_type> triangle_copies{triangles};
-    for (auto& triangle : triangle_copies)
+    std::vector<std::array<std::uint32_t, 3u>> triangle_copies{};
+    triangle_copies.reserve(triangles.cols());
+
+    for (std::size_t f = 0u; f < triangles.cols(); ++f)
     {
+        std::array<std::uint32_t, 3u> triangle{
+            triangles(0u, f),
+            triangles(1u, f),
+            triangles(2u, f)};
+
         std::sort(triangle.begin(), triangle.end());
+        triangle_copies.push_back(triangle);
     }
 
     /**
      * Count number of times each triangle is present in the tet mesh.
      */
-    std::map<triangle_type, std::uint32_t> triangle_occurrences{};
+    std::map<std::array<std::uint32_t, 3u>, std::uint32_t> triangle_occurrences{};
     for (auto const& triangle : triangle_copies)
     {
         if (triangle_occurrences.find(triangle) == triangle_occurrences.end())
@@ -147,29 +256,151 @@ shared_vertex_tetrahedral_mesh_t::extract_boundary_surface_mesh() const
         }
     }
 
-    shared_vertex_triangle_mesh_t boundary_mesh{};
-    for (std::size_t i = 0u; i < triangles.size(); ++i)
+    std::vector<std::array<std::uint32_t, 3u>> boundary_triangles{};
+    boundary_triangles.reserve(triangle_copies.size());
+
+    std::vector<std::optional<std::uint32_t>> index_map(
+        positions_.cols(),
+        std::optional<std::uint32_t>{});
+
+    std::size_t boundary_vertices_size = 0u;
+    for (std::size_t f = 0u; f < triangle_copies.size(); ++f)
     {
         /**
          * Boundary triangles should only be present once in the tet mesh, since
          * there is no adjacent face to it.
          */
-        if (triangle_occurrences[triangle_copies[i]] != 1u)
+        if (triangle_occurrences[triangle_copies[f]] != 1u)
             continue;
 
-        boundary_mesh.triangles.push_back(shared_vertex_triangle_mesh_t::triangle_t{
-            triangles[i][0],
-            triangles[i][1],
-            triangles[i][2]});
+        auto const v1 = triangles(0u, f);
+        auto const v2 = triangles(1u, f);
+        auto const v3 = triangles(2u, f);
+
+        if (!index_map[v1].has_value())
+        {
+            index_map[v1] = boundary_vertices_size++;
+        }
+        if (!index_map[v2].has_value())
+        {
+            index_map[v2] = boundary_vertices_size++;
+        }
+        if (!index_map[v3].has_value())
+        {
+            index_map[v3] = boundary_vertices_size++;
+        }
+
+        boundary_triangles.push_back(
+            {index_map[v1].value(), index_map[v2].value(), index_map[v3].value()});
     }
 
-    for (auto const& position : this->positions)
+    bool const has_uvs = uvs_.cols() != 0u;
+
+    boundary_vertices_.resize(3u, boundary_vertices_size);
+    boundary_colors_.resize(3u, boundary_vertices_size);
+    boundary_uvs_.resize(2u, boundary_vertices_size);
+
+    for (std::size_t i = 0u; i < index_map.size(); ++i)
     {
-        boundary_mesh.positions.push_back(
-            shared_vertex_triangle_mesh_t::position_t{position.x, position.y, position.z});
+        if (index_map[i].has_value())
+        {
+            boundary_vertices_.col(index_map[i].value()) = positions_.col(i);
+            boundary_colors_.col(index_map[i].value())   = colors_.col(i);
+
+            if (has_uvs)
+                boundary_uvs_.col(index_map[i].value()) = uvs_.col(i);
+        }
     }
 
-    return boundary_mesh;
+    boundary_faces_.resize(3u, boundary_triangles.size());
+    for (std::size_t f = 0u; f < boundary_triangles.size(); ++f)
+    {
+        boundary_faces_(0u, f) = boundary_triangles[f][0u];
+        boundary_faces_(1u, f) = boundary_triangles[f][1u];
+        boundary_faces_(2u, f) = boundary_triangles[f][2u];
+    }
+}
+
+void shared_vertex_mesh_t::extract_boundary_normals()
+{
+    normals_.resizeLike(boundary_vertices_);
+    normals_.setZero();
+
+    for (std::size_t f = 0u; f < boundary_faces_.cols(); ++f)
+    {
+        triangle_type const triangle = boundary_faces_.col(f);
+
+        auto const v1 = triangle(0u);
+        auto const v2 = triangle(1u);
+        auto const v3 = triangle(2u);
+
+        Eigen::Vector3d const p1 = boundary_vertices_.col(v1);
+        Eigen::Vector3d const p2 = boundary_vertices_.col(v2);
+        Eigen::Vector3d const p3 = boundary_vertices_.col(v3);
+
+        Eigen::Vector3d const p21 = p2 - p1;
+        Eigen::Vector3d const p31 = p3 - p1;
+
+        Eigen::Vector3d const area_weighted_normal = 0.5 * p21.cross(p31);
+        normals_.col(v1) += area_weighted_normal;
+        normals_.col(v2) += area_weighted_normal;
+        normals_.col(v3) += area_weighted_normal;
+    }
+
+    normals_.colwise().normalize();
+}
+
+void shared_vertex_mesh_t::rescale(Eigen::Vector3d const& boxmin, Eigen::Vector3d const& boxmax)
+{
+    Eigen::Vector3d const min = positions_.rowwise().minCoeff();
+    Eigen::Vector3d const max = positions_.rowwise().maxCoeff();
+
+    double const dx = max.x() - min.x();
+    double const dy = max.y() - min.y();
+    double const dz = max.z() - min.z();
+
+    double constexpr eps           = 1e-8;
+    bool const dx_division_by_zero = std::abs(dx) < eps;
+    bool const dy_division_by_zero = std::abs(dy) < eps;
+    bool const dz_division_by_zero = std::abs(dz) < eps;
+
+    for (std::size_t i = 0u; i < positions_.cols(); ++i)
+    {
+        Eigen::Vector3d const p = positions_.col(i);
+
+        auto const x = dx_division_by_zero ?
+                           p.x() :
+                           boxmin.x() + (boxmax.x() - boxmin.x()) * (p.x() - min.x()) / dx;
+        auto const y = dy_division_by_zero ?
+                           p.y() :
+                           boxmin.y() + (boxmax.y() - boxmin.y()) * (p.y() - min.y()) / dy;
+        auto const z = dz_division_by_zero ?
+                           p.z() :
+                           boxmin.z() + (boxmax.z() - boxmin.z()) * (p.z() - min.z()) / dz;
+
+        positions_(0u, i) = x;
+        positions_(1u, i) = y;
+        positions_(2u, i) = z;
+    }
+
+    for (std::size_t i = 0u; i < boundary_vertices_.cols(); ++i)
+    {
+        Eigen::Vector3d const p = boundary_vertices_.col(i);
+
+        auto const x = dx_division_by_zero ?
+                           p.x() :
+                           boxmin.x() + (boxmax.x() - boxmin.x()) * (p.x() - min.x()) / dx;
+        auto const y = dy_division_by_zero ?
+                           p.y() :
+                           boxmin.y() + (boxmax.y() - boxmin.y()) * (p.y() - min.y()) / dy;
+        auto const z = dz_division_by_zero ?
+                           p.z() :
+                           boxmin.z() + (boxmax.z() - boxmin.z()) * (p.z() - min.z()) / dz;
+
+        boundary_vertices_(0u, i) = x;
+        boundary_vertices_(1u, i) = y;
+        boundary_vertices_(2u, i) = z;
+    }
 }
 
 } // namespace common

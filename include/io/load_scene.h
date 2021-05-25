@@ -3,7 +3,6 @@
 
 #include "common/scene.h"
 #include "io/ply.h"
-#include "physics/node.h"
 
 #include <filesystem>
 #include <fstream>

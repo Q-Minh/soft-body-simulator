@@ -2,6 +2,7 @@
 #define SBS_COMMON_NODE_H
 
 #include <vector>
+#include "mesh.h"
 
 namespace sbs {
 namespace common {
@@ -11,13 +12,10 @@ namespace common {
  */
 struct node_t
 {
-    virtual void prepare_for_rendering() = 0;
+    enum class body_type_t { soft, rigid };
+    body_type_t body_type;
 
-    std::vector<float> positions;
-    std::vector<unsigned int> indices;
-    std::vector<float> normals;
-    std::vector<float> uvs;
-    std::vector<float> colors;
+    shared_vertex_mesh_t mesh;
 
     enum class render_state_t { dirty, clean };
     render_state_t render_state;

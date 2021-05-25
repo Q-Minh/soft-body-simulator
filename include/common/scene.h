@@ -3,7 +3,7 @@
 
 #include "node.h"
 
-#include <list>
+#include <vector>
 #include <memory>
 
 namespace sbs {
@@ -11,7 +11,7 @@ namespace common {
 
 struct scene_t
 {
-    std::list<std::shared_ptr<node_t>> objects;
+    std::vector<std::shared_ptr<node_t>> objects;
 
     struct ambient_t
     {

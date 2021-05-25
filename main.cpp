@@ -23,6 +23,10 @@ int main(int argc, char** argv)
     /**
      * physics update goes here
      */
+    renderer.on_scene_loaded = [](sbs::common::scene_t& scene) {
+
+    };
+
     renderer.on_new_frame = [](double render_frame_dt, sbs::common::scene_t& scene) {
 
     };

@@ -128,6 +128,8 @@ bool renderer_t::initialize(std::filesystem::path const& scene_path)
         glGenBuffers(1, &EBO);
     }
 
+    on_scene_loaded(scene_);
+
     return true;
 }
 
@@ -158,6 +160,8 @@ void renderer_t::launch()
         last_frame_time = now;
 
         process_input(window_, dt);
+
+        on_new_frame(dt, scene_);
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

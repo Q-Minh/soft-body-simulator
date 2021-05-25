@@ -68,6 +68,7 @@ class renderer_t : public renderer_base_t
     std::uint32_t constexpr get_initial_window_width() const { return 800u; }
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
+    std::function<void(common::scene_t&)> on_scene_loaded;
     std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene_*/)> on_new_frame;
 
   private:

@@ -57,7 +57,7 @@ shared_vertex_mesh_t::shared_vertex_mesh_t(common::geometry_t const& geometry)
     if (geometry.geometry_type == common::geometry_t::geometry_type_t::triangle)
     {
         auto const num_triangles = geometry.indices.size() / 3u;
-        boundary_faces_.resize(3u, num_triangles);
+        elements_.resize(3u, num_triangles);
         for (std::size_t f = 0u; f < num_triangles; ++f)
         {
             auto const v1idx = f * 3u;
@@ -68,16 +68,18 @@ shared_vertex_mesh_t::shared_vertex_mesh_t(common::geometry_t const& geometry)
             auto const v2 = static_cast<std::uint32_t>(geometry.indices[v2idx]);
             auto const v3 = static_cast<std::uint32_t>(geometry.indices[v3idx]);
 
-            boundary_faces_.col(f) = triangle_type{v1, v2, v3};
+            elements_.col(f) = triangle_type{v1, v2, v3};
         }
         boundary_vertices_ = positions_;
+        boundary_faces_    = elements_;
         boundary_colors_   = colors_;
+        boundary_uvs_      = uvs_;
     }
 
     if (geometry.geometry_type == common::geometry_t::geometry_type_t::tetrahedron)
     {
         auto const num_tets = geometry.indices.size() / 4u;
-        tetrahedra_.resize(4u, num_tets);
+        elements_.resize(4u, num_tets);
         for (std::size_t e = 0u; e < num_tets; ++e)
         {
             auto const v1idx = e * 4u;
@@ -90,12 +92,19 @@ shared_vertex_mesh_t::shared_vertex_mesh_t(common::geometry_t const& geometry)
             auto const v3 = static_cast<std::uint32_t>(geometry.indices[v3idx]);
             auto const v4 = static_cast<std::uint32_t>(geometry.indices[v4idx]);
 
-            tetrahedra_.col(e) = tetrahedron_type{v1, v2, v3, v4};
+            elements_.col(e) = tetrahedron_type{v1, v2, v3, v4};
         }
         this->extract_boundary_surface_mesh();
     }
 
     this->extract_boundary_normals();
+
+    masses_.resize(positions_.cols());
+    masses_.setOnes();
+    velocities_.resize(3u, positions_.cols());
+    velocities_.setZero();
+    forces_.resize(3u, positions_.cols());
+    forces_.setZero();
 }
 
 shared_vertex_mesh_t::positions_type const& shared_vertex_mesh_t::positions() const
@@ -108,14 +117,14 @@ shared_vertex_mesh_t::positions_type& shared_vertex_mesh_t::positions()
     return positions_;
 }
 
-shared_vertex_mesh_t::tetrahedra_type const& shared_vertex_mesh_t::elements() const
+shared_vertex_mesh_t::elements_type const& shared_vertex_mesh_t::elements() const
 {
-    return tetrahedra_;
+    return elements_;
 }
 
-shared_vertex_mesh_t::tetrahedra_type& shared_vertex_mesh_t::elements()
+shared_vertex_mesh_t::elements_type& shared_vertex_mesh_t::elements()
 {
-    return tetrahedra_;
+    return elements_;
 }
 
 shared_vertex_mesh_t::masses_type const& shared_vertex_mesh_t::masses() const
@@ -138,12 +147,22 @@ shared_vertex_mesh_t::velocities_type& shared_vertex_mesh_t::velocities()
     return velocities_;
 }
 
-shared_vertex_mesh_t::positions_type const& shared_vertex_mesh_t::boundary_vertices() const
+shared_vertex_mesh_t::forces_type const& shared_vertex_mesh_t::forces() const
+{
+    return forces_;
+}
+
+shared_vertex_mesh_t::forces_type& shared_vertex_mesh_t::forces()
+{
+    return forces_;
+}
+
+shared_vertex_mesh_t::positions_type const& shared_vertex_mesh_t::vertices() const
 {
     return boundary_vertices_;
 }
 
-shared_vertex_mesh_t::positions_type& shared_vertex_mesh_t::boundary_vertices()
+shared_vertex_mesh_t::positions_type& shared_vertex_mesh_t::vertices()
 {
     return boundary_vertices_;
 }
@@ -187,136 +206,157 @@ shared_vertex_mesh_t::triangles_type& shared_vertex_mesh_t::faces()
 
 void shared_vertex_mesh_t::extract_boundary_surface_mesh()
 {
-    triangles_type triangles{};
-    triangles.resize(3u, tetrahedra_.cols() * 4u);
+    bool const is_triangle_mesh = elements_.rows() == 3u;
+    bool const is_tet_mesh      = elements_.rows() == 4u;
 
     /**
-     * Extract all triangles from tet mesh (all 4 faces of all tets)
+     * This is a triangle mesh
      */
-    index_type const num_tetrahedra = static_cast<index_type>(tetrahedra_.cols());
-    for (index_type e = 0u; e < num_tetrahedra; ++e)
+    if (is_triangle_mesh)
     {
-        tetrahedron_type const tetrahedron = tetrahedra_.col(e);
-        auto const v1                      = tetrahedron(0u);
-        auto const v2                      = tetrahedron(1u);
-        auto const v3                      = tetrahedron(2u);
-        auto const v4                      = tetrahedron(3u);
-
-        index_type const f1 = e * 4u;
-        index_type const f2 = e * 4u + 1u;
-        index_type const f3 = e * 4u + 2u;
-        index_type const f4 = e * 4u + 3u;
-
-        triangles(0u, f1) = v1;
-        triangles(1u, f1) = v3;
-        triangles(2u, f1) = v2;
-
-        triangles(0u, f2) = v1;
-        triangles(1u, f2) = v2;
-        triangles(2u, f2) = v4;
-
-        triangles(0u, f3) = v2;
-        triangles(1u, f3) = v3;
-        triangles(2u, f3) = v4;
-
-        triangles(0u, f4) = v1;
-        triangles(1u, f4) = v4;
-        triangles(2u, f4) = v3;
+        boundary_vertices_ = positions_;
+        boundary_faces_    = elements_;
+        boundary_colors_   = colors_;
+        boundary_uvs_      = uvs_;
+        return;
     }
 
-    /**
-     * Reorder triangle indices in the same order for all triangles
-     */
-    std::vector<std::array<index_type, 3u>> triangle_copies{};
-    triangle_copies.reserve(triangles.cols());
-
-    index_type const num_triangles = static_cast<index_type>(triangles.cols());
-    for (std::size_t f = 0u; f < num_triangles; ++f)
+    if (is_tet_mesh)
     {
-        std::array<index_type, 3u> triangle{triangles(0u, f), triangles(1u, f), triangles(2u, f)};
+        triangles_type triangles{};
+        triangles.resize(3u, elements_.cols() * 4u);
 
-        std::sort(triangle.begin(), triangle.end());
-        triangle_copies.push_back(triangle);
-    }
-
-    /**
-     * Count number of times each triangle is present in the tet mesh.
-     */
-    std::map<std::array<index_type, 3u>, std::uint32_t> triangle_occurrences{};
-    for (auto const& triangle : triangle_copies)
-    {
-        if (triangle_occurrences.find(triangle) == triangle_occurrences.end())
-        {
-            triangle_occurrences[triangle] = 1u;
-        }
-        else
-        {
-            ++triangle_occurrences[triangle];
-        }
-    }
-
-    std::vector<std::array<index_type, 3u>> boundary_triangles{};
-    boundary_triangles.reserve(triangle_copies.size());
-
-    std::vector<std::optional<index_type>> index_map(
-        positions_.cols(),
-        std::optional<index_type>{});
-
-    index_type boundary_vertices_size = 0u;
-    for (std::size_t f = 0u; f < triangle_copies.size(); ++f)
-    {
         /**
-         * Boundary triangles should only be present once in the tet mesh, since
-         * there is no adjacent face to it.
+         * Extract all triangles from tet mesh (all 4 faces of all tets)
          */
-        if (triangle_occurrences[triangle_copies[f]] != 1u)
-            continue;
-
-        auto const v1 = triangles(0u, f);
-        auto const v2 = triangles(1u, f);
-        auto const v3 = triangles(2u, f);
-
-        if (!index_map[v1].has_value())
+        index_type const num_tetrahedra = static_cast<index_type>(elements_.cols());
+        for (index_type e = 0u; e < num_tetrahedra; ++e)
         {
-            index_map[v1] = boundary_vertices_size++;
+            tetrahedron_type const tetrahedron = elements_.col(e);
+            auto const v1                      = tetrahedron(0u);
+            auto const v2                      = tetrahedron(1u);
+            auto const v3                      = tetrahedron(2u);
+            auto const v4                      = tetrahedron(3u);
+
+            index_type const f1 = e * 4u;
+            index_type const f2 = e * 4u + 1u;
+            index_type const f3 = e * 4u + 2u;
+            index_type const f4 = e * 4u + 3u;
+
+            triangles(0u, f1) = v1;
+            triangles(1u, f1) = v3;
+            triangles(2u, f1) = v2;
+
+            triangles(0u, f2) = v1;
+            triangles(1u, f2) = v2;
+            triangles(2u, f2) = v4;
+
+            triangles(0u, f3) = v2;
+            triangles(1u, f3) = v3;
+            triangles(2u, f3) = v4;
+
+            triangles(0u, f4) = v1;
+            triangles(1u, f4) = v4;
+            triangles(2u, f4) = v3;
         }
-        if (!index_map[v2].has_value())
+
+        /**
+         * Reorder triangle indices in the same order for all triangles
+         */
+        std::vector<std::array<index_type, 3u>> triangle_copies{};
+        triangle_copies.reserve(triangles.cols());
+
+        index_type const num_triangles = static_cast<index_type>(triangles.cols());
+        for (std::size_t f = 0u; f < num_triangles; ++f)
         {
-            index_map[v2] = boundary_vertices_size++;
+            std::array<index_type, 3u> triangle{
+                triangles(0u, f),
+                triangles(1u, f),
+                triangles(2u, f)};
+
+            std::sort(triangle.begin(), triangle.end());
+            triangle_copies.push_back(triangle);
         }
-        if (!index_map[v3].has_value())
+
+        /**
+         * Count number of times each triangle is present in the tet mesh.
+         */
+        std::map<std::array<index_type, 3u>, std::uint32_t> triangle_occurrences{};
+        for (auto const& triangle : triangle_copies)
         {
-            index_map[v3] = boundary_vertices_size++;
+            if (triangle_occurrences.find(triangle) == triangle_occurrences.end())
+            {
+                triangle_occurrences[triangle] = 1u;
+            }
+            else
+            {
+                ++triangle_occurrences[triangle];
+            }
         }
 
-        boundary_triangles.push_back(
-            {index_map[v1].value(), index_map[v2].value(), index_map[v3].value()});
-    }
+        std::vector<std::array<index_type, 3u>> boundary_triangles{};
+        boundary_triangles.reserve(triangle_copies.size());
 
-    bool const has_uvs = uvs_.cols() != 0u;
+        std::vector<std::optional<index_type>> index_map(
+            positions_.cols(),
+            std::optional<index_type>{});
 
-    boundary_vertices_.resize(3u, boundary_vertices_size);
-    boundary_colors_.resize(3u, boundary_vertices_size);
-    boundary_uvs_.resize(2u, boundary_vertices_size);
-
-    for (std::size_t i = 0u; i < index_map.size(); ++i)
-    {
-        if (index_map[i].has_value())
+        index_type boundary_vertices_size = 0u;
+        for (std::size_t f = 0u; f < triangle_copies.size(); ++f)
         {
-            boundary_vertices_.col(index_map[i].value()) = positions_.col(i);
-            boundary_colors_.col(index_map[i].value())   = colors_.col(i);
+            /**
+             * Boundary triangles should only be present once in the tet mesh, since
+             * there is no adjacent face to it.
+             */
+            if (triangle_occurrences[triangle_copies[f]] != 1u)
+                continue;
 
-            if (has_uvs)
-                boundary_uvs_.col(index_map[i].value()) = uvs_.col(i);
+            auto const v1 = triangles(0u, f);
+            auto const v2 = triangles(1u, f);
+            auto const v3 = triangles(2u, f);
+
+            if (!index_map[v1].has_value())
+            {
+                index_map[v1] = boundary_vertices_size++;
+            }
+            if (!index_map[v2].has_value())
+            {
+                index_map[v2] = boundary_vertices_size++;
+            }
+            if (!index_map[v3].has_value())
+            {
+                index_map[v3] = boundary_vertices_size++;
+            }
+
+            boundary_triangles.push_back(
+                {index_map[v1].value(), index_map[v2].value(), index_map[v3].value()});
         }
-    }
 
-    boundary_faces_.resize(3u, boundary_triangles.size());
-    for (std::size_t f = 0u; f < boundary_triangles.size(); ++f)
-    {
-        boundary_faces_(0u, f) = boundary_triangles[f][0u];
-        boundary_faces_(1u, f) = boundary_triangles[f][1u];
-        boundary_faces_(2u, f) = boundary_triangles[f][2u];
+        bool const has_uvs = uvs_.cols() != 0u;
+
+        boundary_vertices_.resize(3u, boundary_vertices_size);
+        boundary_colors_.resize(3u, boundary_vertices_size);
+        boundary_uvs_.resize(2u, boundary_vertices_size);
+
+        for (std::size_t i = 0u; i < index_map.size(); ++i)
+        {
+            if (index_map[i].has_value())
+            {
+                boundary_vertices_.col(index_map[i].value()) = positions_.col(i);
+                boundary_colors_.col(index_map[i].value())   = colors_.col(i);
+
+                if (has_uvs)
+                    boundary_uvs_.col(index_map[i].value()) = uvs_.col(i);
+            }
+        }
+
+        boundary_faces_.resize(3u, boundary_triangles.size());
+        for (std::size_t f = 0u; f < boundary_triangles.size(); ++f)
+        {
+            boundary_faces_(0u, f) = boundary_triangles[f][0u];
+            boundary_faces_(1u, f) = boundary_triangles[f][1u];
+            boundary_faces_(2u, f) = boundary_triangles[f][2u];
+        }
     }
 }
 
@@ -403,6 +443,85 @@ void shared_vertex_mesh_t::rescale(Eigen::Vector3d const& boxmin, Eigen::Vector3
         boundary_vertices_(1u, i) = y;
         boundary_vertices_(2u, i) = z;
     }
+}
+
+std::vector<std::pair<std::uint32_t, std::uint32_t>> edges(shared_vertex_mesh_t const& mesh)
+{
+    using edge_type = std::pair<std::uint32_t, std::uint32_t>;
+
+    std::vector<edge_type> edges_with_duplicates{};
+
+    std::size_t const num_elements              = static_cast<std::size_t>(mesh.elements().cols());
+    std::size_t constexpr num_edges_per_element = 6u;
+    edges_with_duplicates.reserve(num_elements * num_edges_per_element);
+
+    using element_type = Eigen::Matrix<std::uint32_t, Eigen::Dynamic, 1>;
+    for (std::size_t e = 0u; e < num_elements; ++e)
+    {
+        element_type const element = mesh.elements().col(e);
+        /**
+         * Triangle
+         */
+        if (element.rows() == 3u)
+        {
+            auto const v1 = element(0u);
+            auto const v2 = element(1u);
+            auto const v3 = element(2u);
+
+            /**
+             * Add index pairs in sorted order
+             */
+            edges_with_duplicates.push_back(
+                v1 < v2 ? std::make_pair(v1, v2) : std::make_pair(v2, v1));
+            edges_with_duplicates.push_back(
+                v2 < v3 ? std::make_pair(v2, v3) : std::make_pair(v3, v2));
+            edges_with_duplicates.push_back(
+                v3 < v1 ? std::make_pair(v3, v1) : std::make_pair(v1, v3));
+        }
+        /**
+         * Tetrahedron
+         */
+        if (element.rows() == 4u)
+        {
+            auto const v1 = element(0u);
+            auto const v2 = element(1u);
+            auto const v3 = element(2u);
+            auto const v4 = element(3u);
+
+            /**
+             * Add index pairs in sorted order
+             */
+            edges_with_duplicates.push_back(
+                v1 < v2 ? std::make_pair(v1, v2) : std::make_pair(v2, v1));
+            edges_with_duplicates.push_back(
+                v2 < v3 ? std::make_pair(v2, v3) : std::make_pair(v3, v2));
+            edges_with_duplicates.push_back(
+                v3 < v1 ? std::make_pair(v3, v1) : std::make_pair(v1, v3));
+
+            edges_with_duplicates.push_back(
+                v1 < v4 ? std::make_pair(v1, v4) : std::make_pair(v4, v1));
+            edges_with_duplicates.push_back(
+                v2 < v4 ? std::make_pair(v2, v4) : std::make_pair(v4, v2));
+            edges_with_duplicates.push_back(
+                v3 < v4 ? std::make_pair(v3, v4) : std::make_pair(v4, v3));
+        }
+    }
+
+    std::sort(
+        edges_with_duplicates.begin(),
+        edges_with_duplicates.end(),
+        [](edge_type const& e1, edge_type const& e2) {
+            if (e1.first < e2.first)
+                return true;
+
+            if (e1.first > e2.first)
+                return false;
+
+            return e1.second < e2.second;
+        });
+
+    auto it = std::unique(edges_with_duplicates.begin(), edges_with_duplicates.end());
+    return std::vector<edge_type>(edges_with_duplicates.begin(), it);
 }
 
 } // namespace common

@@ -13,13 +13,16 @@ namespace xpbd {
 class constraint_t
 {
   public:
-    using scalar_type = double;
-    using index_type  = std::pair<std::uint32_t, std::uint32_t>;
+    using scalar_type    = double;
+    using index_type     = std::uint32_t;
+    using positions_type = Eigen::Matrix3Xd;
+    using masses_type    = Eigen::VectorXd;
 
     constraint_t(scalar_type const alpha) : alpha_(alpha) {}
 
     virtual void project(
-        common::scene_t& scene,
+        std::vector<positions_type>& positions,
+        std::vector<masses_type> const& masses,
         scalar_type& lagrange_multiplier,
         scalar_type const dt) const = 0;
 

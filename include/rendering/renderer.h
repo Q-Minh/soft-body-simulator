@@ -69,7 +69,9 @@ class renderer_t : public renderer_base_t
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
     std::function<void(common::scene_t&)> on_scene_loaded;
-    std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene_*/)> on_new_frame;
+    std::function<void(common::scene_t&)> on_new_imgui_frame;
+    std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene_*/)>
+        on_new_physics_timestep;
 
   private:
     void process_input(GLFWwindow* window, double dt);

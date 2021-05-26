@@ -1,5 +1,7 @@
+#include "physics/xpbd/solver.h"
 #include "rendering/renderer.h"
 
+#include <chrono>
 #include <iostream>
 
 int main(int argc, char** argv)
@@ -16,21 +18,62 @@ int main(int argc, char** argv)
     std::filesystem::path const fragment_shader_path{argv[3]};
 
     sbs::rendering::renderer_t renderer{};
+    sbs::physics::xpbd::solver_t solver{};
+
     /**
      * physics update goes here
      */
-    renderer.on_scene_loaded = [](sbs::common::scene_t& scene) {
+    renderer.on_scene_loaded = [&](sbs::common::scene_t& scene) {
+        std::vector<sbs::physics::xpbd::simulation_parameters_t> per_body_simulation_parameters{};
+        per_body_simulation_parameters.reserve(scene.objects.size());
 
+        for (auto const& body : scene.objects)
+        {
+            sbs::physics::xpbd::simulation_parameters_t params{};
+            params.alpha           = 0.1;
+            params.constraint_type = sbs::physics::xpbd::constraint_type_t::distance;
+
+            per_body_simulation_parameters.push_back(params);
+        }
+
+        solver.setup(scene.objects, per_body_simulation_parameters);
     };
 
-    renderer.on_new_frame = [](double render_frame_dt, sbs::common::scene_t& scene) {
+    renderer.on_new_physics_timestep = [&](double render_frame_dt, sbs::common::scene_t& scene) {
+        auto const begin = std::chrono::steady_clock::now();
 
+        double constexpr timestep          = 1. / 60.;
+        std::uint32_t constexpr iterations = 30u;
+        std::uint32_t constexpr substeps   = 30u;
+
+        /**
+         * Compute external forces
+         */
+        for (auto const& body : scene.objects)
+        {
+            body->mesh.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
+        }
+
+        solver.step(timestep, iterations, substeps);
+
+        /**
+         * Reset external forces
+         */
+        for (auto const& body : scene.objects)
+        {
+            body->mesh.forces().setZero();
+        }
+
+        auto const end = std::chrono::steady_clock::now();
+        auto const duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+
+        std::cout << "Physics step: " << duration << " (ms)\n";
     };
 
     bool const initialization_success = renderer.initialize(scene_specification_path);
     bool const shader_loading_success =
         renderer.use_shaders(vertex_shader_path, fragment_shader_path);
-
 
     if (initialization_success && shader_loading_success)
     {

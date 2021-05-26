@@ -1,6 +1,6 @@
 #include "io/ply.h"
 
-#include "common/tokenize.h"
+#include "io/tokenize.h"
 #include "io/endianness.hpp"
 
 #include <algorithm>
@@ -357,7 +357,7 @@ std::optional<common::geometry_t> read_ply(std::istream& is)
      */
     while (std::getline(is, line))
     {
-        auto const tokens = common::tokenize(line);
+        auto const tokens = io::tokenize(line);
 
         if (!is_ply)
         {
@@ -649,7 +649,7 @@ read_ply_ascii(std::istream& is, ply_header_description_t const& description)
             if (is.bad())
                 return {};
 
-            auto const tokens = common::tokenize(line);
+            auto const tokens = io::tokenize(line);
             if (element.name == "vertex")
             {
                 std::size_t const position_idx = i * 3u;

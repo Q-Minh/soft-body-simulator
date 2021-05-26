@@ -164,9 +164,14 @@ void renderer_t::launch()
 
         process_input(window_, dt);
 
-        if (on_new_frame)
+        if (on_new_imgui_frame)
         {
-            on_new_frame(dt, scene_);
+            on_new_imgui_frame(scene_);
+        }
+
+        if (on_new_physics_timestep)
+        {
+            on_new_physics_timestep(dt, scene_);
         }
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -240,6 +245,8 @@ void renderer_t::launch()
             unsigned int& VBO = object->VBO;
             unsigned int& EBO = object->EBO;
 
+            object->mesh.extract_boundary_surface_mesh();
+
             glBindVertexArray(VAO);
 
             std::vector<float> cpu_buffer{};
@@ -250,13 +257,13 @@ void renderer_t::launch()
                 3u * num_bytes_per_float /* r,g,b colors */;
 
             auto const number_of_vertices =
-                static_cast<std::size_t>(object->mesh.boundary_vertices().cols());
+                static_cast<std::size_t>(object->mesh.vertices().cols());
             cpu_buffer.reserve(number_of_vertices * size_of_one_vertex);
             for (std::size_t i = 0u; i < number_of_vertices; ++i)
             {
-                float const x = static_cast<float>(object->mesh.boundary_vertices()(0u, i));
-                float const y = static_cast<float>(object->mesh.boundary_vertices()(1u, i));
-                float const z = static_cast<float>(object->mesh.boundary_vertices()(2u, i));
+                float const x = static_cast<float>(object->mesh.vertices()(0u, i));
+                float const y = static_cast<float>(object->mesh.vertices()(1u, i));
+                float const z = static_cast<float>(object->mesh.vertices()(2u, i));
                 cpu_buffer.push_back(x);
                 cpu_buffer.push_back(y);
                 cpu_buffer.push_back(z);

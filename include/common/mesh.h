@@ -17,10 +17,11 @@ class shared_vertex_mesh_t
   public:
     using index_type       = std::uint32_t;
     using positions_type   = Eigen::Matrix3Xd;
-    using tetrahedra_type  = Eigen::Matrix<index_type, 4, Eigen::Dynamic>;
+    using elements_type    = Eigen::Matrix<index_type, Eigen::Dynamic, Eigen::Dynamic>;
     using triangles_type   = Eigen::Matrix<index_type, 3, Eigen::Dynamic>;
     using masses_type      = Eigen::VectorXd;
     using velocities_type  = Eigen::Matrix3Xd;
+    using forces_type      = Eigen::Matrix3Xd;
     using tetrahedron_type = Eigen::Matrix<index_type, 4, 1>;
     using triangle_type    = Eigen::Matrix<index_type, 3, 1>;
 
@@ -34,8 +35,8 @@ class shared_vertex_mesh_t
     positions_type const& positions() const;
     positions_type& positions();
 
-    tetrahedra_type const& elements() const;
-    tetrahedra_type& elements();
+    elements_type const& elements() const;
+    elements_type& elements();
 
     triangles_type const& faces() const;
     triangles_type& faces();
@@ -46,6 +47,9 @@ class shared_vertex_mesh_t
     velocities_type const& velocities() const;
     velocities_type& velocities();
 
+    forces_type const& forces() const;
+    forces_type& forces();
+
     /**
      * Rendering
      */
@@ -53,8 +57,8 @@ class shared_vertex_mesh_t
     using normals_type        = Eigen::Matrix3Xd;
     using colors_type         = Eigen::Matrix3Xf;
 
-    positions_type const& boundary_vertices() const;
-    positions_type& boundary_vertices();
+    positions_type const& vertices() const;
+    positions_type& vertices();
 
     uv_coordinates_type const& uvs() const;
     uv_coordinates_type& uvs();
@@ -70,9 +74,10 @@ class shared_vertex_mesh_t
 
   private:
     positions_type positions_;
-    tetrahedra_type tetrahedra_;
+    elements_type elements_;
     masses_type masses_;
     velocities_type velocities_;
+    forces_type forces_;
     uv_coordinates_type uvs_;
     colors_type colors_;
 
@@ -82,6 +87,8 @@ class shared_vertex_mesh_t
     colors_type boundary_colors_;
     normals_type normals_;
 };
+
+std::vector<std::pair<std::uint32_t, std::uint32_t>> edges(shared_vertex_mesh_t const& mesh);
 
 } // namespace common
 } // namespace sbs

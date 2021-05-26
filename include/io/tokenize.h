@@ -1,5 +1,5 @@
-#ifndef SBS_COMMON_TOKENIZE_H
-#define SBS_COMMON_TOKENIZE_H
+#ifndef SBS_IO_TOKENIZE_H
+#define SBS_IO_TOKENIZE_H
 
 /**
  * @file
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace sbs {
-namespace common {
+namespace io {
 
 /**
  * @ingroup io
@@ -27,7 +27,7 @@ inline auto tokenize(std::string const& s) -> std::vector<std::string>
     return tokens;
 }
 
-} // namespace common
+} // namespace io
 } // namespace sbs
 
-#endif // SBS_COMMON_TOKENIZE_H
+#endif // SBS_IO_TOKENIZE_H

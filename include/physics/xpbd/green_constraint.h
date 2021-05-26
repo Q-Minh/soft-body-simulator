@@ -10,29 +10,50 @@ namespace xpbd {
 class green_constraint_t : public constraint_t
 {
   public:
-    using scalar_type = typename constraint_t::scalar_type;
-    using index_type  = typename constraint_t::index_type;
+    using scalar_type     = typename constraint_t::scalar_type;
+    using index_type      = typename constraint_t::index_type;
+    using index_pair_type = std::pair<index_type, index_type>;
+    using positions_type  = typename constraint_t::positions_type;
+    using masses_type     = typename constraint_t::masses_type;
 
     green_constraint_t(
         scalar_type const alpha,
-        index_type const& v1,
-        index_type const& v2,
-        index_type const& v3,
-        index_type const& v4)
-        : constraint_t(alpha), v1_(v1), v2_(v2), v3_(v3), v4_(v4)
-    {
-    }
+        positions_type const& positions,
+        index_pair_type const& vb1,
+        index_pair_type const& vb2,
+        index_pair_type const& vb3,
+        index_pair_type const& vb4,
+        scalar_type young_modulus,
+        scalar_type poisson_ratio);
 
     virtual void project(
-        common::scene_t& scene,
+        std::vector<positions_type>& positions,
+        std::vector<masses_type> const& masses,
         scalar_type& lagrange_multiplier,
         scalar_type const dt) const override;
+
+  protected:
+    scalar_type signed_volume(
+        Eigen::Vector3d const& p1,
+        Eigen::Vector3d const& p2,
+        Eigen::Vector3d const& p3,
+        Eigen::Vector3d const& p4) const;
 
   private:
     index_type v1_;
     index_type v2_;
     index_type v3_;
     index_type v4_;
+
+    index_type b1_;
+    index_type b2_;
+    index_type b3_;
+    index_type b4_;
+
+    Eigen::Matrix3d DmInv_;
+    scalar_type V0_;
+    scalar_type mu_;
+    scalar_type lambda_;
 };
 
 } // namespace xpbd

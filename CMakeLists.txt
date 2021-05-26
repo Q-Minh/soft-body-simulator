@@ -52,6 +52,7 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/include/io/endianness.hpp"
     "${CMAKE_CURRENT_LIST_DIR}/include/io/load_scene.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/io/ply.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/io/tokenize.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/io/load_scene.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/io/ply.cpp"

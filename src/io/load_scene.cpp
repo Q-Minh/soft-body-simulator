@@ -156,10 +156,8 @@ common::scene_t load_scene(std::filesystem::path const& path)
         auto mesh_node = std::make_shared<common::node_t>();
         common::shared_vertex_mesh_t mesh{geometry.value()};
 
-        mesh.masses().resize(mesh.positions().cols());
         mesh.masses().setConstant(mass_per_vertex);
 
-        mesh.velocities().resize(3u, mesh.positions().cols());
         mesh.velocities().row(0u).setConstant(vx);
         mesh.velocities().row(1u).setConstant(vy);
         mesh.velocities().row(2u).setConstant(vz);

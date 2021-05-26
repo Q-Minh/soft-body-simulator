@@ -18,31 +18,31 @@ void renderer_t::process_input(GLFWwindow* window, double dt)
     {
         if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
         {
-            camera_.handle_keyboard(camera_t::movement_t::up, dt);
+            camera_.handle_keyboard(camera_t::movement_t::up, static_cast<float>(dt));
         }
         else
         {
-            camera_.handle_keyboard(camera_t::movement_t::forward, dt);
+            camera_.handle_keyboard(camera_t::movement_t::forward, static_cast<float>(dt));
         }
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
     {
-        camera_.handle_keyboard(camera_t::movement_t::left, dt);
+        camera_.handle_keyboard(camera_t::movement_t::left, static_cast<float>(dt));
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
     {
         if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
         {
-            camera_.handle_keyboard(camera_t::movement_t::down, dt);
+            camera_.handle_keyboard(camera_t::movement_t::down, static_cast<float>(dt));
         }
         else
         {
-            camera_.handle_keyboard(camera_t::movement_t::backward, dt);
+            camera_.handle_keyboard(camera_t::movement_t::backward, static_cast<float>(dt));
         }
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        camera_.handle_keyboard(camera_t::movement_t::right, dt);
+        camera_.handle_keyboard(camera_t::movement_t::right, static_cast<float>(dt));
     }
 }
 
@@ -64,8 +64,8 @@ void renderer_t::mouse_callback(GLFWwindow* window, double xpos, double ypos)
         first_mouse_movement = false;
     }
 
-    float const dx = xpos - last_x_pos;
-    float const dy = last_y_pos - ypos;
+    float const dx = static_cast<float>(xpos - last_x_pos);
+    float const dy = static_cast<float>(last_y_pos - ypos);
 
     last_x_pos = xpos;
     last_y_pos = ypos;
@@ -80,7 +80,7 @@ void renderer_t::mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 void renderer_t::scroll_callback(GLFWwindow* window, double dx, double dy)
 {
-    camera_.handle_mouse_scroll(dy);
+    camera_.handle_mouse_scroll(static_cast<float>(dy));
 }
 
 bool renderer_t::initialize(std::filesystem::path const& scene_path)
@@ -128,7 +128,10 @@ bool renderer_t::initialize(std::filesystem::path const& scene_path)
         glGenBuffers(1, &EBO);
     }
 
-    on_scene_loaded(scene_);
+    if (on_scene_loaded)
+    {
+        on_scene_loaded(scene_);
+    }
 
     return true;
 }
@@ -152,24 +155,27 @@ void renderer_t::launch()
     auto const color_attribute_location =
         glGetAttribLocation(shader_.id(), shader_t::vertex_shader_color_attribute_name);
 
-    float last_frame_time = 0.f;
+    double last_frame_time = 0.f;
     while (!glfwWindowShouldClose(window_))
     {
-        float const now = glfwGetTime();
-        double const dt = static_cast<double>(now) - static_cast<double>(last_frame_time);
-        last_frame_time = now;
+        double const now = glfwGetTime();
+        double const dt  = now - last_frame_time;
+        last_frame_time  = now;
 
         process_input(window_, dt);
 
-        on_new_frame(dt, scene_);
+        if (on_new_frame)
+        {
+            on_new_frame(dt, scene_);
+        }
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         shader_.use();
 
-        int width  = 0.f;
-        int height = 0.f;
+        int width  = 0;
+        int height = 0;
         glfwGetWindowSize(window_, &width, &height);
         float const aspect_ratio   = static_cast<float>(width) / static_cast<float>(height);
         glm::mat4 const projection = camera_.projection_matrix(aspect_ratio);
@@ -243,7 +249,8 @@ void renderer_t::launch()
                 3u * num_bytes_per_float /* nx,ny,nz normal components */ +
                 3u * num_bytes_per_float /* r,g,b colors */;
 
-            auto const number_of_vertices = object->mesh.boundary_vertices().cols();
+            auto const number_of_vertices =
+                static_cast<std::size_t>(object->mesh.boundary_vertices().cols());
             cpu_buffer.reserve(number_of_vertices * size_of_one_vertex);
             for (std::size_t i = 0u; i < number_of_vertices; ++i)
             {
@@ -269,7 +276,7 @@ void renderer_t::launch()
                 cpu_buffer.push_back(b);
             }
 
-            auto const number_of_faces = object->mesh.faces().cols();
+            auto const number_of_faces = static_cast<std::size_t>(object->mesh.faces().cols());
             std::vector<std::uint32_t> indices{};
             indices.reserve(number_of_faces);
             for (std::size_t f = 0u; f < number_of_faces; ++f)
@@ -337,7 +344,7 @@ void renderer_t::launch()
             /**
              * Draw the mesh
              */
-            glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, static_cast<int>(indices.size()), GL_UNSIGNED_INT, 0);
 
             /**
              * Unbind buffers and vertex arrays

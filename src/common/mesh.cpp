@@ -193,7 +193,8 @@ void shared_vertex_mesh_t::extract_boundary_surface_mesh()
     /**
      * Extract all triangles from tet mesh (all 4 faces of all tets)
      */
-    for (std::size_t e = 0u; e < tetrahedra_.cols(); ++e)
+    index_type const num_tetrahedra = static_cast<index_type>(tetrahedra_.cols());
+    for (index_type e = 0u; e < num_tetrahedra; ++e)
     {
         tetrahedron_type const tetrahedron = tetrahedra_.col(e);
         auto const v1                      = tetrahedron(0u);
@@ -201,10 +202,10 @@ void shared_vertex_mesh_t::extract_boundary_surface_mesh()
         auto const v3                      = tetrahedron(2u);
         auto const v4                      = tetrahedron(3u);
 
-        std::size_t const f1 = e * 4u;
-        std::size_t const f2 = e * 4u + 1u;
-        std::size_t const f3 = e * 4u + 2u;
-        std::size_t const f4 = e * 4u + 3u;
+        index_type const f1 = e * 4u;
+        index_type const f2 = e * 4u + 1u;
+        index_type const f3 = e * 4u + 2u;
+        index_type const f4 = e * 4u + 3u;
 
         triangles(0u, f1) = v1;
         triangles(1u, f1) = v3;
@@ -226,15 +227,13 @@ void shared_vertex_mesh_t::extract_boundary_surface_mesh()
     /**
      * Reorder triangle indices in the same order for all triangles
      */
-    std::vector<std::array<std::uint32_t, 3u>> triangle_copies{};
+    std::vector<std::array<index_type, 3u>> triangle_copies{};
     triangle_copies.reserve(triangles.cols());
 
-    for (std::size_t f = 0u; f < triangles.cols(); ++f)
+    index_type const num_triangles = static_cast<index_type>(triangles.cols());
+    for (std::size_t f = 0u; f < num_triangles; ++f)
     {
-        std::array<std::uint32_t, 3u> triangle{
-            triangles(0u, f),
-            triangles(1u, f),
-            triangles(2u, f)};
+        std::array<index_type, 3u> triangle{triangles(0u, f), triangles(1u, f), triangles(2u, f)};
 
         std::sort(triangle.begin(), triangle.end());
         triangle_copies.push_back(triangle);
@@ -243,7 +242,7 @@ void shared_vertex_mesh_t::extract_boundary_surface_mesh()
     /**
      * Count number of times each triangle is present in the tet mesh.
      */
-    std::map<std::array<std::uint32_t, 3u>, std::uint32_t> triangle_occurrences{};
+    std::map<std::array<index_type, 3u>, std::uint32_t> triangle_occurrences{};
     for (auto const& triangle : triangle_copies)
     {
         if (triangle_occurrences.find(triangle) == triangle_occurrences.end())
@@ -256,14 +255,14 @@ void shared_vertex_mesh_t::extract_boundary_surface_mesh()
         }
     }
 
-    std::vector<std::array<std::uint32_t, 3u>> boundary_triangles{};
+    std::vector<std::array<index_type, 3u>> boundary_triangles{};
     boundary_triangles.reserve(triangle_copies.size());
 
-    std::vector<std::optional<std::uint32_t>> index_map(
+    std::vector<std::optional<index_type>> index_map(
         positions_.cols(),
-        std::optional<std::uint32_t>{});
+        std::optional<index_type>{});
 
-    std::size_t boundary_vertices_size = 0u;
+    index_type boundary_vertices_size = 0u;
     for (std::size_t f = 0u; f < triangle_copies.size(); ++f)
     {
         /**
@@ -326,7 +325,8 @@ void shared_vertex_mesh_t::extract_boundary_normals()
     normals_.resizeLike(boundary_vertices_);
     normals_.setZero();
 
-    for (std::size_t f = 0u; f < boundary_faces_.cols(); ++f)
+    index_type const num_boundary_faces = static_cast<index_type>(boundary_faces_.cols());
+    for (std::size_t f = 0u; f < num_boundary_faces; ++f)
     {
         triangle_type const triangle = boundary_faces_.col(f);
 
@@ -364,7 +364,8 @@ void shared_vertex_mesh_t::rescale(Eigen::Vector3d const& boxmin, Eigen::Vector3
     bool const dy_division_by_zero = std::abs(dy) < eps;
     bool const dz_division_by_zero = std::abs(dz) < eps;
 
-    for (std::size_t i = 0u; i < positions_.cols(); ++i)
+    index_type const num_positions = static_cast<index_type>(positions_.cols());
+    for (std::size_t i = 0u; i < num_positions; ++i)
     {
         Eigen::Vector3d const p = positions_.col(i);
 
@@ -383,7 +384,8 @@ void shared_vertex_mesh_t::rescale(Eigen::Vector3d const& boxmin, Eigen::Vector3
         positions_(2u, i) = z;
     }
 
-    for (std::size_t i = 0u; i < boundary_vertices_.cols(); ++i)
+    index_type const num_boundary_vertices = static_cast<index_type>(boundary_vertices_.cols());
+    for (std::size_t i = 0u; i < num_boundary_vertices; ++i)
     {
         Eigen::Vector3d const p = boundary_vertices_.col(i);
 

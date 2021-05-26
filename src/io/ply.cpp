@@ -61,14 +61,15 @@ void write_ply(std::ostream& os, common::geometry_t const& geometry, ply_format_
     bool const is_tet_mesh      = geometry_type == common::geometry_t::geometry_type_t::tetrahedron;
     bool const is_triangle_mesh = geometry_type == common::geometry_t::geometry_type_t::triangle;
 
-    std::uint32_t const vertex_count = geometry.positions.size() / 3u;
-    bool const has_normals           = geometry.normals.size() == geometry.positions.size();
-    bool const has_colors            = geometry.colors.size() == geometry.positions.size();
-    bool const has_uvs               = geometry.uvs.size() == vertex_count * 2u;
+    std::uint32_t const vertex_count = static_cast<std::uint32_t>(geometry.positions.size()) / 3u;
+    bool const has_normals           = (geometry.normals.size() == geometry.positions.size());
+    bool const has_colors            = (geometry.colors.size() == geometry.positions.size());
+    bool const has_uvs = (geometry.uvs.size() == static_cast<std::size_t>(vertex_count * 2u));
 
     std::uint8_t const mesh_element_list_size =
         is_triangle_mesh ? 3u : is_tet_mesh ? 4u : 3u /* default to 3, but this is wrong */;
-    std::uint32_t const mesh_element_count = geometry.indices.size() / mesh_element_list_size;
+    std::uint32_t const mesh_element_count =
+        static_cast<std::uint32_t>(geometry.indices.size()) / mesh_element_list_size;
 
     header_stream << "element vertex " << std::to_string(vertex_count) << "\n"
                   << "property " << vertex_component_type_str << " x\n"
@@ -108,10 +109,10 @@ void write_ply(std::ostream& os, common::geometry_t const& geometry, ply_format_
     {
         for (std::size_t i = 0u; i < vertex_count; ++i)
         {
-            std::uint32_t const vertex_idx = i * 3u;
-            std::uint32_t const normal_idx = i * 3u;
-            std::uint32_t const color_idx  = i * 3u;
-            std::uint32_t const uv_idx     = i * 2u;
+            std::uint32_t const vertex_idx = static_cast<std::uint32_t>(i) * 3u;
+            std::uint32_t const normal_idx = static_cast<std::uint32_t>(i) * 3u;
+            std::uint32_t const color_idx  = static_cast<std::uint32_t>(i) * 3u;
+            std::uint32_t const uv_idx     = static_cast<std::uint32_t>(i) * 2u;
 
             std::ostringstream oss{};
             float const x = geometry.positions[vertex_idx];
@@ -168,10 +169,10 @@ void write_ply(std::ostream& os, common::geometry_t const& geometry, ply_format_
         {
             for (std::size_t i = 0u; i < vertex_count; ++i)
             {
-                std::uint32_t const vertex_idx = i * 3u;
-                std::uint32_t const normal_idx = i * 3u;
-                std::uint32_t const color_idx  = i * 3u;
-                std::uint32_t const uv_idx     = i * 2u;
+                std::uint32_t const vertex_idx = static_cast<std::uint32_t>(i) * 3u;
+                std::uint32_t const normal_idx = static_cast<std::uint32_t>(i) * 3u;
+                std::uint32_t const color_idx  = static_cast<std::uint32_t>(i) * 3u;
+                std::uint32_t const uv_idx     = static_cast<std::uint32_t>(i) * 2u;
 
                 float const x = endian_correct_geometry.positions[vertex_idx];
                 float const y = endian_correct_geometry.positions[vertex_idx + 1u];

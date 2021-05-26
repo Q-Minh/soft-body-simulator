@@ -41,14 +41,14 @@ common::geometry_t get_simple_bar_model(std::size_t width, std::size_t height, s
                 //  0*-----*1
 
                 // clang-format off
-                int p0 = i        * height * depth + j        * depth + k       ;
-                int p1 = (i + 1u) * height * depth + j        * depth + k       ;
-                int p2 = (i + 1u) * height * depth + (j + 1u) * depth + k       ;
-                int p3 = i        * height * depth + (j + 1u) * depth + k       ;
-                int p4 = i        * height * depth + j        * depth + (k + 1u);
-                int p5 = (i + 1u) * height * depth + j        * depth + (k + 1u);
-                int p6 = (i + 1u) * height * depth + (j + 1u) * depth + (k + 1u);
-                int p7 = i        * height * depth + (j + 1u) * depth + (k + 1u);
+                int p0 = static_cast<int>(i        * height * depth + j        * depth + k       );
+                int p1 = static_cast<int>((i + 1u) * height * depth + j        * depth + k       );
+                int p2 = static_cast<int>((i + 1u) * height * depth + (j + 1u) * depth + k       );
+                int p3 = static_cast<int>(i        * height * depth + (j + 1u) * depth + k       );
+                int p4 = static_cast<int>(i        * height * depth + j        * depth + (k + 1u));
+                int p5 = static_cast<int>((i + 1u) * height * depth + j        * depth + (k + 1u));
+                int p6 = static_cast<int>((i + 1u) * height * depth + (j + 1u) * depth + (k + 1u));
+                int p7 = static_cast<int>(i        * height * depth + (j + 1u) * depth + (k + 1u));
                 // clang-format on
 
                 auto const row = (i * (height - 1u) * (depth - 1u) + j * (depth - 1u) + k) * 5u;

@@ -30,10 +30,16 @@ int main(int argc, char** argv)
         for (auto const& body : scene.objects)
         {
             sbs::physics::xpbd::simulation_parameters_t params{};
-            params.alpha           = 0.1;
+            params.alpha           = 1e-3;
             params.constraint_type = sbs::physics::xpbd::constraint_type_t::distance;
 
             per_body_simulation_parameters.push_back(params);
+
+            if (body->body_type == sbs::common::node_t::body_type_t::soft)
+            {
+                body->mesh.extract_boundary_surface_mesh();
+            }
+            body->mesh.extract_boundary_normals();
         }
 
         solver.setup(scene.objects, per_body_simulation_parameters);
@@ -42,8 +48,8 @@ int main(int argc, char** argv)
     renderer.on_new_physics_timestep = [&](double render_frame_dt, sbs::common::scene_t& scene) {
         static double tb                   = 0.;
         double constexpr timestep          = 1. / 60.;
-        std::uint32_t constexpr iterations = 30u;
-        std::uint32_t constexpr substeps   = 30u;
+        std::uint32_t constexpr iterations = 60u;
+        std::uint32_t constexpr substeps   = 60u;
 
         tb += render_frame_dt;
         auto const time_between_frames = tb;
@@ -55,8 +61,8 @@ int main(int argc, char** argv)
         if (tb < timestep)
             return;
 
-        while (tb >= timestep)
-            tb -= timestep;
+        double const num_timesteps_elapsed = std::floor(tb / timestep);    
+        tb -= num_timesteps_elapsed * timestep;
 
         auto const begin = std::chrono::steady_clock::now();
 
@@ -73,10 +79,21 @@ int main(int argc, char** argv)
              */
             body->mesh.forces().setZero();
             body->mesh.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
-            body->render_state = sbs::common::node_t::render_state_t::dirty;
         }
 
         solver.step(timestep, iterations, substeps);
+
+        for (auto const& body : scene.objects)
+        {
+            if (body->is_fixed)
+                continue;
+
+            if (body->body_type == sbs::common::node_t::body_type_t::soft)
+            {
+                body->mesh.extract_boundary_surface_mesh();
+                body->mesh.extract_boundary_normals();
+            }
+        }
 
         auto const end = std::chrono::steady_clock::now();
         auto const duration =

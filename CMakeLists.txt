@@ -57,16 +57,23 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/src/io/load_scene.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/io/ply.cpp"
 
-    # physics
+    # physics/xpbd
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/collision_constraint.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/constraint.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/distance_constraint.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/green_constraint.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/solver.h"
 
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/collision_constraint.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/constraint.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/distance_constraint.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/green_constraint.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/solver.cpp"
+
+    # physics/collision
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/collision/intersections.h"
+
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/collision/intersections.cpp"
 
     # rendering
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/camera.h"

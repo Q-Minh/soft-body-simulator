@@ -1,5 +1,7 @@
 #include "physics/xpbd/solver.h"
 
+#include "physics/collision/intersections.h"
+#include "physics/xpbd/collision_constraint.h"
 #include "physics/xpbd/distance_constraint.h"
 #include "physics/xpbd/green_constraint.h"
 
@@ -99,6 +101,7 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
     double dt                 = timestep / static_cast<double>(substeps);
     auto const J              = constraints_.size();
     std::vector<double> lagrange_multipliers(J, 0.);
+    std::vector<double> collision_lagrange_multipliers{};
 
     std::vector<Eigen::Matrix3Xd> P{};
     P.reserve(bodies_.size());
@@ -114,14 +117,14 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
         /**
          * Explicit euler step
          */
-        for (auto& body : bodies_)
+        for (auto const& body : bodies_)
         {
             auto& v = body->mesh.velocities();
             auto& x = body->mesh.positions();
 
             Eigen::VectorXd const& m     = body->mesh.masses();
             Eigen::Matrix3Xd const& fext = body->mesh.forces();
-            Eigen::Matrix3Xd const a = fext.array().rowwise() / m.transpose().array();
+            Eigen::Matrix3Xd const a     = fext.array().rowwise() / m.transpose().array();
 
             auto vexplicit           = v + dt * a;
             Eigen::Matrix3Xd const p = x + dt * vexplicit;
@@ -130,7 +133,13 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
         }
 
         // generate collision constraints here ...
-        handle_collisions();
+        handle_collisions(P);
+        std::size_t const Mc = collision_constraints_.size();
+        collision_lagrange_multipliers.resize(Mc);
+        std::fill(
+            collision_lagrange_multipliers.begin(),
+            collision_lagrange_multipliers.end(),
+            0.0);
 
         // sequential gauss seidel type solve
         std::fill(lagrange_multipliers.begin(), lagrange_multipliers.end(), 0.0);
@@ -141,7 +150,14 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
                 auto const& constraint = constraints_[j];
                 constraint->project(P, M, lagrange_multipliers[j], dt);
             }
+            for (auto c = 0u; c < Mc; ++c)
+            {
+                auto const& constraint = collision_constraints_[c];
+                constraint->project(P, M, lagrange_multipliers[c], dt);
+            }
         }
+
+        collision_constraints_.clear();
 
         // update solution
         for (std::size_t b = 0u; b < bodies_.size(); ++b)
@@ -155,13 +171,87 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
 
             body->mesh.velocities() = (p - x) / dt;
             body->mesh.positions()  = p;
+            body->render_state      = sbs::common::node_t::render_state_t::dirty;
         }
 
         // friction or other non-conservative forces here ...
     }
 }
 
-void solver_t::handle_collisions() {}
+void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
+{
+    /**
+     * Brute-force collision detection... To be changed
+     * in the future
+     */
+    std::vector<collision::line_segment_t> line_segments{};
+    for (std::size_t bi = 0u; bi < bodies_.size(); ++bi)
+    {
+        auto const& body1 = bodies_[bi];
+        /**
+         * Instead of looking at all positions, should we only
+         * detect collisions for the boundary vertices?
+         */
+        auto const& p = P[bi];
+        auto const& x = body1->mesh.positions();
+
+        /**
+         * Find line segments x(n) -> p(n+1)
+         */
+        line_segments.clear();
+        line_segments.reserve(p.cols());
+        std::size_t const num_vertices = static_cast<std::size_t>(x.cols());
+        for (std::size_t vi = 0u; vi < num_vertices; ++vi)
+        {
+            line_segments.push_back(collision::line_segment_t{x.col(vi), p.col(vi)});
+        }
+
+        for (std::size_t bj = 0u; bj < bodies_.size(); ++bj)
+        {
+            if (bj == bi)
+                continue;
+
+            auto const& body2 = bodies_[bj];
+
+            /**
+             * Handle collisions between line segments and boundary faces of other bodies
+             */
+            auto const& boundary        = body2->mesh.faces();
+            std::size_t const num_faces = static_cast<std::size_t>(boundary.cols());
+            for (std::size_t f = 0u; f < num_faces; ++f)
+            {
+                auto const v1 = boundary(0u, f);
+                auto const v2 = boundary(1u, f);
+                auto const v3 = boundary(2u, f);
+
+                collision::triangle_t const triangle{
+                    body2->mesh.positions().col(v1),
+                    body2->mesh.positions().col(v2),
+                    body2->mesh.positions().col(v3)};
+
+                collision::normal_t const normal = triangle.normal();
+
+                for (std::size_t vi = 0u; vi < num_vertices; ++vi)
+                {
+                    collision::line_segment_t const& line_segment = line_segments[vi];
+
+                    auto const intersection = collision::intersect(line_segment, triangle);
+                    if (!intersection.has_value())
+                        continue;
+
+                    // double const alpha        = per_body_simulation_parameters_[bi].alpha;
+                    auto collision_constraint = std::make_unique<collision_constraint_t>(
+                        // alpha,
+                        std::make_pair(vi, bi),
+                        intersection.value(),
+                        normal);
+
+                    collision_constraints_.push_back(std::move(collision_constraint));
+                }
+            }
+        }
+    }
+}
 
 } // namespace xpbd
 } // namespace physics

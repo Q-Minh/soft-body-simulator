@@ -27,8 +27,6 @@ struct simulation_parameters_t
 class solver_t
 {
   public:
-    solver_t() = default;
-
     void setup(
         std::vector<std::shared_ptr<common::node_t>> const& bodies,
         std::vector<simulation_parameters_t> const& per_body_simulation_parameters);
@@ -36,14 +34,14 @@ class solver_t
     void step(double timestep, std::uint32_t iterations, std::uint32_t substeps);
 
   protected:
-    void handle_collisions();
+    void handle_collisions(std::vector<Eigen::Matrix3Xd> const& P);
 
   private:
     std::vector<std::shared_ptr<common::node_t>> bodies_;
     std::vector<simulation_parameters_t> per_body_simulation_parameters_;
 
     std::vector<std::unique_ptr<constraint_t>> constraints_;
-    // std::vector<constraint_t> collision_constraints_;
+    std::vector<std::unique_ptr<constraint_t>> collision_constraints_;
     std::vector<std::uint32_t>
         garbage_collected_constraints_; ///< We collect, in this list, indices of constraints that
                                         ///< have been removed, because it is too expensive to

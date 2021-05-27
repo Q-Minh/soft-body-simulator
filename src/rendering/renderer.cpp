@@ -302,9 +302,6 @@ void renderer_t::transfer_object_to_gpu(
     int color_attribute_location,
     std::shared_ptr<common::node_t> const& object) const
 {
-    object->mesh.extract_boundary_surface_mesh();
-    object->mesh.extract_boundary_normals();
-
     std::vector<float> cpu_buffer{};
     auto constexpr num_bytes_per_float = sizeof(float);
     auto constexpr size_of_one_vertex  = 3u * num_bytes_per_float /* x,y,z coordinates */ +

@@ -51,24 +51,25 @@ int main(int argc, char** argv)
          */
         for (auto const& body : scene.objects)
         {
+            /**
+             * Reset external forces
+             */
+            body->mesh.forces().setZero();
             body->mesh.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
         }
 
-        solver.step(timestep, iterations, substeps);
-
-        /**
-         * Reset external forces
-         */
-        for (auto const& body : scene.objects)
+        if (render_frame_dt < timestep)
         {
-            body->mesh.forces().setZero();
+            solver.step(render_frame_dt, iterations, substeps);
+        }
+        else
+        {
+            solver.step(timestep, iterations, substeps);
         }
 
         auto const end = std::chrono::steady_clock::now();
         auto const duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
-
-        std::cout << "Physics step: " << duration << " (ms)\n";
     };
 
     bool const initialization_success = renderer.initialize(scene_specification_path);

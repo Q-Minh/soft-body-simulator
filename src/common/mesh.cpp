@@ -94,10 +94,7 @@ shared_vertex_mesh_t::shared_vertex_mesh_t(common::geometry_t const& geometry)
 
             elements_.col(e) = tetrahedron_type{v1, v2, v3, v4};
         }
-        this->extract_boundary_surface_mesh();
     }
-
-    this->extract_boundary_normals();
 
     masses_.resize(positions_.cols());
     masses_.setOnes();

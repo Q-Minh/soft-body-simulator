@@ -55,61 +55,22 @@
     "objects": [
         {
             "geometry": {
-                "type": "triangle mesh",
-                "path": "../meshes/bunny_simplified.ply"
-            },
-            "physics": {
-                "type": "soft",
-                "mass": 1.0,
-                "velocity": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 1.0
-                }
-            },
-            "box": {
-                "min": {
-                    "x": -1.0,
-                    "y": -1.0,
-                    "z": -1.0
-                },
-                "max": {
-                    "x": 1.0,
-                    "y": 1.0,
-                    "z": 1.0
-                }
-            },
-            "color": {
-                "r": 255,
-                "g": 255,
-                "b": 0
-            }
-        },
-        {
-            "geometry": {
                 "type": "tetrahedral mesh",
-                "path": "../meshes/bar_tet.ply"
+                "path": "../meshes/tetrahedron.ply"
             },
             "physics": {
                 "type": "soft",
-                "mass": 1.0,
+                "mass": 10.0,
                 "velocity": {
                     "x": 0.0,
                     "y": 0.0,
                     "z": 1.0
                 }
             },
-            "box": {
-                "min": {
-                    "x": 1.0,
-                    "y": 1.0,
-                    "z": 1.0
-                },
-                "max": {
-                    "x": 5.0,
-                    "y": 2.0,
-                    "z": 2.0
-                }
+            "translation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -5.0
             },
             "color": {
                 "r": 255,
@@ -124,7 +85,7 @@
             },
             "physics": {
                 "type": "rigid",
-                "mass": 10000000000.0,
+                "mass": 1000000000000000.0,
                 "velocity": {
                     "x": 0.0,
                     "y": 0.0,

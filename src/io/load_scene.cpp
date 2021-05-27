@@ -122,17 +122,6 @@ common::scene_t load_scene(std::filesystem::path const& path)
         double const vy              = velocity_spec["y"].get<double>();
         double const vz              = velocity_spec["z"].get<double>();
 
-        auto const& box_spec     = object_spec["box"];
-        auto const& box_min_spec = box_spec["min"];
-        auto const& box_max_spec = box_spec["max"];
-
-        double const xmin = box_min_spec["x"].get<double>();
-        double const ymin = box_min_spec["y"].get<double>();
-        double const zmin = box_min_spec["z"].get<double>();
-        double const xmax = box_max_spec["x"].get<double>();
-        double const ymax = box_max_spec["y"].get<double>();
-        double const zmax = box_max_spec["z"].get<double>();
-
         std::optional<common::geometry_t> geometry = io::read_ply(asset_path);
         if (!geometry.has_value())
             continue;
@@ -162,7 +151,29 @@ common::scene_t load_scene(std::filesystem::path const& path)
         mesh.velocities().row(1u).setConstant(vy);
         mesh.velocities().row(2u).setConstant(vz);
 
-        mesh.rescale({xmin, ymin, zmin}, {xmax, ymax, zmax});
+        if (object_spec.contains("box"))
+        {
+            auto const& box_spec     = object_spec["box"];
+            auto const& box_min_spec = box_spec["min"];
+            auto const& box_max_spec = box_spec["max"];
+
+            double const xmin = box_min_spec["x"].get<double>();
+            double const ymin = box_min_spec["y"].get<double>();
+            double const zmin = box_min_spec["z"].get<double>();
+            double const xmax = box_max_spec["x"].get<double>();
+            double const ymax = box_max_spec["y"].get<double>();
+            double const zmax = box_max_spec["z"].get<double>();
+            mesh.rescale({xmin, ymin, zmin}, {xmax, ymax, zmax});
+        }
+        if (object_spec.contains("translation"))
+        {
+            auto const& translation_spec = object_spec["translation"];
+            double const tx              = translation_spec["x"].get<double>();
+            double const ty              = translation_spec["y"].get<double>();
+            double const tz              = translation_spec["z"].get<double>();
+
+            mesh.positions().colwise() += Eigen::Vector3d{tx, ty, tz};
+        }
 
         mesh_node->mesh = mesh;
         scene.objects.push_back(mesh_node);

@@ -246,6 +246,7 @@ void renderer_t::launch()
             unsigned int& EBO = object->EBO;
 
             object->mesh.extract_boundary_surface_mesh();
+            object->mesh.extract_boundary_normals();
 
             glBindVertexArray(VAO);
 

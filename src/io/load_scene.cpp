@@ -121,6 +121,13 @@ common::scene_t load_scene(std::filesystem::path const& path)
         double const vx              = velocity_spec["x"].get<double>();
         double const vy              = velocity_spec["y"].get<double>();
         double const vz              = velocity_spec["z"].get<double>();
+        bool const is_fixed =
+            physics_spec.contains("fixed") ? physics_spec["fixed"].get<bool>() : false;
+
+        auto mesh_node          = std::make_shared<common::node_t>();
+        mesh_node->body_type    = body_type;
+        mesh_node->is_fixed     = is_fixed;
+        mesh_node->render_state = common::node_t::render_state_t::dirty;
 
         std::optional<common::geometry_t> geometry = io::read_ply(asset_path);
         if (!geometry.has_value())
@@ -142,7 +149,6 @@ common::scene_t load_scene(std::filesystem::path const& path)
             }
         }
 
-        auto mesh_node = std::make_shared<common::node_t>();
         common::shared_vertex_mesh_t mesh{geometry.value()};
 
         mesh.masses().setConstant(mass_per_vertex);

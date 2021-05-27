@@ -40,32 +40,43 @@ int main(int argc, char** argv)
     };
 
     renderer.on_new_physics_timestep = [&](double render_frame_dt, sbs::common::scene_t& scene) {
-        auto const begin = std::chrono::steady_clock::now();
-
+        static double tb                   = 0.;
         double constexpr timestep          = 1. / 60.;
         std::uint32_t constexpr iterations = 30u;
         std::uint32_t constexpr substeps   = 30u;
+
+        tb += render_frame_dt;
+        auto const time_between_frames = tb;
+
+        /**
+         * If the elapsed time between the last physics update was less than
+         * the physics timestep, we don't update physics.
+         */
+        if (tb < timestep)
+            return;
+
+        while (tb >= timestep)
+            tb -= timestep;
+
+        auto const begin = std::chrono::steady_clock::now();
 
         /**
          * Compute external forces
          */
         for (auto const& body : scene.objects)
         {
+            if (body->is_fixed)
+                continue;
+
             /**
              * Reset external forces
              */
             body->mesh.forces().setZero();
             body->mesh.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
+            body->render_state = sbs::common::node_t::render_state_t::dirty;
         }
 
-        if (render_frame_dt < timestep)
-        {
-            solver.step(render_frame_dt, iterations, substeps);
-        }
-        else
-        {
-            solver.step(timestep, iterations, substeps);
-        }
+        solver.step(timestep, iterations, substeps);
 
         auto const end = std::chrono::steady_clock::now();
         auto const duration =

@@ -245,114 +245,30 @@ void renderer_t::launch()
             unsigned int& VBO = object->VBO;
             unsigned int& EBO = object->EBO;
 
-            object->mesh.extract_boundary_surface_mesh();
-            object->mesh.extract_boundary_normals();
-
             glBindVertexArray(VAO);
 
-            std::vector<float> cpu_buffer{};
-            auto constexpr num_bytes_per_float = sizeof(float);
-            auto constexpr size_of_one_vertex =
-                3u * num_bytes_per_float /* x,y,z coordinates */ +
-                3u * num_bytes_per_float /* nx,ny,nz normal components */ +
-                3u * num_bytes_per_float /* r,g,b colors */;
-
-            auto const number_of_vertices =
-                static_cast<std::size_t>(object->mesh.vertices().cols());
-            cpu_buffer.reserve(number_of_vertices * size_of_one_vertex);
-            for (std::size_t i = 0u; i < number_of_vertices; ++i)
-            {
-                float const x = static_cast<float>(object->mesh.vertices()(0u, i));
-                float const y = static_cast<float>(object->mesh.vertices()(1u, i));
-                float const z = static_cast<float>(object->mesh.vertices()(2u, i));
-                cpu_buffer.push_back(x);
-                cpu_buffer.push_back(y);
-                cpu_buffer.push_back(z);
-
-                float const nx = static_cast<float>(object->mesh.normals()(0u, i));
-                float const ny = static_cast<float>(object->mesh.normals()(1u, i));
-                float const nz = static_cast<float>(object->mesh.normals()(2u, i));
-                cpu_buffer.push_back(nx);
-                cpu_buffer.push_back(ny);
-                cpu_buffer.push_back(nz);
-
-                float const r = static_cast<float>(object->mesh.colors()(0u, i));
-                float const g = static_cast<float>(object->mesh.colors()(1u, i));
-                float const b = static_cast<float>(object->mesh.colors()(2u, i));
-                cpu_buffer.push_back(r);
-                cpu_buffer.push_back(g);
-                cpu_buffer.push_back(b);
-            }
-
             auto const number_of_faces = static_cast<std::size_t>(object->mesh.faces().cols());
-            std::vector<std::uint32_t> indices{};
-            indices.reserve(number_of_faces);
-            for (std::size_t f = 0u; f < number_of_faces; ++f)
+            auto const num_indices     = 3u * number_of_faces;
+
+            /**
+             * Only send data to the GPU if geometry has changed
+             */
+            if (object->render_state == common::node_t::render_state_t::dirty)
             {
-                indices.push_back(object->mesh.faces()(0u, f));
-                indices.push_back(object->mesh.faces()(1u, f));
-                indices.push_back(object->mesh.faces()(2u, f));
+                transfer_object_to_gpu(
+                    VBO,
+                    EBO,
+                    position_attribute_location,
+                    normal_attribute_location,
+                    color_attribute_location,
+                    object);
+                object->render_state = common::node_t::render_state_t::clean;
             }
-
-            /**
-             * Transfer data to the GPU
-             */
-            glBindBuffer(GL_ARRAY_BUFFER, VBO);
-            glBufferData(
-                GL_ARRAY_BUFFER,
-                cpu_buffer.size() * num_bytes_per_float,
-                cpu_buffer.data(),
-                GL_DYNAMIC_DRAW);
-
-            auto constexpr num_bytes_per_index = sizeof(decltype(indices.front()));
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(
-                GL_ELEMENT_ARRAY_BUFFER,
-                indices.size() * num_bytes_per_index,
-                indices.data(),
-                GL_DYNAMIC_DRAW);
-
-            /**
-             * Specify vertex attributes' layout on the GPU
-             */
-
-            auto constexpr stride_between_vertices = size_of_one_vertex;
-            auto constexpr vertex_position_offset  = 0u;
-            auto constexpr vertex_normal_offset    = 3u * num_bytes_per_float;
-            auto constexpr vertex_color_offset = vertex_normal_offset + 3u * num_bytes_per_float;
-
-            glVertexAttribPointer(
-                position_attribute_location,
-                3u,
-                GL_FLOAT,
-                GL_FALSE,
-                stride_between_vertices,
-                reinterpret_cast<void*>(vertex_position_offset));
-            glEnableVertexAttribArray(position_attribute_location);
-
-            glVertexAttribPointer(
-                normal_attribute_location,
-                3u,
-                GL_FLOAT,
-                GL_FALSE,
-                stride_between_vertices,
-                reinterpret_cast<void*>(vertex_normal_offset));
-            glEnableVertexAttribArray(normal_attribute_location);
-
-            glVertexAttribPointer(
-                color_attribute_location,
-                3u,
-                GL_FLOAT,
-                GL_FALSE,
-                stride_between_vertices,
-                reinterpret_cast<void*>(vertex_color_offset));
-            glEnableVertexAttribArray(color_attribute_location);
 
             /**
              * Draw the mesh
              */
-            glDrawElements(GL_TRIANGLES, static_cast<int>(indices.size()), GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, static_cast<int>(num_indices), GL_UNSIGNED_INT, 0);
 
             /**
              * Unbind buffers and vertex arrays
@@ -376,6 +292,119 @@ void renderer_t::close()
     }
     shader_.destroy();
     glfwTerminate();
+}
+
+void renderer_t::transfer_object_to_gpu(
+    unsigned int VBO,
+    unsigned int EBO,
+    int position_attribute_location,
+    int normal_attribute_location,
+    int color_attribute_location,
+    std::shared_ptr<common::node_t> const& object) const
+{
+    object->mesh.extract_boundary_surface_mesh();
+    object->mesh.extract_boundary_normals();
+
+    std::vector<float> cpu_buffer{};
+    auto constexpr num_bytes_per_float = sizeof(float);
+    auto constexpr size_of_one_vertex  = 3u * num_bytes_per_float /* x,y,z coordinates */ +
+                                        3u * num_bytes_per_float /* nx,ny,nz normal components */ +
+                                        3u * num_bytes_per_float /* r,g,b colors */;
+
+    auto const number_of_vertices = static_cast<std::size_t>(object->mesh.vertices().cols());
+    cpu_buffer.reserve(number_of_vertices * size_of_one_vertex);
+    for (std::size_t i = 0u; i < number_of_vertices; ++i)
+    {
+        float const x = static_cast<float>(object->mesh.vertices()(0u, i));
+        float const y = static_cast<float>(object->mesh.vertices()(1u, i));
+        float const z = static_cast<float>(object->mesh.vertices()(2u, i));
+        cpu_buffer.push_back(x);
+        cpu_buffer.push_back(y);
+        cpu_buffer.push_back(z);
+
+        float const nx = static_cast<float>(object->mesh.normals()(0u, i));
+        float const ny = static_cast<float>(object->mesh.normals()(1u, i));
+        float const nz = static_cast<float>(object->mesh.normals()(2u, i));
+        cpu_buffer.push_back(nx);
+        cpu_buffer.push_back(ny);
+        cpu_buffer.push_back(nz);
+
+        float const r = static_cast<float>(object->mesh.colors()(0u, i));
+        float const g = static_cast<float>(object->mesh.colors()(1u, i));
+        float const b = static_cast<float>(object->mesh.colors()(2u, i));
+        cpu_buffer.push_back(r);
+        cpu_buffer.push_back(g);
+        cpu_buffer.push_back(b);
+    }
+
+    /**
+     * Transfer vertex data to the GPU
+     */
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        cpu_buffer.size() * num_bytes_per_float,
+        cpu_buffer.data(),
+        GL_DYNAMIC_DRAW);
+
+    auto const number_of_faces = static_cast<std::size_t>(object->mesh.faces().cols());
+    auto const num_indices     = 3u * number_of_faces;
+
+    std::vector<std::uint32_t> indices{};
+    indices.reserve(num_indices);
+    for (std::size_t f = 0u; f < number_of_faces; ++f)
+    {
+        indices.push_back(object->mesh.faces()(0u, f));
+        indices.push_back(object->mesh.faces()(1u, f));
+        indices.push_back(object->mesh.faces()(2u, f));
+    }
+
+    /**
+     * Transfer triangle data to the GPU
+     */
+    auto constexpr num_bytes_per_index = sizeof(decltype(indices.front()));
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        indices.size() * num_bytes_per_index,
+        indices.data(),
+        GL_DYNAMIC_DRAW);
+
+    /**
+     * Specify vertex attributes' layout on the GPU
+     */
+    auto constexpr stride_between_vertices = size_of_one_vertex;
+    auto constexpr vertex_position_offset  = 0u;
+    auto constexpr vertex_normal_offset    = 3u * num_bytes_per_float;
+    auto constexpr vertex_color_offset     = vertex_normal_offset + 3u * num_bytes_per_float;
+
+    glVertexAttribPointer(
+        position_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_position_offset));
+    glEnableVertexAttribArray(position_attribute_location);
+
+    glVertexAttribPointer(
+        normal_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_normal_offset));
+    glEnableVertexAttribArray(normal_attribute_location);
+
+    glVertexAttribPointer(
+        color_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_color_offset));
+    glEnableVertexAttribArray(color_attribute_location);
 }
 
 } // namespace rendering

@@ -73,6 +73,15 @@ class renderer_t : public renderer_base_t
     std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene_*/)>
         on_new_physics_timestep;
 
+  protected:
+    void transfer_object_to_gpu(
+        unsigned int VBO,
+        unsigned int EBO,
+        int position_attribute_location,
+        int normal_attribute_location,
+        int color_attribute_location,
+        std::shared_ptr<common::node_t> const& object) const;
+
   private:
     void process_input(GLFWwindow* window, double dt);
 

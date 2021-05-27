@@ -150,6 +150,9 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
             auto const& p    = P[b];
             auto const& x    = body->mesh.positions();
 
+            if (body->is_fixed)
+                continue;
+
             body->mesh.velocities() = (p - x) / dt;
             body->mesh.positions()  = p;
         }

@@ -2,6 +2,7 @@
 #include "rendering/renderer.h"
 
 #include <chrono>
+#include <imgui/imgui.h>
 #include <iostream>
 
 int main(int argc, char** argv)
@@ -61,7 +62,7 @@ int main(int argc, char** argv)
         if (tb < timestep)
             return;
 
-        double const num_timesteps_elapsed = std::floor(tb / timestep);    
+        double const num_timesteps_elapsed = std::floor(tb / timestep);
         tb -= num_timesteps_elapsed * timestep;
 
         auto const begin = std::chrono::steady_clock::now();
@@ -98,6 +99,21 @@ int main(int argc, char** argv)
         auto const end = std::chrono::steady_clock::now();
         auto const duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+    };
+
+    renderer.on_new_imgui_frame = [](sbs::common::scene_t& scene) {
+        ImGui::Begin("Soft Body Simulator");
+
+        if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::BulletText("Parameters for physics\ngo here");
+            static float f = 0.f;
+            ImGui::SliderFloat("Slider", &f, 0.f, 1.f, "%.2f");
+            static float f2 = 0.f;
+            ImGui::InputFloat("Input", &f2, 0.1f, 1.f);
+        }
+
+        ImGui::End();
     };
 
     bool const initialization_success = renderer.initialize(scene_specification_path);

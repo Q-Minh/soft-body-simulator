@@ -44,6 +44,10 @@ void solver_t::setup(
     for (std::size_t b = 0u; b < bodies.size(); ++b)
     {
         std::shared_ptr<common::node_t> const& body = bodies_[b];
+
+        if (body->is_fixed)
+            continue;
+
         constraint_type_t const constraint_type =
             per_body_simulation_parameters_[b].constraint_type;
 
@@ -153,7 +157,7 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
             for (auto c = 0u; c < Mc; ++c)
             {
                 auto const& constraint = collision_constraints_[c];
-                constraint->project(P, M, lagrange_multipliers[c], dt);
+                constraint->project(P, M, collision_lagrange_multipliers[c], dt);
             }
         }
 

@@ -82,6 +82,8 @@ class renderer_t : public renderer_base_t
         int color_attribute_location,
         std::shared_ptr<common::node_t> const& object) const;
 
+    void update_shader_uniforms() const;
+
   private:
     void process_input(GLFWwindow* window, double dt);
 

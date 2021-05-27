@@ -1,5 +1,8 @@
 #include "rendering/renderer.h"
 
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
+#include <imgui/imgui.h>
 #include <iostream>
 
 namespace sbs {
@@ -72,7 +75,7 @@ void renderer_t::mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
     int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 
-    if (state == GLFW_PRESS)
+    if (state == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse)
     {
         camera_.handle_mouse_movement(dx, dy);
     }
@@ -113,6 +116,16 @@ bool renderer_t::initialize(std::filesystem::path const& scene_path)
     {
         return false;
     }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    //(void)io;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
 
     window_ = window;
 
@@ -158,6 +171,12 @@ void renderer_t::launch()
     double last_frame_time = 0.f;
     while (!glfwWindowShouldClose(window_))
     {
+        glfwPollEvents();
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
         double const now = glfwGetTime();
         double const dt  = now - last_frame_time;
         last_frame_time  = now;
@@ -177,62 +196,10 @@ void renderer_t::launch()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        shader_.use();
-
-        int width  = 0;
-        int height = 0;
-        glfwGetWindowSize(window_, &width, &height);
-        float const aspect_ratio   = static_cast<float>(width) / static_cast<float>(height);
-        glm::mat4 const projection = camera_.projection_matrix(aspect_ratio);
-        glm::mat4 const view       = camera_.view_matrix();
-
-        shader_.set_mat4_uniform("projection", projection);
-        shader_.set_mat4_uniform("view", view);
-
-        auto const& directional_light = scene_.directional_light;
-        auto const& point_light       = scene_.point_light;
-
-        shader_.set_vec3_uniform("ViewPosition", camera_.position());
-
-        shader_.set_vec3_uniform(
-            "DirectionalLight.direction",
-            glm::vec3{directional_light.dx, directional_light.dy, directional_light.dz});
-        shader_.set_vec3_uniform(
-            "DirectionalLight.ambient",
-            glm::vec3{
-                directional_light.ambient.r,
-                directional_light.ambient.g,
-                directional_light.ambient.b});
-        shader_.set_vec3_uniform(
-            "DirectionalLight.diffuse",
-            glm::vec3{
-                directional_light.diffuse.r,
-                directional_light.diffuse.g,
-                directional_light.diffuse.b});
-        shader_.set_vec3_uniform(
-            "DirectionalLight.specular",
-            glm::vec3{
-                directional_light.specular.r,
-                directional_light.specular.g,
-                directional_light.specular.b});
-        shader_.set_float_uniform("DirectionalLight.exponent", directional_light.specular.exp);
-
-        shader_.set_vec3_uniform(
-            "PointLight.position",
-            glm::vec3{point_light.x, point_light.y, point_light.z});
-        shader_.set_vec3_uniform(
-            "PointLight.ambient",
-            glm::vec3{point_light.ambient.r, point_light.ambient.g, point_light.ambient.b});
-        shader_.set_vec3_uniform(
-            "PointLight.diffuse",
-            glm::vec3{point_light.diffuse.r, point_light.diffuse.g, point_light.diffuse.b});
-        shader_.set_vec3_uniform(
-            "PointLight.specular",
-            glm::vec3{point_light.specular.r, point_light.specular.g, point_light.specular.b});
-        shader_.set_float_uniform("PointLight.exponent", point_light.specular.exp);
-        shader_.set_float_uniform("PointLight.constant", point_light.attenuation.constant);
-        shader_.set_float_uniform("PointLight.linear", point_light.attenuation.linear);
-        shader_.set_float_uniform("PointLight.quadratic", point_light.attenuation.quadratic);
+        /**
+         * Setup lights and view/projection projections
+         */
+        update_shader_uniforms();
 
         /**
          * Render the scene. Transfers data to the GPU every frame, since
@@ -277,8 +244,10 @@ void renderer_t::launch()
             glBindVertexArray(0u);
         }
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window_);
-        glfwPollEvents();
     }
 }
 
@@ -402,6 +371,66 @@ void renderer_t::transfer_object_to_gpu(
         stride_between_vertices,
         reinterpret_cast<void*>(vertex_color_offset));
     glEnableVertexAttribArray(color_attribute_location);
+}
+
+void renderer_t::update_shader_uniforms() const
+{
+    shader_.use();
+
+    int width  = 0;
+    int height = 0;
+    glfwGetWindowSize(window_, &width, &height);
+    float const aspect_ratio   = static_cast<float>(width) / static_cast<float>(height);
+    glm::mat4 const projection = camera_.projection_matrix(aspect_ratio);
+    glm::mat4 const view       = camera_.view_matrix();
+
+    shader_.set_mat4_uniform("projection", projection);
+    shader_.set_mat4_uniform("view", view);
+
+    auto const& directional_light = scene_.directional_light;
+    auto const& point_light       = scene_.point_light;
+
+    shader_.set_vec3_uniform("ViewPosition", camera_.position());
+
+    shader_.set_vec3_uniform(
+        "DirectionalLight.direction",
+        glm::vec3{directional_light.dx, directional_light.dy, directional_light.dz});
+    shader_.set_vec3_uniform(
+        "DirectionalLight.ambient",
+        glm::vec3{
+            directional_light.ambient.r,
+            directional_light.ambient.g,
+            directional_light.ambient.b});
+    shader_.set_vec3_uniform(
+        "DirectionalLight.diffuse",
+        glm::vec3{
+            directional_light.diffuse.r,
+            directional_light.diffuse.g,
+            directional_light.diffuse.b});
+    shader_.set_vec3_uniform(
+        "DirectionalLight.specular",
+        glm::vec3{
+            directional_light.specular.r,
+            directional_light.specular.g,
+            directional_light.specular.b});
+    shader_.set_float_uniform("DirectionalLight.exponent", directional_light.specular.exp);
+
+    shader_.set_vec3_uniform(
+        "PointLight.position",
+        glm::vec3{point_light.x, point_light.y, point_light.z});
+    shader_.set_vec3_uniform(
+        "PointLight.ambient",
+        glm::vec3{point_light.ambient.r, point_light.ambient.g, point_light.ambient.b});
+    shader_.set_vec3_uniform(
+        "PointLight.diffuse",
+        glm::vec3{point_light.diffuse.r, point_light.diffuse.g, point_light.diffuse.b});
+    shader_.set_vec3_uniform(
+        "PointLight.specular",
+        glm::vec3{point_light.specular.r, point_light.specular.g, point_light.specular.b});
+    shader_.set_float_uniform("PointLight.exponent", point_light.specular.exp);
+    shader_.set_float_uniform("PointLight.constant", point_light.attenuation.constant);
+    shader_.set_float_uniform("PointLight.linear", point_light.attenuation.linear);
+    shader_.set_float_uniform("PointLight.quadratic", point_light.attenuation.quadratic);
 }
 
 } // namespace rendering

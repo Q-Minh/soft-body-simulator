@@ -4,8 +4,17 @@ project(sbs VERSION 0.0.1 LANGUAGES CXX)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-add_executable(sbs-viewer)
-set_target_properties(sbs-viewer PROPERTIES FOLDER sbs-viewer)
+if (NOT EXISTS "thirdparty/imgui")
+    execute_process(
+        COMMAND "git" "clone" "https://github.com/ocornut/imgui" 
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/thirdparty/" 
+        RESULT_VARIABLE _imgui_clone_failure
+    )
+endif()
+
+if (_imgui_clone_failure)
+    message(FATAL_ERROR "Failed to download imgui")
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -18,14 +27,47 @@ FetchContent_MakeAvailable(glfw)
 add_library(glad)
 target_sources(glad 
 PRIVATE 
-    "${CMAKE_CURRENT_LIST_DIR}/glad/src/glad.c"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/glad/src/glad.c"
 )
-target_include_directories(glad PUBLIC "${CMAKE_CURRENT_LIST_DIR}/glad/include")
+target_include_directories(glad PUBLIC "${CMAKE_CURRENT_LIST_DIR}/thirdparty/glad/include")
 
 find_package(nlohmann_json 3 CONFIG REQUIRED)
 find_package(Eigen3 3.3 CONFIG REQUIRED)
 find_package(glm 0.9.9 CONFIG REQUIRED)
 
+add_library(imgui)
+set_target_properties(imgui PROPERTIES FOLDER imgui)
+target_sources(imgui 
+PRIVATE 
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imconfig.h"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imgui_demo.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imgui_draw.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imgui_internal.h"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imgui_tables.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imgui_widgets.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imgui.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imgui.h"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imstb_rectpack.h"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imstb_textedit.h"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/imstb_truetype.h"
+
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/backends/imgui_impl_glfw.h"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/backends/imgui_impl_glfw.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/backends/imgui_impl_opengl3.h"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui/backends/imgui_impl_opengl3.cpp"
+)
+target_include_directories(imgui 
+PUBLIC 
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty/imgui"
+)
+target_link_libraries(imgui 
+PUBLIC
+    glad
+    glfw 
+)
+
+add_executable(sbs-viewer)
+set_target_properties(sbs-viewer PROPERTIES FOLDER sbs-viewer)
 target_compile_features(sbs-viewer PRIVATE cxx_std_17)
 target_sources(sbs-viewer 
 PRIVATE
@@ -87,12 +129,14 @@ PRIVATE
 target_include_directories(sbs-viewer 
 PRIVATE 
     "${CMAKE_CURRENT_LIST_DIR}/include"
+    "${CMAKE_CURRENT_LIST_DIR}/thirdparty"
 )
 
 target_link_libraries(sbs-viewer 
 PRIVATE 
     glad 
     glfw 
+    imgui 
     nlohmann_json::nlohmann_json 
     Eigen3::Eigen 
     glm::glm

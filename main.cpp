@@ -106,11 +106,105 @@ int main(int argc, char** argv)
 
         if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::BulletText("Parameters for physics\ngo here");
-            static float f = 0.f;
-            ImGui::SliderFloat("Slider", &f, 0.f, 1.f, "%.2f");
-            static float f2 = 0.f;
-            ImGui::InputFloat("Input", &f2, 0.1f, 1.f);
+            ImGui::TreePush();
+            if (ImGui::CollapsingHeader("XPBD"))
+            {
+            }
+            ImGui::TreePop();
+        }
+        if (ImGui::CollapsingHeader("Cutting", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::TreePush();
+            if (ImGui::CollapsingHeader("Common Case 1"))
+            {
+                float const w     = ImGui::GetColumnWidth();
+                static int choice = 0;
+                ImGui::RadioButton("1,2,5##Case1", &choice, 0);
+                ImGui::RadioButton("1,3,4##Case1", &choice, 1);
+                ImGui::RadioButton("2,3,6##Case1", &choice, 2);
+                ImGui::RadioButton("4,5,6##Case1", &choice, 3);
+                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                {
+                }
+            }
+            ImGui::TreePop();
+
+            ImGui::TreePush();
+            if (ImGui::CollapsingHeader("Common Case 2"))
+            {
+                float const w     = ImGui::GetColumnWidth();
+                static int choice = 0;
+                ImGui::RadioButton("1,2,4,6##Case2", &choice, 0);
+                ImGui::RadioButton("1,3,5,6##Case2", &choice, 1);
+                ImGui::RadioButton("2,3,4,5##Case2", &choice, 2);
+                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                {
+                }
+            }
+            ImGui::TreePop();
+
+            ImGui::TreePush();
+            if (ImGui::CollapsingHeader("Common Case 3"))
+            {
+                float const w     = ImGui::GetColumnWidth();
+                static int choice = 0;
+                ImGui::RadioButton("1##Case3", &choice, 0);
+                ImGui::RadioButton("2##Case3", &choice, 1);
+                ImGui::RadioButton("3##Case3", &choice, 2);
+                ImGui::RadioButton("4##Case3", &choice, 3);
+                ImGui::RadioButton("5##Case3", &choice, 4);
+                ImGui::RadioButton("6##Case3", &choice, 5);
+                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                {
+                }
+            }
+            ImGui::TreePop();
+
+            ImGui::TreePush();
+            if (ImGui::CollapsingHeader("Common Case 4"))
+            {
+                float const w     = ImGui::GetColumnWidth();
+                static int choice = 0;
+                ImGui::RadioButton("1,2##Case4", &choice, 0);
+                ImGui::RadioButton("1,3##Case4", &choice, 1);
+                ImGui::RadioButton("1,4##Case4", &choice, 2);
+                ImGui::RadioButton("1,5##Case4", &choice, 3);
+                ImGui::RadioButton("2,3##Case4", &choice, 4);
+                ImGui::RadioButton("2,5##Case4", &choice, 5);
+                ImGui::RadioButton("2,6##Case4", &choice, 6);
+                ImGui::RadioButton("3,4##Case4", &choice, 7);
+                ImGui::RadioButton("3,6##Case4", &choice, 8);
+                ImGui::RadioButton("4,5##Case4", &choice, 9);
+                ImGui::RadioButton("4,6##Case4", &choice, 10);
+                ImGui::RadioButton("5,6##Case4", &choice, 11);
+                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                {
+                }
+            }
+            ImGui::TreePop();
+
+            ImGui::TreePush();
+            if (ImGui::CollapsingHeader("Common Case 5"))
+            {
+                float const w     = ImGui::GetColumnWidth();
+                static int choice = 0;
+                ImGui::RadioButton("1,2,4##Case5", &choice, 0);
+                ImGui::RadioButton("1,2,6##Case5", &choice, 1);
+                ImGui::RadioButton("1,3,5##Case5", &choice, 2);
+                ImGui::RadioButton("1,3,6##Case5", &choice, 3);
+                ImGui::RadioButton("1,4,6##Case5", &choice, 4);
+                ImGui::RadioButton("1,5,6##Case5", &choice, 5);
+                ImGui::RadioButton("2,3,4##Case5", &choice, 6);
+                ImGui::RadioButton("2,3,5##Case5", &choice, 7);
+                ImGui::RadioButton("2,4,5##Case5", &choice, 8);
+                ImGui::RadioButton("2,4,6##Case5", &choice, 9);
+                ImGui::RadioButton("3,4,5##Case5", &choice, 10);
+                ImGui::RadioButton("3,5,6##Case5", &choice, 11);
+                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                {
+                }
+            }
+            ImGui::TreePop();
         }
 
         ImGui::End();

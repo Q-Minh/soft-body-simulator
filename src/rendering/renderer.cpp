@@ -86,7 +86,7 @@ void renderer_t::scroll_callback(GLFWwindow* window, double dx, double dy)
     camera_.handle_mouse_scroll(static_cast<float>(dy));
 }
 
-bool renderer_t::initialize(std::filesystem::path const& scene_path)
+bool renderer_t::initialize()
 {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -129,8 +129,20 @@ bool renderer_t::initialize(std::filesystem::path const& scene_path)
 
     window_ = window;
 
+    return true;
+}
+
+void renderer_t::load_scene(std::filesystem::path const& scene_path)
+{
+    for (auto const& object : scene_.objects)
+    {
+        glDeleteVertexArrays(1, &(object->VAO));
+        glDeleteBuffers(1, &(object->VBO));
+        glDeleteBuffers(1, &(object->EBO));
+    }
+
     scene_ = io::load_scene(scene_path);
-    for (auto& object : scene_.objects)
+    for (auto const& object : scene_.objects)
     {
         unsigned int& VAO = object->VAO;
         unsigned int& VBO = object->VBO;
@@ -139,14 +151,61 @@ bool renderer_t::initialize(std::filesystem::path const& scene_path)
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
         glGenBuffers(1, &EBO);
+
+        object->render_state = common::node_t::render_state_t::dirty;
     }
 
     if (on_scene_loaded)
     {
         on_scene_loaded(scene_);
     }
+}
 
-    return true;
+void renderer_t::load_scene(common::scene_t const& scene)
+{
+    for (auto const& object : scene_.objects)
+    {
+        glDeleteVertexArrays(1, &(object->VAO));
+        glDeleteBuffers(1, &(object->VBO));
+        glDeleteBuffers(1, &(object->EBO));
+    }
+    scene_ = scene;
+    for (auto const& object : scene_.objects)
+    {
+        unsigned int& VAO = object->VAO;
+        unsigned int& VBO = object->VBO;
+        unsigned int& EBO = object->EBO;
+
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+        glGenBuffers(1, &EBO);
+
+        object->render_state = common::node_t::render_state_t::dirty;
+    }
+
+    if (on_scene_loaded)
+    {
+        on_scene_loaded(scene_);
+    }
+}
+
+common::scene_t const& renderer_t::get_scene() const
+{
+    return scene_;
+}
+
+common::scene_t& renderer_t::get_scene()
+{
+    return scene_;
+}
+
+void renderer_t::remove_object_from_scene(std::uint32_t object_idx)
+{
+    auto const& object = scene_.objects[object_idx];
+    glDeleteVertexArrays(1, &(object->VAO));
+    glDeleteBuffers(1, &(object->VBO));
+    glDeleteBuffers(1, &(object->EBO));
+    scene_.objects.erase(scene_.objects.begin() + object_idx);
 }
 
 bool renderer_t::use_shaders(

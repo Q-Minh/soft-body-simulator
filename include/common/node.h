@@ -3,6 +3,8 @@
 
 #include "mesh.h"
 
+#include <string>
+
 namespace sbs {
 namespace common {
 
@@ -11,6 +13,8 @@ namespace common {
  */
 struct node_t
 {
+    std::string id;
+
     enum class body_type_t { soft, rigid };
     body_type_t body_type = body_type_t::soft;
 

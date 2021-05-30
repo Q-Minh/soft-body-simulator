@@ -3,7 +3,5 @@
 namespace sbs {
 namespace common {
 
-
-
 } // namespace common
 } // namespace sbs

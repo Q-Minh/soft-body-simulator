@@ -49,7 +49,12 @@ class renderer_base_t
 class renderer_t : public renderer_base_t
 {
   public:
-    bool initialize(std::filesystem::path const& scene_path);
+    bool initialize();
+    void load_scene(std::filesystem::path const& scene_path);
+    void load_scene(common::scene_t const& scene);
+    common::scene_t const& get_scene() const;
+    common::scene_t& get_scene();
+    void remove_object_from_scene(std::uint32_t object_idx);
 
     bool use_shaders(
         std::filesystem::path const& vertex_shader_path,

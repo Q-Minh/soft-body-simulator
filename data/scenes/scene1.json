@@ -54,6 +54,7 @@
     },
     "objects": [
         {
+            "id": "tetrahedron",
             "geometry": {
                 "type": "tetrahedral mesh",
                 "path": "../meshes/tetrahedron.ply"
@@ -79,6 +80,7 @@
             }
         },
         {
+            "id": "floor",
             "geometry": {
                 "type": "triangle mesh",
                 "path": "../meshes/xz_plane.ply"

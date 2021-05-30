@@ -12,19 +12,19 @@ namespace physics {
 namespace xpbd {
 
 void solver_t::setup(
-    std::vector<std::shared_ptr<common::node_t>> const& bodies,
+    std::vector<std::shared_ptr<common::node_t>>* bodies,
     std::vector<simulation_parameters_t> const& per_body_simulation_parameters)
 {
     bodies_                         = bodies;
     per_body_simulation_parameters_ = per_body_simulation_parameters;
 
     bool const bodies_and_constraint_types_vectors_are_of_same_size =
-        bodies.size() == per_body_simulation_parameters.size();
+        bodies->size() == per_body_simulation_parameters.size();
     assert(bodies_and_constraint_types_vectors_are_of_same_size);
 
     std::size_t const num_elements = std::accumulate(
-        bodies.begin(),
-        bodies.end(),
+        bodies->begin(),
+        bodies->end(),
         std::size_t{0u},
         [](std::size_t sum, std::shared_ptr<common::node_t> const& body) {
             std::size_t const num_elements_of_body =
@@ -36,14 +36,15 @@ void solver_t::setup(
      * Pre-allocate an estimated number of constraints to reduce memory overhead of
      * vector reallocations on resize.
      */
+    constraints_.clear();
     constraints_.reserve(num_elements);
 
     /**
      * Initialize constraints
      */
-    for (std::size_t b = 0u; b < bodies.size(); ++b)
+    for (std::size_t b = 0u; b < bodies->size(); ++b)
     {
-        std::shared_ptr<common::node_t> const& body = bodies_[b];
+        std::shared_ptr<common::node_t> const& body = (*bodies_)[b];
 
         if (body->is_fixed)
             continue;
@@ -108,10 +109,10 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
     std::vector<double> collision_lagrange_multipliers{};
 
     std::vector<Eigen::Matrix3Xd> P{};
-    P.reserve(bodies_.size());
+    P.reserve(bodies_->size());
 
     std::vector<Eigen::VectorXd> M{};
-    M.reserve(bodies_.size());
+    M.reserve(bodies_->size());
 
     for (auto s = 0u; s < substeps; ++s)
     {
@@ -121,7 +122,7 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
         /**
          * Explicit euler step
          */
-        for (auto const& body : bodies_)
+        for (auto const& body : *bodies_)
         {
             auto& v = body->mesh.velocities();
             auto& x = body->mesh.positions();
@@ -164,9 +165,9 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
         collision_constraints_.clear();
 
         // update solution
-        for (std::size_t b = 0u; b < bodies_.size(); ++b)
+        for (std::size_t b = 0u; b < bodies_->size(); ++b)
         {
-            auto const& body = bodies_[b];
+            auto const& body = (*bodies_)[b];
             auto const& p    = P[b];
             auto const& x    = body->mesh.positions();
 
@@ -175,11 +176,16 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
 
             body->mesh.velocities() = (p - x) / dt;
             body->mesh.positions()  = p;
-            body->render_state      = sbs::common::node_t::render_state_t::dirty;
         }
 
         // friction or other non-conservative forces here ...
     }
+}
+
+void solver_t::notify_topology_changed() 
+{
+    constraints_.clear();
+    this->setup(bodies_, per_body_simulation_parameters_);
 }
 
 void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
@@ -189,9 +195,9 @@ void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
      * in the future
      */
     std::vector<collision::line_segment_t> line_segments{};
-    for (std::size_t bi = 0u; bi < bodies_.size(); ++bi)
+    for (std::size_t bi = 0u; bi < bodies_->size(); ++bi)
     {
-        auto const& body1 = bodies_[bi];
+        auto const& body1 = (*bodies_)[bi];
         /**
          * Instead of looking at all positions, should we only
          * detect collisions for the boundary vertices?
@@ -210,12 +216,12 @@ void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
             line_segments.push_back(collision::line_segment_t{x.col(vi), p.col(vi)});
         }
 
-        for (std::size_t bj = 0u; bj < bodies_.size(); ++bj)
+        for (std::size_t bj = 0u; bj < bodies_->size(); ++bj)
         {
             if (bj == bi)
                 continue;
 
-            auto const& body2 = bodies_[bj];
+            auto const& body2 = (*bodies_)[bj];
 
             /**
              * Handle collisions between line segments and boundary faces of other bodies

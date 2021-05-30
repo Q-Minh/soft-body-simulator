@@ -117,6 +117,11 @@ PRIVATE
 
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/collision/intersections.cpp"
 
+    # physics/cutting
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/cutting/cut_tetrahedron.h"
+
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/cutting/cut_tetrahedron.cpp"
+
     # rendering
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/camera.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/renderer.h"

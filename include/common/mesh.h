@@ -23,10 +23,16 @@ class shared_vertex_mesh_t
     using velocities_type  = Eigen::Matrix3Xd;
     using forces_type      = Eigen::Matrix3Xd;
     using tetrahedron_type = Eigen::Matrix<index_type, 4, 1>;
+    using tetrahedra_type  = Eigen::Matrix<index_type, 4, Eigen::Dynamic>;
     using triangle_type    = Eigen::Matrix<index_type, 3, 1>;
+
+    using uv_coordinates_type = Eigen::Matrix2Xf;
+    using normals_type        = Eigen::Matrix3Xd;
+    using colors_type         = Eigen::Matrix3Xf;
 
     shared_vertex_mesh_t() = default;
     shared_vertex_mesh_t(common::geometry_t const& geometry);
+    shared_vertex_mesh_t(positions_type const& P, tetrahedra_type const& T);
 
     void rescale(
         Eigen::Vector3d const& boxmin = Eigen::Vector3d{-1., -1., -1.},
@@ -53,10 +59,6 @@ class shared_vertex_mesh_t
     /**
      * Rendering
      */
-    using uv_coordinates_type = Eigen::Matrix2Xf;
-    using normals_type        = Eigen::Matrix3Xd;
-    using colors_type         = Eigen::Matrix3Xf;
-
     positions_type const& vertices() const;
     positions_type& vertices();
 
@@ -68,6 +70,8 @@ class shared_vertex_mesh_t
 
     colors_type const& colors() const;
     colors_type& colors();
+
+    void set_color(Eigen::Vector3f const rgb);
 
     void extract_boundary_surface_mesh();
     void extract_boundary_normals();

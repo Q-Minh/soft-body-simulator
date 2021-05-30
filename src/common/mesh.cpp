@@ -104,6 +104,16 @@ shared_vertex_mesh_t::shared_vertex_mesh_t(common::geometry_t const& geometry)
     forces_.setZero();
 }
 
+shared_vertex_mesh_t::shared_vertex_mesh_t(
+    positions_type const& P,
+    tetrahedra_type const& T)
+    : positions_(P), elements_(T)
+{
+    masses_.resize(P.cols());
+    velocities_.resizeLike(P);
+    forces_.resizeLike(P);
+}
+
 shared_vertex_mesh_t::positions_type const& shared_vertex_mesh_t::positions() const
 {
     return positions_;
@@ -189,6 +199,18 @@ shared_vertex_mesh_t::colors_type const& shared_vertex_mesh_t::colors() const
 shared_vertex_mesh_t::colors_type& shared_vertex_mesh_t::colors()
 {
     return boundary_colors_;
+}
+
+void shared_vertex_mesh_t::set_color(Eigen::Vector3f const rgb)
+{
+    colors_.resizeLike(positions_);
+    colors_.row(0u).setConstant(rgb(0u));
+    colors_.row(1u).setConstant(rgb(1u));
+    colors_.row(2u).setConstant(rgb(2u));
+
+    boundary_colors_.row(0u).setConstant(rgb(0u));
+    boundary_colors_.row(1u).setConstant(rgb(1u));
+    boundary_colors_.row(2u).setConstant(rgb(2u));
 }
 
 shared_vertex_mesh_t::triangles_type const& shared_vertex_mesh_t::faces() const

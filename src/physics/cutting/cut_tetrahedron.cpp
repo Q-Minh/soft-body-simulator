@@ -922,9 +922,9 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_1(
     M1(v6) = (1 - t2) * masses(_v2) + t2 * masses(_v4);
     M1(v7) = (1 - t3) * masses(_v3) + t3 * masses(_v4);
 
-    M2.col(v5p) = M1.col(v5);
-    M2.col(v6p) = M1.col(v6);
-    M2.col(v7p) = M1.col(v7);
+    M2(v5p) = M1(v5);
+    M2(v6p) = M1(v6);
+    M2(v7p) = M1(v7);
 
     std::size_t constexpr num_tetrahedra_t1 = 3u;
     std::size_t constexpr num_tetrahedra_t2 = 1u;

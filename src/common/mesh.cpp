@@ -104,14 +104,22 @@ shared_vertex_mesh_t::shared_vertex_mesh_t(common::geometry_t const& geometry)
     forces_.setZero();
 }
 
-shared_vertex_mesh_t::shared_vertex_mesh_t(
-    positions_type const& P,
-    tetrahedra_type const& T)
+shared_vertex_mesh_t::shared_vertex_mesh_t(positions_type const& P, tetrahedra_type const& T)
     : positions_(P), elements_(T)
 {
     masses_.resize(P.cols());
     velocities_.resizeLike(P);
     forces_.resizeLike(P);
+}
+
+shared_vertex_mesh_t::shared_vertex_mesh_t(
+    positions_type const& P,
+    tetrahedra_type const& T,
+    masses_type const& M,
+    velocities_type const& V,
+    forces_type const& F)
+    : positions_(P), elements_(T), masses_(M), velocities_(V), forces_(F)
+{
 }
 
 shared_vertex_mesh_t::positions_type const& shared_vertex_mesh_t::positions() const

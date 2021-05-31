@@ -33,6 +33,12 @@ class shared_vertex_mesh_t
     shared_vertex_mesh_t() = default;
     shared_vertex_mesh_t(common::geometry_t const& geometry);
     shared_vertex_mesh_t(positions_type const& P, tetrahedra_type const& T);
+    shared_vertex_mesh_t(
+        positions_type const& P,
+        tetrahedra_type const& T,
+        masses_type const& M,
+        velocities_type const& V,
+        forces_type const& F);
 
     void rescale(
         Eigen::Vector3d const& boxmin = Eigen::Vector3d{-1., -1., -1.},

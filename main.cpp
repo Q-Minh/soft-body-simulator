@@ -48,6 +48,7 @@ int main(int argc, char** argv)
         solver.setup(&scene.objects, per_body_simulation_parameters);
     };
 
+    bool are_physics_active          = false;
     renderer.on_new_physics_timestep = [&](double render_frame_dt, sbs::common::scene_t& scene) {
         static double tb                   = 0.;
         double constexpr timestep          = 1. / 60.;
@@ -72,30 +73,33 @@ int main(int argc, char** argv)
         /**
          * Compute external forces
          */
-        // for (auto const& body : scene.objects)
-        //{
-        //    if (body->is_fixed)
-        //        continue;
-
-        //    /**
-        //     * Reset external forces
-        //     */
-        //    body->mesh.forces().setZero();
-        //    body->mesh.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
-        //}
-
-        // solver.step(timestep, iterations, substeps);
-
-        for (auto const& body : scene.objects)
+        if (are_physics_active)
         {
-            if (body->is_fixed)
-                continue;
-
-            if (body->body_type == sbs::common::node_t::body_type_t::soft)
+            for (auto const& body : scene.objects)
             {
-                body->mesh.extract_boundary_surface_mesh();
-                body->mesh.extract_boundary_normals();
-                body->render_state = sbs::common::node_t::render_state_t::dirty;
+                if (body->is_fixed)
+                    continue;
+
+                /**
+                 * Reset external forces
+                 */
+                body->mesh.forces().setZero();
+                body->mesh.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
+            }
+
+            solver.step(timestep, iterations, substeps);
+
+            for (auto const& body : scene.objects)
+            {
+                if (body->is_fixed)
+                    continue;
+
+                if (body->body_type == sbs::common::node_t::body_type_t::soft)
+                {
+                    body->mesh.extract_boundary_surface_mesh();
+                    body->mesh.extract_boundary_normals();
+                    body->render_state = sbs::common::node_t::render_state_t::dirty;
+                }
             }
         }
 
@@ -118,7 +122,7 @@ int main(int argc, char** argv)
                 auto const& body   = scene.objects[b];
                 auto const& params = per_body_simulation_parameters[b];
 
-                ImGui::RadioButton(body->id.c_str(), &active_body, b);
+                ImGui::RadioButton(body->id.c_str(), &active_body, static_cast<int>(b));
             }
 
             if (ImGui::Button("Reload", ImVec2(w / 2.f, 0.f)))
@@ -132,6 +136,7 @@ int main(int argc, char** argv)
             ImGui::TreePush();
             if (ImGui::CollapsingHeader("XPBD"))
             {
+                ImGui::Checkbox("Activate physics", &are_physics_active);
             }
             ImGui::TreePop();
         }
@@ -165,16 +170,20 @@ int main(int argc, char** argv)
                 0.33 * (p3 + p1 + p4),
                 0.33 * (p1 + p3 + p2)};
 
+            using subdivided_mesh_element_type = std::tuple<
+                Eigen::Matrix3Xd,
+                Eigen::Matrix<std::uint32_t, 4, Eigen::Dynamic>,
+                Eigen::VectorXd,
+                Eigen::Matrix3Xd,
+                Eigen::Matrix3Xd>;
+
             auto const update_scene_after_cut =
-                [&renderer, &scene](
-                    int cut_body,
-                    std::vector<std::pair<
-                        Eigen::Matrix3Xd,
-                        Eigen::Matrix<std::uint32_t, 4, Eigen::Dynamic>>> const& tets) {
+                [&renderer,
+                 &scene](int cut_body, std::vector<subdivided_mesh_element_type> const& tets) {
                     renderer.remove_object_from_scene(active_body);
-                    for (auto const& [P, T] : tets)
+                    for (auto const& [P, T, M, V, F] : tets)
                     {
-                        sbs::common::shared_vertex_mesh_t mesh{P, T};
+                        sbs::common::shared_vertex_mesh_t mesh{P, T, M, V, F};
                         mesh.set_color({1.f, 1.f, 0.f});
                         auto const node    = std::make_shared<sbs::common::node_t>();
                         node->body_type    = sbs::common::node_t::body_type_t::soft;
@@ -198,16 +207,16 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("4,5,6##Case1", &choice, 3);
                 if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
                 {
-                    std::vector<std::pair<
-                        Eigen::Matrix3Xd,
-                        Eigen::Matrix<std::uint32_t, 4, Eigen::Dynamic>>>
-                        tets{};
+                    std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00010011},
                             edge_intersections,
@@ -218,6 +227,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00001101},
                             edge_intersections,
@@ -228,6 +240,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00100110},
                             edge_intersections,
@@ -238,6 +253,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00111000},
                             edge_intersections,
@@ -259,16 +277,16 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("2,3,4,5##Case2", &choice, 2);
                 if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
                 {
-                    std::vector<std::pair<
-                        Eigen::Matrix3Xd,
-                        Eigen::Matrix<std::uint32_t, 4, Eigen::Dynamic>>>
-                        tets{};
+                    std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00101011},
                             edge_intersections,
@@ -279,6 +297,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00110101},
                             edge_intersections,
@@ -289,6 +310,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00011110},
                             edge_intersections,
@@ -313,16 +337,16 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("6##Case3", &choice, 5);
                 if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
                 {
-                    std::vector<std::pair<
-                        Eigen::Matrix3Xd,
-                        Eigen::Matrix<std::uint32_t, 4, Eigen::Dynamic>>>
-                        tets{};
+                    std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00000001},
                             edge_intersections,
@@ -333,6 +357,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00000010},
                             edge_intersections,
@@ -343,6 +370,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00000100},
                             edge_intersections,
@@ -353,6 +383,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00001000},
                             edge_intersections,
@@ -363,6 +396,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00010000},
                             edge_intersections,
@@ -373,6 +409,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00100000},
                             edge_intersections,
@@ -403,16 +442,16 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("5,6##Case4", &choice, 11);
                 if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
                 {
-                    std::vector<std::pair<
-                        Eigen::Matrix3Xd,
-                        Eigen::Matrix<std::uint32_t, 4, Eigen::Dynamic>>>
-                        tets{};
+                    std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00000011},
                             edge_intersections,
@@ -423,6 +462,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00000101},
                             edge_intersections,
@@ -433,6 +475,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00001001},
                             edge_intersections,
@@ -443,6 +488,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00010001},
                             edge_intersections,
@@ -453,6 +501,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00000110},
                             edge_intersections,
@@ -463,6 +514,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00010010},
                             edge_intersections,
@@ -473,6 +527,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00100010},
                             edge_intersections,
@@ -483,6 +540,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00001100},
                             edge_intersections,
@@ -493,6 +553,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00100100},
                             edge_intersections,
@@ -503,6 +566,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00011000},
                             edge_intersections,
@@ -513,6 +579,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00101000},
                             edge_intersections,
@@ -523,6 +592,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00110000},
                             edge_intersections,
@@ -553,16 +625,16 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("3,5,6##Case5", &choice, 11);
                 if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
                 {
-                    std::vector<std::pair<
-                        Eigen::Matrix3Xd,
-                        Eigen::Matrix<std::uint32_t, 4, Eigen::Dynamic>>>
-                        tets{};
+                    std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00001011},
                             edge_intersections,
@@ -573,6 +645,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00100011},
                             edge_intersections,
@@ -583,6 +658,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00010101},
                             edge_intersections,
@@ -593,6 +671,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00100101},
                             edge_intersections,
@@ -603,6 +684,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00101001},
                             edge_intersections,
@@ -613,6 +697,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00110001},
                             edge_intersections,
@@ -623,6 +710,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00001110},
                             edge_intersections,
@@ -633,6 +723,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00010110},
                             edge_intersections,
@@ -643,6 +736,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00011010},
                             edge_intersections,
@@ -653,6 +749,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00101010},
                             edge_intersections,
@@ -663,6 +762,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00011100},
                             edge_intersections,
@@ -673,6 +775,9 @@ int main(int argc, char** argv)
                         tets = sbs::physics::cutting::cut_tetrahedron(
                             tet_body->mesh.positions(),
                             tet_body->mesh.elements(),
+                            tet_body->mesh.masses(),
+                            tet_body->mesh.velocities(),
+                            tet_body->mesh.forces(),
                             0u,
                             std::byte{0b00110100},
                             edge_intersections,

@@ -1,5 +1,7 @@
 #include "physics/cutting/cut_tetrahedron.h"
 
+#include <Eigen/LU>
+
 namespace sbs {
 namespace physics {
 namespace cutting {

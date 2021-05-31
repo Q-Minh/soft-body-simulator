@@ -1298,6 +1298,22 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_4(
     V.col(v5p) = V.col(v5);
     V.col(v6p) = V.col(v6);
 
+    /**
+     * Transfer masses to subdivided mesh elements
+     */
+    M(v1) = masses(_v1);
+    M(v2) = masses(_v2);
+    M(v3) = masses(_v3);
+    M(v4) = masses(_v4);
+
+    M(v5) = (1 - t1) * masses(_v1) + t1 * masses(_v4);
+    M(v6) = (1 - t2) * masses(_v2) + t2 * masses(_v4);
+    M(v7) = bu3 * masses(_v2) + bv3 * masses(_v3) + bw3 * masses(_v4);
+    M(v8) = bu4 * masses(_v1) + bv4 * masses(_v4) + bw4 * masses(_v3);
+
+    M(v5p) = M(v5);
+    M(v6p) = M(v6);
+
     std::uint32_t constexpr num_tetrahedra = 8u;
     tetrahedra_type T(4u, num_tetrahedra);
 

@@ -65,6 +65,10 @@ PUBLIC
     glad
     glfw 
 )
+target_compile_definitions(imgui 
+PUBLIC 
+IMGUI_IMPL_OPENGL_LOADER_GLAD=1
+)
 
 add_executable(sbs-viewer)
 set_target_properties(sbs-viewer PROPERTIES FOLDER sbs-viewer)

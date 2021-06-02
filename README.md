@@ -20,8 +20,8 @@ $ git clone https://github.com/g-truc/glm
 $ cd glm
 $ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 $ cmake --build build --target install --config Release
-$ git clone https://github.com/nlohmann/json
 $ cd ..
+$ git clone https://github.com/nlohmann/json
 $ cd json
 $ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 $ cmake --build build --target install --config Release

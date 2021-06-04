@@ -34,6 +34,9 @@ class solver_t
     void step(double timestep, std::uint32_t iterations, std::uint32_t substeps);
     void notify_topology_changed();
 
+    simulation_parameters_t const& get_simulation_parameters_for_body(std::uint32_t index) const;
+    simulation_parameters_t& get_simulation_parameters_for_body(std::uint32_t index);
+
   protected:
     void handle_collisions(std::vector<Eigen::Matrix3Xd> const& P);
 
@@ -43,7 +46,7 @@ class solver_t
 
     std::vector<std::unique_ptr<constraint_t>> constraints_;
     std::vector<std::unique_ptr<constraint_t>> collision_constraints_;
-    //std::vector<std::uint32_t>
+    // std::vector<std::uint32_t>
     //    garbage_collected_constraints_; ///< We collect, in this list, indices of constraints that
     //                                    ///< have been removed, because it is too expensive to
     //                                    ///< remove them directly from the list of constraints

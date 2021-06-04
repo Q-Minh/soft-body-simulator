@@ -19,11 +19,12 @@ common::scene_t load_scene(std::filesystem::path const& path)
 
     common::scene_t scene{};
 
-    auto const& lights_specification  = scene_specification["lights"];
-    auto const& objects_specification = scene_specification["objects"];
-
+    auto const& lights_specification            = scene_specification["lights"];
     auto const& directional_light_specification = lights_specification["directional"];
     auto const& point_light_specification       = lights_specification["point"];
+
+    auto const& environment_specification = scene_specification["environment"];
+    auto const& objects_specification     = scene_specification["objects"];
 
     /**
      * initialize directional light
@@ -93,6 +94,75 @@ common::scene_t load_scene(std::filesystem::path const& path)
         scene.point_light = light;
     }
 
+    for (auto const& environment_object_spec : environment_specification)
+    {
+        auto const& geometry_spec           = environment_object_spec["geometry"];
+        std::string const geometry_type     = geometry_spec["type"].get<std::string>();
+        std::string const asset_path_string = geometry_spec["path"].get<std::string>();
+
+        std::filesystem::path const asset_path = path.parent_path() / asset_path_string;
+
+        bool const can_process_file_format =
+            asset_path.has_extension() && (asset_path.extension() == ".ply");
+
+        bool const is_valid_file = std::filesystem::exists(asset_path) && asset_path.has_filename();
+
+        bool const should_process_asset = is_valid_file && can_process_file_format;
+
+        if (!should_process_asset)
+            continue;
+
+        std::optional<common::geometry_t> geometry = io::read_ply(asset_path);
+        if (!geometry.has_value())
+            continue;
+
+        geometry->colors.reserve(geometry->positions.size());
+        auto const& color    = environment_object_spec["color"];
+        std::uint8_t const r = color["r"].get<std::uint8_t>();
+        std::uint8_t const g = color["g"].get<std::uint8_t>();
+        std::uint8_t const b = color["b"].get<std::uint8_t>();
+
+        for (std::size_t i = 0u; i < geometry->positions.size(); i += 3u)
+        {
+            geometry->colors.push_back(r);
+            geometry->colors.push_back(g);
+            geometry->colors.push_back(b);
+        }
+
+        common::shared_vertex_surface_mesh_t mesh{geometry.value()};
+
+        if (environment_object_spec.contains("box"))
+        {
+            auto const& box_spec     = environment_object_spec["box"];
+            auto const& box_min_spec = box_spec["min"];
+            auto const& box_max_spec = box_spec["max"];
+
+            double const xmin = box_min_spec["x"].get<double>();
+            double const ymin = box_min_spec["y"].get<double>();
+            double const zmin = box_min_spec["z"].get<double>();
+            double const xmax = box_max_spec["x"].get<double>();
+            double const ymax = box_max_spec["y"].get<double>();
+            double const zmax = box_max_spec["z"].get<double>();
+            mesh.vertices() =
+                common::rescale(mesh.vertices(), {xmin, ymin, zmin}, {xmax, ymax, zmax});
+        }
+        if (environment_object_spec.contains("translation"))
+        {
+            auto const& translation_spec = environment_object_spec["translation"];
+            double const tx              = translation_spec["x"].get<double>();
+            double const ty              = translation_spec["y"].get<double>();
+            double const tz              = translation_spec["z"].get<double>();
+
+            mesh.vertices().colwise() += Eigen::Vector3d{tx, ty, tz};
+        }
+
+        auto node = std::make_shared<common::node_t>();
+        node->id  = environment_object_spec["id"].get<std::string>();
+        mesh.extract_normals();
+        node->render_model = std::move(mesh);
+
+        scene.environment_objects.push_back(node);
+    }
     for (auto const& object_spec : objects_specification)
     {
         auto const& geometry_spec           = object_spec["geometry"];
@@ -111,52 +181,24 @@ common::scene_t load_scene(std::filesystem::path const& path)
         if (!should_process_asset)
             continue;
 
-        auto const& physics_spec              = object_spec["physics"];
-        std::string const body_type_str       = physics_spec["type"].get<std::string>();
-        common::node_t::body_type_t body_type = body_type_str == "soft" ?
-                                                    common::node_t::body_type_t::soft :
-                                                    common::node_t::body_type_t::rigid;
-        double const mass_per_vertex = physics_spec["mass"].get<double>();
-        auto const& velocity_spec    = physics_spec["velocity"];
-        double const vx              = velocity_spec["x"].get<double>();
-        double const vy              = velocity_spec["y"].get<double>();
-        double const vz              = velocity_spec["z"].get<double>();
+        auto const& physics_spec        = object_spec["physics"];
+        std::string const body_type_str = physics_spec["type"].get<std::string>();
+        double const mass_per_vertex    = physics_spec["mass"].get<double>();
+        auto const& velocity_spec       = physics_spec["velocity"];
+        double const vx                 = velocity_spec["x"].get<double>();
+        double const vy                 = velocity_spec["y"].get<double>();
+        double const vz                 = velocity_spec["z"].get<double>();
         bool const is_fixed =
             physics_spec.contains("fixed") ? physics_spec["fixed"].get<bool>() : false;
-
-        auto mesh_node          = std::make_shared<common::node_t>();
-        mesh_node->id           = object_spec["id"].get<std::string>();
-        mesh_node->body_type    = body_type;
-        mesh_node->is_fixed     = is_fixed;
-        mesh_node->render_state = common::node_t::render_state_t::dirty;
 
         std::optional<common::geometry_t> geometry = io::read_ply(asset_path);
         if (!geometry.has_value())
             continue;
 
-        if (geometry->colors.empty())
-        {
-            geometry->colors.reserve(geometry->positions.size());
-            auto const& color    = object_spec["color"];
-            std::uint8_t const r = color["r"].get<std::uint8_t>();
-            std::uint8_t const g = color["g"].get<std::uint8_t>();
-            std::uint8_t const b = color["b"].get<std::uint8_t>();
-
-            for (std::size_t i = 0u; i < geometry->positions.size(); i += 3u)
-            {
-                geometry->colors.push_back(r);
-                geometry->colors.push_back(g);
-                geometry->colors.push_back(b);
-            }
-        }
-
         common::shared_vertex_mesh_t mesh{geometry.value()};
 
         mesh.masses().setConstant(mass_per_vertex);
-
-        mesh.velocities().row(0u).setConstant(vx);
-        mesh.velocities().row(1u).setConstant(vy);
-        mesh.velocities().row(2u).setConstant(vz);
+        mesh.velocities().colwise() = Eigen::Vector3d{vx, vy, vz};
 
         if (object_spec.contains("box"))
         {
@@ -170,7 +212,8 @@ common::scene_t load_scene(std::filesystem::path const& path)
             double const xmax = box_max_spec["x"].get<double>();
             double const ymax = box_max_spec["y"].get<double>();
             double const zmax = box_max_spec["z"].get<double>();
-            mesh.rescale({xmin, ymin, zmin}, {xmax, ymax, zmax});
+            mesh.positions() =
+                common::rescale(mesh.positions(), {xmin, ymin, zmin}, {xmax, ymax, zmax});
         }
         if (object_spec.contains("translation"))
         {
@@ -182,8 +225,20 @@ common::scene_t load_scene(std::filesystem::path const& path)
             mesh.positions().colwise() += Eigen::Vector3d{tx, ty, tz};
         }
 
-        mesh_node->mesh = mesh;
-        scene.objects.push_back(mesh_node);
+        auto node = std::make_shared<common::node_t>();
+        node->id  = object_spec["id"].get<std::string>();
+
+        auto const& color    = object_spec["color"];
+        std::uint8_t const r = color["r"].get<std::uint8_t>();
+        std::uint8_t const g = color["g"].get<std::uint8_t>();
+        std::uint8_t const b = color["b"].get<std::uint8_t>();
+
+        node->render_model = mesh.boundary_surface_mesh();
+        node->render_model.set_color(
+            Eigen::Vector3f{static_cast<float>(r), static_cast<float>(g), static_cast<float>(b)} /
+            255.f);
+        node->physical_model = std::move(mesh);
+        scene.physics_objects.push_back(node);
     }
 
     return scene;

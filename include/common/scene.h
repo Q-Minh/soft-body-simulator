@@ -11,7 +11,8 @@ namespace common {
 
 struct scene_t
 {
-    std::vector<std::shared_ptr<node_t>> objects;
+    std::vector<std::shared_ptr<node_t>> physics_objects;
+    std::vector<std::shared_ptr<node_t>> environment_objects;
 
     struct ambient_t
     {

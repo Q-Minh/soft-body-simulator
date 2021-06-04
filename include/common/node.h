@@ -15,15 +15,15 @@ struct node_t
 {
     std::string id;
 
-    enum class body_type_t { soft, rigid };
-    body_type_t body_type = body_type_t::soft;
+    shared_vertex_mesh_t physical_model;
+    shared_vertex_surface_mesh_t render_model;
 
-    shared_vertex_mesh_t mesh;
-
-    enum class render_state_t { dirty, clean };
-    render_state_t render_state = render_state_t::dirty;
-
-    bool is_fixed = false;
+    struct render_state_t
+    {
+        bool should_transfer_vertices = true;
+        bool should_transfer_indices  = true;
+        bool should_render_wireframe  = false;
+    } render_state;
 
     unsigned int VBO;
     unsigned int VAO;

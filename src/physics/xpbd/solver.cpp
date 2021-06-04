@@ -28,7 +28,7 @@ void solver_t::setup(
         std::size_t{0u},
         [](std::size_t sum, std::shared_ptr<common::node_t> const& body) {
             std::size_t const num_elements_of_body =
-                static_cast<std::size_t>(body->mesh.elements().cols());
+                static_cast<std::size_t>(body->physical_model.elements().cols());
             return sum + num_elements_of_body;
         });
 
@@ -46,20 +46,17 @@ void solver_t::setup(
     {
         std::shared_ptr<common::node_t> const& body = (*bodies_)[b];
 
-        if (body->is_fixed)
-            continue;
-
         constraint_type_t const constraint_type =
             per_body_simulation_parameters_[b].constraint_type;
 
         std::size_t const num_elements_of_body =
-            static_cast<std::size_t>(body->mesh.elements().cols());
+            static_cast<std::size_t>(body->physical_model.elements().cols());
 
         double const alpha = per_body_simulation_parameters_[b].alpha;
 
         if (constraint_type == constraint_type_t::distance)
         {
-            auto const edges = common::edges(body->mesh);
+            auto const edges = common::edges(body->physical_model);
             std::transform(
                 edges.begin(),
                 edges.end(),
@@ -67,7 +64,7 @@ void solver_t::setup(
                 [alpha, b, body](std::pair<std::uint32_t, std::uint32_t> const& edge) {
                     return std::make_unique<distance_constraint_t>(
                         alpha,
-                        body->mesh.positions(),
+                        body->physical_model.positions(),
                         std::make_pair(edge.first, b),
                         std::make_pair(edge.second, b));
                 });
@@ -76,17 +73,17 @@ void solver_t::setup(
         {
             for (std::size_t e = 0u; e < num_elements_of_body; ++e)
             {
-                auto const v1 = body->mesh.elements()(0u, e);
-                auto const v2 = body->mesh.elements()(1u, e);
-                auto const v3 = body->mesh.elements()(2u, e);
-                auto const v4 = body->mesh.elements()(3u, e);
+                auto const v1 = body->physical_model.elements()(0u, e);
+                auto const v2 = body->physical_model.elements()(1u, e);
+                auto const v3 = body->physical_model.elements()(2u, e);
+                auto const v4 = body->physical_model.elements()(3u, e);
 
                 double const young_modulus = per_body_simulation_parameters_[b].young_modulus;
                 double const poisson_ratio = per_body_simulation_parameters_[b].poisson_ratio;
 
                 auto constraint = std::make_unique<green_constraint_t>(
                     alpha,
-                    body->mesh.positions(),
+                    body->physical_model.positions(),
                     std::make_pair(v1, b),
                     std::make_pair(v2, b),
                     std::make_pair(v3, b),
@@ -124,11 +121,11 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
          */
         for (auto const& body : *bodies_)
         {
-            auto& v = body->mesh.velocities();
-            auto& x = body->mesh.positions();
+            auto& v = body->physical_model.velocities();
+            auto& x = body->physical_model.positions();
 
-            Eigen::VectorXd const& m     = body->mesh.masses();
-            Eigen::Matrix3Xd const& fext = body->mesh.forces();
+            Eigen::VectorXd const& m     = body->physical_model.masses();
+            Eigen::Matrix3Xd const& fext = body->physical_model.forces();
             Eigen::Matrix3Xd const a     = fext.array().rowwise() / m.transpose().array();
 
             auto vexplicit           = v + dt * a;
@@ -169,23 +166,31 @@ void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t sub
         {
             auto const& body = (*bodies_)[b];
             auto const& p    = P[b];
-            auto const& x    = body->mesh.positions();
+            auto const& x    = body->physical_model.positions();
 
-            if (body->is_fixed)
-                continue;
-
-            body->mesh.velocities() = (p - x) / dt;
-            body->mesh.positions()  = p;
+            body->physical_model.velocities() = (p - x) / dt;
+            body->physical_model.positions()  = p;
         }
 
         // friction or other non-conservative forces here ...
     }
 }
 
-void solver_t::notify_topology_changed() 
+void solver_t::notify_topology_changed()
 {
     constraints_.clear();
     this->setup(bodies_, per_body_simulation_parameters_);
+}
+
+simulation_parameters_t const&
+solver_t::get_simulation_parameters_for_body(std::uint32_t index) const
+{
+    return per_body_simulation_parameters_[index];
+}
+
+simulation_parameters_t& solver_t::get_simulation_parameters_for_body(std::uint32_t index)
+{
+    return per_body_simulation_parameters_[index];
 }
 
 void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
@@ -203,7 +208,7 @@ void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
          * detect collisions for the boundary vertices?
          */
         auto const& p = P[bi];
-        auto const& x = body1->mesh.positions();
+        auto const& x = body1->physical_model.positions();
 
         /**
          * Find line segments x(n) -> p(n+1)
@@ -226,18 +231,19 @@ void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
             /**
              * Handle collisions between line segments and boundary faces of other bodies
              */
-            auto const& boundary        = body2->mesh.faces();
+            auto const& boundary        = body2->render_model.triangles();
+            auto const& index_map       = body2->render_model.index_map();
             std::size_t const num_faces = static_cast<std::size_t>(boundary.cols());
             for (std::size_t f = 0u; f < num_faces; ++f)
             {
-                auto const v1 = boundary(0u, f);
-                auto const v2 = boundary(1u, f);
-                auto const v3 = boundary(2u, f);
+                auto const v1 = index_map[boundary(0u, f)];
+                auto const v2 = index_map[boundary(1u, f)];
+                auto const v3 = index_map[boundary(2u, f)];
 
                 collision::triangle_t const triangle{
-                    body2->mesh.positions().col(v1),
-                    body2->mesh.positions().col(v2),
-                    body2->mesh.positions().col(v3)};
+                    body2->physical_model.positions().col(v1),
+                    body2->physical_model.positions().col(v2),
+                    body2->physical_model.positions().col(v3)};
 
                 collision::normal_t const normal = triangle.normal();
 

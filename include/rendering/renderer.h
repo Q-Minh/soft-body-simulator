@@ -6,14 +6,12 @@
 #include <GLFW/glfw3.h>
 // clang-format on
 
-#include "io/load_scene.h"
+#include "common/scene.h"
 #include "camera.h"
 #include "shader.h"
 
 #include <filesystem>
 #include <functional>
-#include <iostream>
-#include <iterator>
 
 namespace sbs {
 namespace rendering {
@@ -29,6 +27,7 @@ class renderer_base_t
 
     virtual void set_as_active_renderer() { active_renderer = this; }
 
+  protected:
     static void framebuffer_size_callback_dispatcher(GLFWwindow* window, int width, int height)
     {
         if (active_renderer != nullptr)
@@ -50,25 +49,20 @@ class renderer_t : public renderer_base_t
 {
   public:
     bool initialize();
-    void load_scene(std::filesystem::path const& scene_path);
+    void unload_current_scene();
     void load_scene(common::scene_t const& scene);
-    common::scene_t const& get_scene() const;
-    common::scene_t& get_scene();
-    void remove_object_from_scene(std::uint32_t object_idx);
+
+    void remove_physics_object_from_scene(std::uint32_t object_idx);
+    std::uint32_t add_physics_object_to_scene(std::shared_ptr<common::node_t> const& node);
 
     bool use_shaders(
         std::filesystem::path const& vertex_shader_path,
         std::filesystem::path const& fragment_shader_path);
 
     void launch();
-
     void close();
 
     std::vector<std::string> get_error_messages() const { return shader_.error_messages(); }
-
-    virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) override;
-    virtual void mouse_callback(GLFWwindow* window, double xpos, double ypos) override;
-    virtual void scroll_callback(GLFWwindow* window, double dx, double dy) override;
 
     std::uint32_t constexpr get_initial_window_width() const { return 800u; }
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
@@ -79,13 +73,19 @@ class renderer_t : public renderer_base_t
         on_new_physics_timestep;
 
   protected:
-    void transfer_object_to_gpu(
+    virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) override;
+    virtual void mouse_callback(GLFWwindow* window, double xpos, double ypos) override;
+    virtual void scroll_callback(GLFWwindow* window, double dx, double dy) override;
+
+    void transfer_vertices_to_gpu(
         unsigned int VBO,
-        unsigned int EBO,
         int position_attribute_location,
         int normal_attribute_location,
         int color_attribute_location,
         std::shared_ptr<common::node_t> const& object) const;
+
+    void
+    transfer_indices_to_gpu(unsigned int EBO, std::shared_ptr<common::node_t> const& object) const;
 
     void update_shader_uniforms() const;
 
@@ -98,9 +98,27 @@ class renderer_t : public renderer_base_t
 
     GLFWwindow* window_;
     shader_t shader_;
+
+    bool should_render_wireframe_ = false;
 };
 
 } // namespace rendering
 } // namespace sbs
+
+/**
+ * @brief Add helpful overloads for imgui inputs
+ */
+namespace ImGui {
+
+template <typename Getter, typename Setter>
+inline bool Checkbox(const char* label, Getter get, Setter set)
+{
+    bool value = get();
+    bool ret   = ImGui::Checkbox(label, &value);
+    set(value);
+    return ret;
+}
+
+} // namespace ImGui
 
 #endif // SBS_RENDERING_RENDERER_H

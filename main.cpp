@@ -1,3 +1,4 @@
+#include "io/load_scene.h"
 #include "physics/cutting/cut_tetrahedron.h"
 #include "physics/xpbd/solver.h"
 #include "rendering/renderer.h"
@@ -8,6 +9,8 @@
 
 int main(int argc, char** argv)
 {
+    std::filesystem::path const cwd = std::filesystem::current_path();
+
     if (argc != 4)
     {
         std::cerr << "Usage: sbs-viewer.exe <scene specification json file> "
@@ -28,9 +31,7 @@ int main(int argc, char** argv)
     std::vector<sbs::physics::xpbd::simulation_parameters_t> per_body_simulation_parameters{};
     renderer.on_scene_loaded = [&](sbs::common::scene_t& scene) {
         per_body_simulation_parameters.clear();
-        per_body_simulation_parameters.reserve(scene.objects.size());
-
-        for (auto const& body : scene.objects)
+        for (auto const& body : scene.physics_objects)
         {
             sbs::physics::xpbd::simulation_parameters_t params{};
             params.alpha           = 1e-3;
@@ -38,14 +39,10 @@ int main(int argc, char** argv)
 
             per_body_simulation_parameters.push_back(params);
 
-            if (body->body_type == sbs::common::node_t::body_type_t::soft)
-            {
-                body->mesh.extract_boundary_surface_mesh();
-            }
-            body->mesh.extract_boundary_normals();
+            body->physical_model.forces().setZero();
         }
 
-        solver.setup(&scene.objects, per_body_simulation_parameters);
+        solver.setup(&scene.physics_objects, per_body_simulation_parameters);
     };
 
     bool are_physics_active          = false;
@@ -75,31 +72,22 @@ int main(int argc, char** argv)
          */
         if (are_physics_active)
         {
-            for (auto const& body : scene.objects)
+            for (auto const& body : scene.physics_objects)
             {
-                if (body->is_fixed)
-                    continue;
-
                 /**
                  * Reset external forces
                  */
-                body->mesh.forces().setZero();
-                body->mesh.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
+                body->physical_model.forces().colwise() += Eigen::Vector3d{0., -9.81, 0.};
             }
 
             solver.step(timestep, iterations, substeps);
 
-            for (auto const& body : scene.objects)
+            for (auto const& body : scene.physics_objects)
             {
-                if (body->is_fixed)
-                    continue;
-
-                if (body->body_type == sbs::common::node_t::body_type_t::soft)
-                {
-                    body->mesh.extract_boundary_surface_mesh();
-                    body->mesh.extract_boundary_normals();
-                    body->render_state = sbs::common::node_t::render_state_t::dirty;
-                }
+                body->render_model = body->physical_model.boundary_surface_mesh();
+                body->render_state.should_transfer_vertices = true;
+                body->render_state.should_transfer_indices  = true;
+                body->physical_model.forces().setZero();
             }
         }
 
@@ -117,17 +105,48 @@ int main(int argc, char** argv)
             float const w = ImGui::GetColumnWidth();
 
             ImGui::BulletText("Select active object");
-            for (std::size_t b = 0u; b < scene.objects.size(); ++b)
+            for (std::size_t b = 0u; b < scene.physics_objects.size(); ++b)
             {
-                auto const& body   = scene.objects[b];
-                auto const& params = per_body_simulation_parameters[b];
-
+                auto const& body = scene.physics_objects[b];
                 ImGui::RadioButton(body->id.c_str(), &active_body, static_cast<int>(b));
             }
 
+            ImGui::Checkbox(
+                "Wireframe",
+                [&]() {
+                    return scene.physics_objects[active_body]->render_state.should_render_wireframe;
+                },
+                [&](bool want_render_wireframe) {
+                    bool dirty       = false;
+                    auto const& body = scene.physics_objects[active_body];
+
+                    if (!body->render_state.should_render_wireframe && want_render_wireframe)
+                    {
+                        body->render_model = body->physical_model.facets();
+                        dirty              = true;
+                    }
+                    if (body->render_state.should_render_wireframe && !want_render_wireframe)
+                    {
+                        body->render_model = body->physical_model.boundary_surface_mesh();
+                        dirty              = true;
+                    }
+
+                    if (dirty)
+                    {
+                        body->render_state.should_transfer_vertices = true;
+                        body->render_state.should_transfer_indices  = true;
+                    }
+
+                    scene.physics_objects[active_body]->render_state.should_render_wireframe =
+                        want_render_wireframe;
+                });
+
             if (ImGui::Button("Reload", ImVec2(w / 2.f, 0.f)))
             {
-                renderer.load_scene(scene_specification_path);
+                renderer.unload_current_scene();
+                scene = sbs::io::load_scene(scene_specification_path);
+                renderer.load_scene(scene);
+                active_body = 0;
             }
         }
 
@@ -140,16 +159,16 @@ int main(int argc, char** argv)
             }
             ImGui::TreePop();
         }
-        auto const& tet_body = scene.objects[active_body];
-        bool const is_tet =
-            (tet_body->mesh.elements().rows() == 4) && (tet_body->mesh.elements().cols() == 1);
+        auto const& tet_body = scene.physics_objects[active_body];
+        bool const is_tet    = (tet_body->physical_model.elements().rows() == 4) &&
+                            (tet_body->physical_model.elements().cols() == 1);
         if (ImGui::CollapsingHeader("Cutting", ImGuiTreeNodeFlags_DefaultOpen) && is_tet)
         {
-            auto const& P = tet_body->mesh.positions();
-            auto const v1 = tet_body->mesh.elements()(0u, 0u);
-            auto const v2 = tet_body->mesh.elements()(1u, 0u);
-            auto const v3 = tet_body->mesh.elements()(2u, 0u);
-            auto const v4 = tet_body->mesh.elements()(3u, 0u);
+            auto const& P = tet_body->physical_model.positions();
+            auto const v1 = tet_body->physical_model.elements()(0u, 0u);
+            auto const v2 = tet_body->physical_model.elements()(1u, 0u);
+            auto const v3 = tet_body->physical_model.elements()(2u, 0u);
+            auto const v4 = tet_body->physical_model.elements()(3u, 0u);
 
             auto const& p1 = P.col(v1);
             auto const& p2 = P.col(v2);
@@ -179,20 +198,26 @@ int main(int argc, char** argv)
 
             auto const update_scene_after_cut =
                 [&renderer,
-                 &scene](int cut_body, std::vector<subdivided_mesh_element_type> const& tets) {
-                    renderer.remove_object_from_scene(active_body);
-                    for (auto const& [P, T, M, V, F] : tets)
+                 &scene,
+                 &solver](int cut_body, std::vector<subdivided_mesh_element_type> const& tets) {
+                    auto const removed_body         = scene.physics_objects[cut_body];
+                    auto const& colors              = removed_body->render_model.colors();
+                    Eigen::Vector3f const new_color = colors.col(0u);
+                    renderer.remove_physics_object_from_scene(static_cast<std::uint32_t>(cut_body));
+                    for (std::size_t i = 0u; i < tets.size(); ++i)
                     {
+                        auto const& [P, T, M, V, F] = tets[i];
                         sbs::common::shared_vertex_mesh_t mesh{P, T, M, V, F};
-                        mesh.set_color({1.f, 1.f, 0.f});
-                        auto const node    = std::make_shared<sbs::common::node_t>();
-                        node->body_type    = sbs::common::node_t::body_type_t::soft;
-                        node->id           = "cut tet";
-                        node->is_fixed     = false;
-                        node->render_state = sbs::common::node_t::render_state_t::dirty;
-                        node->mesh         = std::move(mesh);
-                        scene.objects.push_back(node);
+                        auto const node = std::make_shared<sbs::common::node_t>();
+                        node->id        = "cut tet " + std::to_string(i);
+                        node->render_state.should_transfer_indices  = true;
+                        node->render_state.should_transfer_vertices = true;
+                        node->render_model                          = mesh.boundary_surface_mesh();
+                        node->physical_model                        = std::move(mesh);
+                        node->render_model.set_color(new_color);
+                        renderer.add_physics_object_to_scene(node);
                     }
+                    renderer.unload_current_scene();
                     renderer.load_scene(scene);
                 };
 
@@ -212,11 +237,11 @@ int main(int argc, char** argv)
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00010011},
                             edge_intersections,
@@ -225,11 +250,11 @@ int main(int argc, char** argv)
                     else if (choice == 1)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00001101},
                             edge_intersections,
@@ -238,11 +263,11 @@ int main(int argc, char** argv)
                     else if (choice == 2)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00100110},
                             edge_intersections,
@@ -251,11 +276,11 @@ int main(int argc, char** argv)
                     else if (choice == 3)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00111000},
                             edge_intersections,
@@ -275,18 +300,18 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("1,2,4,6##Case2", &choice, 0);
                 ImGui::RadioButton("1,3,5,6##Case2", &choice, 1);
                 ImGui::RadioButton("2,3,4,5##Case2", &choice, 2);
-                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                if (ImGui::Button("Cut##Case2", ImVec2(w / 2.f, 0.f)))
                 {
                     std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00101011},
                             edge_intersections,
@@ -295,11 +320,11 @@ int main(int argc, char** argv)
                     else if (choice == 1)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00110101},
                             edge_intersections,
@@ -308,11 +333,11 @@ int main(int argc, char** argv)
                     else if (choice == 2)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00011110},
                             edge_intersections,
@@ -335,18 +360,18 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("4##Case3", &choice, 3);
                 ImGui::RadioButton("5##Case3", &choice, 4);
                 ImGui::RadioButton("6##Case3", &choice, 5);
-                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                if (ImGui::Button("Cut##Case3", ImVec2(w / 2.f, 0.f)))
                 {
                     std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00000001},
                             edge_intersections,
@@ -355,11 +380,11 @@ int main(int argc, char** argv)
                     else if (choice == 1)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00000010},
                             edge_intersections,
@@ -368,11 +393,11 @@ int main(int argc, char** argv)
                     else if (choice == 2)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00000100},
                             edge_intersections,
@@ -381,11 +406,11 @@ int main(int argc, char** argv)
                     else if (choice == 3)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00001000},
                             edge_intersections,
@@ -394,11 +419,11 @@ int main(int argc, char** argv)
                     else if (choice == 4)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00010000},
                             edge_intersections,
@@ -407,11 +432,11 @@ int main(int argc, char** argv)
                     else if (choice == 5)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00100000},
                             edge_intersections,
@@ -440,18 +465,18 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("4,5##Case4", &choice, 9);
                 ImGui::RadioButton("4,6##Case4", &choice, 10);
                 ImGui::RadioButton("5,6##Case4", &choice, 11);
-                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                if (ImGui::Button("Cut##Case4", ImVec2(w / 2.f, 0.f)))
                 {
                     std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00000011},
                             edge_intersections,
@@ -460,11 +485,11 @@ int main(int argc, char** argv)
                     else if (choice == 1)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00000101},
                             edge_intersections,
@@ -473,11 +498,11 @@ int main(int argc, char** argv)
                     else if (choice == 2)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00001001},
                             edge_intersections,
@@ -486,11 +511,11 @@ int main(int argc, char** argv)
                     else if (choice == 3)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00010001},
                             edge_intersections,
@@ -499,11 +524,11 @@ int main(int argc, char** argv)
                     else if (choice == 4)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00000110},
                             edge_intersections,
@@ -512,11 +537,11 @@ int main(int argc, char** argv)
                     else if (choice == 5)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00010010},
                             edge_intersections,
@@ -525,11 +550,11 @@ int main(int argc, char** argv)
                     else if (choice == 6)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00100010},
                             edge_intersections,
@@ -538,11 +563,11 @@ int main(int argc, char** argv)
                     else if (choice == 7)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00001100},
                             edge_intersections,
@@ -551,11 +576,11 @@ int main(int argc, char** argv)
                     else if (choice == 8)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00100100},
                             edge_intersections,
@@ -564,11 +589,11 @@ int main(int argc, char** argv)
                     else if (choice == 9)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00011000},
                             edge_intersections,
@@ -577,11 +602,11 @@ int main(int argc, char** argv)
                     else if (choice == 10)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00101000},
                             edge_intersections,
@@ -590,11 +615,11 @@ int main(int argc, char** argv)
                     else if (choice == 11)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00110000},
                             edge_intersections,
@@ -623,18 +648,18 @@ int main(int argc, char** argv)
                 ImGui::RadioButton("2,4,6##Case5", &choice, 9);
                 ImGui::RadioButton("3,4,5##Case5", &choice, 10);
                 ImGui::RadioButton("3,5,6##Case5", &choice, 11);
-                if (ImGui::Button("Cut##Case1", ImVec2(w / 2.f, 0.f)))
+                if (ImGui::Button("Cut##Case5", ImVec2(w / 2.f, 0.f)))
                 {
                     std::vector<subdivided_mesh_element_type> tets{};
 
                     if (choice == 0)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00001011},
                             edge_intersections,
@@ -643,11 +668,11 @@ int main(int argc, char** argv)
                     else if (choice == 1)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00100011},
                             edge_intersections,
@@ -656,11 +681,11 @@ int main(int argc, char** argv)
                     else if (choice == 2)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00010101},
                             edge_intersections,
@@ -669,11 +694,11 @@ int main(int argc, char** argv)
                     else if (choice == 3)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00100101},
                             edge_intersections,
@@ -682,11 +707,11 @@ int main(int argc, char** argv)
                     else if (choice == 4)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00101001},
                             edge_intersections,
@@ -695,11 +720,11 @@ int main(int argc, char** argv)
                     else if (choice == 5)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00110001},
                             edge_intersections,
@@ -708,11 +733,11 @@ int main(int argc, char** argv)
                     else if (choice == 6)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00001110},
                             edge_intersections,
@@ -721,11 +746,11 @@ int main(int argc, char** argv)
                     else if (choice == 7)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00010110},
                             edge_intersections,
@@ -734,11 +759,11 @@ int main(int argc, char** argv)
                     else if (choice == 8)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00011010},
                             edge_intersections,
@@ -747,11 +772,11 @@ int main(int argc, char** argv)
                     else if (choice == 9)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00101010},
                             edge_intersections,
@@ -760,11 +785,11 @@ int main(int argc, char** argv)
                     else if (choice == 10)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00011100},
                             edge_intersections,
@@ -773,11 +798,11 @@ int main(int argc, char** argv)
                     else if (choice == 11)
                     {
                         tets = sbs::physics::cutting::cut_tetrahedron(
-                            tet_body->mesh.positions(),
-                            tet_body->mesh.elements(),
-                            tet_body->mesh.masses(),
-                            tet_body->mesh.velocities(),
-                            tet_body->mesh.forces(),
+                            tet_body->physical_model.positions(),
+                            tet_body->physical_model.elements(),
+                            tet_body->physical_model.masses(),
+                            tet_body->physical_model.velocities(),
+                            tet_body->physical_model.forces(),
                             0u,
                             std::byte{0b00110100},
                             edge_intersections,
@@ -799,7 +824,8 @@ int main(int argc, char** argv)
 
     if (initialization_success && shader_loading_success)
     {
-        renderer.load_scene(scene_specification_path);
+        auto const scene = sbs::io::load_scene(scene_specification_path);
+        renderer.load_scene(scene);
         renderer.launch();
     }
     else

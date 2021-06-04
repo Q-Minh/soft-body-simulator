@@ -76,6 +76,30 @@
                 "g": 200,
                 "b": 200
             }
+        },
+        {
+            "id": "cutting surface",
+            "geometry": {
+                "type": "triangle mesh",
+                "path": "../meshes/xz_plane.ply"
+            },
+            "box": {
+                "min": {
+                    "x": -1.0,
+                    "y": 0.0,
+                    "z": -1.0
+                },
+                "max": {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 1.0
+                }
+            },
+            "color": {
+                "r": 255,
+                "g": 0,
+                "b": 0
+            }
         }
     ],
     "objects": [
@@ -97,7 +121,7 @@
             },
             "translation": {
                 "x": 0.0,
-                "y": 0.0,
+                "y": 2.0,
                 "z": -5.0
             },
             "color": {

@@ -25,6 +25,10 @@ class camera_t
     {
         return glm::perspective(glm::radians(zoom_), aspect_ratio, near_, far_);
     }
+    glm::vec3 front() const { return front_; }
+    glm::vec3 up() const { return up_; }
+    glm::vec3 right() const { return right_; }
+
     glm::vec3 const& position() const { return position_; }
 
     void handle_keyboard(movement_t direction, float dt);

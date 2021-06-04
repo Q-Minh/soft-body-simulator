@@ -221,6 +221,9 @@ void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
             line_segments.push_back(collision::line_segment_t{x.col(vi), p.col(vi)});
         }
 
+        /**
+         * Detect and handle collisions against other physically simulated bodies
+        */
         for (std::size_t bj = 0u; bj < bodies_->size(); ++bj)
         {
             if (bj == bi)

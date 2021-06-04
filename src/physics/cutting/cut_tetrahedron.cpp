@@ -1,25 +1,12 @@
 #include "physics/cutting/cut_tetrahedron.h"
 
+#include "common/primitive.h"
+
 #include <Eigen/LU>
 
 namespace sbs {
 namespace physics {
 namespace cutting {
-
-static std::tuple<double, double, double> barycentric_coordinates(
-    Eigen::Vector3d const& A,
-    Eigen::Vector3d const& B,
-    Eigen::Vector3d const& C,
-    Eigen::Vector3d const& p)
-{
-    Eigen::Matrix3d M{};
-    M.col(0u) = A;
-    M.col(1u) = B;
-    M.col(2u) = C;
-
-    Eigen::Vector3d const uvw = M.inverse() * p;
-    return std::make_tuple(uvw(0u), uvw(1u), uvw(2u));
-}
 
 std::vector<std::tuple<
     Eigen::Matrix3Xd,
@@ -1145,10 +1132,16 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_3(
      */
     double const t1 =
         (edge_intersection_points[0].x() - TV.col(_v1).x()) / (TV.col(_v4).x() - TV.col(_v1).x());
-    auto const [bu2, bv2, bw2] =
-        barycentric_coordinates(TV.col(_v1), TV.col(_v2), TV.col(_v4), face_intersection_points[0]);
-    auto const [bu3, bv3, bw3] =
-        barycentric_coordinates(TV.col(_v1), TV.col(_v4), TV.col(_v3), face_intersection_points[1]);
+    auto const [bu2, bv2, bw2] = common::barycentric_coordinates(
+        TV.col(_v1),
+        TV.col(_v2),
+        TV.col(_v4),
+        face_intersection_points[0]);
+    auto const [bu3, bv3, bw3] = common::barycentric_coordinates(
+        TV.col(_v1),
+        TV.col(_v4),
+        TV.col(_v3),
+        face_intersection_points[1]);
 
     /**
      * Transfer forces to subdivided mesh elements
@@ -1261,10 +1254,16 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_4(
         (edge_intersection_points[0].x() - TV.col(_v1).x()) / (TV.col(_v4).x() - TV.col(_v1).x());
     double const t2 =
         (edge_intersection_points[1].x() - TV.col(_v2).x()) / (TV.col(_v4).x() - TV.col(_v2).x());
-    auto const [bu3, bv3, bw3] =
-        barycentric_coordinates(TV.col(_v2), TV.col(_v3), TV.col(_v4), face_intersection_points[0]);
-    auto const [bu4, bv4, bw4] =
-        barycentric_coordinates(TV.col(_v1), TV.col(_v4), TV.col(_v3), face_intersection_points[1]);
+    auto const [bu3, bv3, bw3] = common::barycentric_coordinates(
+        TV.col(_v2),
+        TV.col(_v3),
+        TV.col(_v4),
+        face_intersection_points[0]);
+    auto const [bu4, bv4, bw4] = common::barycentric_coordinates(
+        TV.col(_v1),
+        TV.col(_v4),
+        TV.col(_v3),
+        face_intersection_points[1]);
 
     /**
      * Transfer forces to subdivided mesh elements
@@ -1393,10 +1392,16 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_5(
         (edge_intersection_points[1].x() - TV.col(_v2).x()) / (TV.col(_v4).x() - TV.col(_v2).x());
     double const t3 =
         (edge_intersection_points[2].x() - TV.col(_v2).x()) / (TV.col(_v3).x() - TV.col(_v2).x());
-    auto const [bu4, bv4, bw4] =
-        barycentric_coordinates(TV.col(_v1), TV.col(_v3), TV.col(_v2), face_intersection_points[0]);
-    auto const [bu5, bv5, bw5] =
-        barycentric_coordinates(TV.col(_v1), TV.col(_v4), TV.col(_v3), face_intersection_points[1]);
+    auto const [bu4, bv4, bw4] = common::barycentric_coordinates(
+        TV.col(_v1),
+        TV.col(_v3),
+        TV.col(_v2),
+        face_intersection_points[0]);
+    auto const [bu5, bv5, bw5] = common::barycentric_coordinates(
+        TV.col(_v1),
+        TV.col(_v4),
+        TV.col(_v3),
+        face_intersection_points[1]);
 
     /**
      * Transfer forces to subdivided mesh elements

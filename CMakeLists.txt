@@ -81,10 +81,12 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/include/common/geometry.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/common/mesh.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/common/node.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/common/primitive.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/common/scene.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/common/mesh.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/common/node.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/common/primitive.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/common/scene.cpp"
 
     #geometry 
@@ -130,10 +132,12 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/camera.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/renderer.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/shader.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/rendering/trackball_rotation_adapter.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/camera.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/renderer.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/shader.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/rendering/trackball_rotation_adapter.cpp"
 )
 target_include_directories(sbs-viewer 
 PRIVATE 

@@ -67,10 +67,21 @@ class renderer_t : public renderer_base_t
     std::uint32_t constexpr get_initial_window_width() const { return 800u; }
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
+    camera_t const& camera() const { return camera_; }
+
+    /**
+     * Render loop hooks
+     */
     std::function<void(common::scene_t&)> on_scene_loaded;
     std::function<void(common::scene_t&)> on_new_imgui_frame;
-    std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene_*/)>
+    std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene*/)>
         on_new_physics_timestep;
+
+    /**
+     * User input hooks
+     */
+    std::function<bool(GLFWwindow* /*window*/, double /*mouse_x_pos*/, double /*mouse_y_pos*/)>
+        on_mouse_moved;
 
   protected:
     virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) override;

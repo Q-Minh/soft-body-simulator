@@ -74,6 +74,14 @@ void renderer_t::mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
     int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 
+    if (on_mouse_moved && !ImGui::GetIO().WantCaptureMouse)
+    {
+        if (on_mouse_moved(window, xpos, ypos))
+        {
+            return;
+        }
+    }
+
     if (state == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse)
     {
         camera_.handle_mouse_movement(dx, dy);

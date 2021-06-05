@@ -69,6 +69,8 @@ struct aabb_t : public bounding_volume_t
 std::tuple<double, double, double>
 barycentric_coordinates(point_t const& A, point_t const& B, point_t const& C, point_t const& p);
 
+std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const& triangle);
+
 } // namespace common
 } // namespace sbs
 

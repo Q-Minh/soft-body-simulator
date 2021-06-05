@@ -22,12 +22,15 @@ class shared_vertex_surface_mesh_t
     using normals_type   = Eigen::Matrix3Xd;
     using colors_type    = Eigen::Matrix3Xf;
     using index_map_type = std::vector<std::uint32_t>;
+    using edge_type      = std::pair<index_type, index_type>;
 
     shared_vertex_surface_mesh_t() = default;
     shared_vertex_surface_mesh_t(common::geometry_t const& geometry);
 
     void set_color(Eigen::Vector3f const rgb = Eigen::Vector3f{1.f, 1.f, 0.f});
     void extract_normals();
+
+    std::vector<edge_type> boundary_edges() const;
 
     vertices_type const& vertices() const;
     vertices_type& vertices();
@@ -100,6 +103,7 @@ class shared_vertex_mesh_t
 
     shared_vertex_surface_mesh_t
     boundary_surface_mesh(Eigen::Vector3f const& color = Eigen::Vector3f{1.f, 1.f, 0.f}) const;
+
     shared_vertex_surface_mesh_t
     facets(Eigen::Vector3f const& color = Eigen::Vector3f{1.f, 1.f, 0.f}) const;
 

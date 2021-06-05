@@ -38,6 +38,8 @@ struct ray_t
 
 std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const& triangle);
 
+std::optional<point_t> intersect_twoway(line_segment_t const& segment, triangle_t const& triangle);
+
 } // namespace collision
 } // namespace physics
 } // namespace sbs

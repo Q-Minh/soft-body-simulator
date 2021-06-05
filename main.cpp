@@ -43,6 +43,8 @@ int main(int argc, char** argv)
         sbs::common::shared_vertex_surface_mesh_t model_space_cutting_surface =
             cutting_surface_node->render_model;
 
+        auto const edges = model_space_cutting_surface.boundary_edges();
+
         cutting_surface_trackball_adapter =
             sbs::rendering::trackball_rotation_adapter_t{model_space_cutting_surface};
     }
@@ -300,6 +302,28 @@ int main(int argc, char** argv)
                     cutting_surface_trackball_adapter.mesh().vertices();
                 active_environment_node->render_model.vertices().colwise() += translation;
                 active_environment_node->render_state.should_transfer_vertices = true;
+
+                if (ImGui::Button("Cut##Cutting", ImVec2(w / 2.f, 0.f)))
+                {
+                    if (active_physics_node->id == "tetrahedron")
+                    {
+                        bool const is_tetrahedral_mesh =
+                            (active_physics_node->physical_model.elements().rows() == 4);
+
+                        if (is_tetrahedral_mesh)
+                        {
+                            bool const has_mesh_been_cut =
+                                sbs::physics::cutting::cut_tetrahedral_mesh(
+                                    active_physics_node->physical_model,
+                                    active_environment_node->render_model);
+
+                            if (has_mesh_been_cut)
+                            {
+                                solver.notify_topology_changed();
+                            }
+                        }
+                    }
+                }
 
                 ImGui::TreePop();
             }

@@ -55,6 +55,16 @@ std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const
     return intersection;
 }
 
+std::optional<point_t> intersect_twoway(line_segment_t const& segment, triangle_t const& triangle)
+{
+    auto const intersection = intersect(segment, triangle);
+    if (intersection.has_value())
+        return intersection;
+
+    line_segment_t const flipped_segment{segment.q, segment.p};
+    return intersect(flipped_segment, triangle);
+}
+
 } // namespace collision
 } // namespace physics
 } // namespace sbs

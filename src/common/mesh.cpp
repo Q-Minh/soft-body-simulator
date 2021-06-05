@@ -423,6 +423,50 @@ void shared_vertex_surface_mesh_t::extract_normals()
     normals_.colwise().normalize();
 }
 
+std::vector<shared_vertex_surface_mesh_t::edge_type>
+shared_vertex_surface_mesh_t::boundary_edges() const
+{
+    std::vector<edge_type> edges_with_duplicates{};
+
+    std::size_t const num_triangles              = static_cast<std::size_t>(triangles_.cols());
+    std::size_t constexpr num_edges_per_triangle = 3u;
+    edges_with_duplicates.reserve(num_triangles * num_edges_per_triangle);
+
+    std::map<edge_type, std::size_t> edge_occurrences{};
+
+    for (std::size_t f = 0u; f < num_triangles; ++f)
+    {
+        triangle_type const triangle = triangles_.col(f);
+
+        auto const v1 = triangle(0u);
+        auto const v2 = triangle(1u);
+        auto const v3 = triangle(2u);
+
+        /**
+         * Add index pairs in sorted order
+         */
+        auto const e1 = v1 < v2 ? std::make_pair(v1, v2) : std::make_pair(v2, v1);
+        auto const e2 = v2 < v3 ? std::make_pair(v2, v3) : std::make_pair(v3, v2);
+        auto const e3 = v3 < v1 ? std::make_pair(v3, v1) : std::make_pair(v1, v3);
+
+        ++edge_occurrences[e1];
+        ++edge_occurrences[e2];
+        ++edge_occurrences[e3];
+    }
+
+    std::vector<edge_type> boundary_edges{};
+    boundary_edges.reserve(edge_occurrences.size()); // Over reserve memory
+    for (auto const& [key, value] : edge_occurrences)
+    {
+        if (value > 1u)
+            continue;
+
+        boundary_edges.push_back(key);
+    }
+
+    return boundary_edges;
+}
+
 shared_vertex_surface_mesh_t::vertices_type const& shared_vertex_surface_mesh_t::vertices() const
 {
     return vertices_;

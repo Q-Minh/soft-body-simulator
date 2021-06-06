@@ -29,11 +29,10 @@ struct triangle_t
 
 struct ray_t
 {
-    ray_t(point_t const& p, direction_t const& v, double t);
+    ray_t(point_t const& p, direction_t const& v);
 
     point_t p;
     direction_t v;
-    double t;
 };
 
 struct sphere_t;
@@ -70,6 +69,7 @@ std::tuple<double, double, double>
 barycentric_coordinates(point_t const& A, point_t const& B, point_t const& C, point_t const& p);
 
 std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const& triangle);
+std::optional<point_t> intersect(ray_t const& ray, triangle_t const& triangle);
 
 } // namespace common
 } // namespace sbs

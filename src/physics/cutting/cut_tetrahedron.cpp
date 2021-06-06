@@ -8,7 +8,11 @@ namespace sbs {
 namespace physics {
 namespace cutting {
 
-static double lerp_coefficient(Eigen::Vector3d const& A, Eigen::Vector3d const& B, Eigen::Vector3d const& P, double const eps = 1e-8)
+static double lerp_coefficient(
+    Eigen::Vector3d const& A,
+    Eigen::Vector3d const& B,
+    Eigen::Vector3d const& P,
+    double const eps = 1e-8)
 {
     double const dx = B.x() - A.x();
     if (std::abs(dx) > eps)
@@ -241,8 +245,8 @@ bool cut_tetrahedral_mesh(
     mesh.velocities().conservativeResize(3u, current_number_of_vertices);
     mesh.forces().conservativeResize(3u, current_number_of_vertices);
 
-    int e_offset = static_cast<int>(previous_number_of_elements);
-    int v_offset = static_cast<int>(previous_number_of_vertices);
+    std::int64_t e_offset = static_cast<std::int64_t>(previous_number_of_elements);
+    std::int64_t v_offset = static_cast<std::int64_t>(previous_number_of_vertices);
 
     for (auto const& [cut_tetrahedron, subdivided_tets] : new_tetrahedra)
     {
@@ -255,7 +259,7 @@ bool cut_tetrahedral_mesh(
 
         v_offset += P.cols();
 
-        int const num_tetrahedra_to_append = T.cols() - 1;
+        std::int64_t const num_tetrahedra_to_append = T.cols() - 1;
 
         /**
          * We replace the cut tetrahedron by the first tetrahedron of the

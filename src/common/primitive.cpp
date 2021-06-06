@@ -17,7 +17,7 @@ normal_t triangle_t::normal() const
     return ab.cross(ac).normalized();
 }
 
-ray_t::ray_t(point_t const& p, direction_t const& v, double t) : p(p), v(v), t(t) {}
+ray_t::ray_t(point_t const& p, direction_t const& v) : p(p), v(v) {}
 
 sphere_t::sphere_t(point_t const& center, double radius) : center(center), radius(radius) {}
 
@@ -30,7 +30,7 @@ barycentric_coordinates(point_t const& A, point_t const& B, point_t const& C, po
     M.col(0u) = A;
     M.col(1u) = B;
     M.col(2u) = C;
-    
+
     Eigen::Vector3d const uvw = M.inverse() * p;
     return std::make_tuple(uvw(0u), uvw(1u), uvw(2u));
 }
@@ -64,6 +64,43 @@ std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const
         return {};
 
     double const ood = 1. / d;
+    v *= ood;
+    w *= ood;
+    double const u             = 1. - v - w;
+    point_t const intersection = u * triangle.a + v * triangle.b + w * triangle.c;
+    return intersection;
+}
+
+std::optional<point_t> intersect(ray_t const& ray, triangle_t const& triangle)
+{
+    Eigen::Vector3d const& p = ray.p;
+    Eigen::Vector3d const& q = ray.p + 1. * ray.v;
+    Eigen::Vector3d const ab = triangle.b - triangle.a;
+    Eigen::Vector3d const ac = triangle.c - triangle.a;
+    Eigen::Vector3d const qp = p - q;
+
+    Eigen::Vector3d const n = ab.cross(ac);
+
+    double const d = qp.dot(n);
+    if (d <= 0.)
+        return {};
+
+    Eigen::Vector3d const ap = p - triangle.a;
+    double const t           = ap.dot(n);
+    if (t < 0.)
+        return {};
+
+    Eigen::Vector3d const e = qp.cross(ap);
+    double v                = ac.dot(e);
+    if (v < 0. || v > d)
+        return {};
+
+    double w = -ab.dot(e);
+    if (w < 0. || (v + w) > d)
+        return {};
+
+    double const ood = 1. / d;
+    // t *= ood;
     v *= ood;
     w *= ood;
     double const u             = 1. - v - w;

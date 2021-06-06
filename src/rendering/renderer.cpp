@@ -11,6 +11,14 @@ renderer_base_t* renderer_base_t::active_renderer = nullptr;
 
 void renderer_t::process_input(GLFWwindow* window, double dt)
 {
+    if (on_new_input)
+    {
+        if (on_new_input(window))
+        {
+            return;
+        }
+    }
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, true);
@@ -479,8 +487,8 @@ void renderer_t::update_shader_uniforms() const
     int height = 0;
     glfwGetWindowSize(window_, &width, &height);
     float const aspect_ratio   = static_cast<float>(width) / static_cast<float>(height);
-    glm::mat4 const projection = camera_.projection_matrix(aspect_ratio);
-    glm::mat4 const view       = camera_.view_matrix();
+    glm::mat4 const projection = camera_.projection_gl(aspect_ratio);
+    glm::mat4 const view       = camera_.view_gl();
 
     shader_.set_mat4_uniform("projection", projection);
     shader_.set_mat4_uniform("view", view);

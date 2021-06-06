@@ -133,11 +133,13 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/renderer.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/shader.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/trackball_rotation_adapter.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/rendering/pick.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/camera.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/renderer.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/shader.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/trackball_rotation_adapter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/rendering/pick.cpp"
 )
 target_include_directories(sbs-viewer 
 PRIVATE 

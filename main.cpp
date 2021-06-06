@@ -1,10 +1,10 @@
 #include "io/load_scene.h"
 #include "physics/cutting/cut_tetrahedron.h"
 #include "physics/xpbd/solver.h"
+#include "rendering/pick.h"
 #include "rendering/renderer.h"
 #include "rendering/trackball_rotation_adapter.h"
 
-#include <Eigen/Geometry>
 #include <chrono>
 #include <imgui/imgui.h>
 #include <iostream>
@@ -120,6 +120,53 @@ int main(int argc, char** argv)
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
     };
 
+    int active_environment_body_idx = 0;
+    int active_physics_body_idx     = 0;
+
+    renderer.on_new_input = [&](GLFWwindow* window) -> bool {
+        bool result{false};
+
+        int left_mouse_button_state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+        int left_shift_key_state    = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
+
+        if (left_shift_key_state == GLFW_PRESS && left_mouse_button_state == GLFW_PRESS)
+        {
+            sbs::common::scene_t const& scene = renderer.scene();
+            sbs::common::node_t const& active_node =
+                *scene.physics_objects[active_physics_body_idx];
+            sbs::common::shared_vertex_surface_mesh_t const& surface = active_node.render_model;
+
+            int viewport_gl[4];
+            glGetIntegerv(GL_VIEWPORT, viewport_gl);
+            Eigen::Vector4d const viewport{
+                static_cast<double>(viewport_gl[0]),
+                static_cast<double>(viewport_gl[1]),
+                static_cast<double>(viewport_gl[2]),
+                static_cast<double>(viewport_gl[3])};
+
+            float const aspect_ratio =
+                static_cast<float>(viewport(2)) / static_cast<float>(viewport(3));
+            Eigen::Matrix4d const projection = renderer.camera().projection_matrix(aspect_ratio);
+            Eigen::Matrix4d const view       = renderer.camera().view_matrix();
+
+            double x, y;
+            glfwGetCursorPos(window, &x, &y);
+            
+            auto const ray = sbs::rendering::unproject_ray({x, y}, viewport, projection, view);
+            auto const picked_triangle = sbs::rendering::pick(ray, surface);
+            if (picked_triangle.has_value())
+            {
+                auto const& [f, u, v, w] = picked_triangle.value();
+                std::cout << "Picked triangle " << f << " with (u,v,w)=(" << u << "," << v << ","
+                          << w << ")\n";
+            }
+
+            result = true;
+        }
+
+        return result;
+    };
+
     double xprev = 0., yprev = 0., dx = 0., dy = 0.;
     bool is_first_mouse_move_callback           = true;
     bool should_handle_cutting_surface_rotation = false;
@@ -145,12 +192,9 @@ int main(int argc, char** argv)
 
     renderer.on_new_imgui_frame = [&](sbs::common::scene_t& scene) {
         ImGui::Begin("Soft Body Simulator");
-
-        static int active_environment_body_idx = 0;
         std::shared_ptr<sbs::common::node_t> active_environment_node =
             scene.environment_objects[active_environment_body_idx];
 
-        static int active_physics_body_idx = 0;
         std::shared_ptr<sbs::common::node_t> active_physics_node =
             scene.physics_objects[active_physics_body_idx];
 

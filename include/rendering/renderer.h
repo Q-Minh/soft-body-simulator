@@ -68,6 +68,7 @@ class renderer_t : public renderer_base_t
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
     camera_t const& camera() const { return camera_; }
+    common::scene_t const& scene() const { return scene_; }
 
     /**
      * Render loop hooks
@@ -82,6 +83,7 @@ class renderer_t : public renderer_base_t
      */
     std::function<bool(GLFWwindow* /*window*/, double /*mouse_x_pos*/, double /*mouse_y_pos*/)>
         on_mouse_moved;
+    std::function<bool(GLFWwindow*)> on_new_input;
 
   protected:
     virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) override;

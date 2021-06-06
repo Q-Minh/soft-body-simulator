@@ -90,7 +90,10 @@ void renderer_t::mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 void renderer_t::scroll_callback(GLFWwindow* window, double dx, double dy)
 {
-    camera_.handle_mouse_scroll(static_cast<float>(dy));
+    if (!ImGui::GetIO().WantCaptureMouse)
+    {
+        camera_.handle_mouse_scroll(static_cast<float>(dy));
+    }
 }
 
 bool renderer_t::initialize()

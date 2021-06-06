@@ -151,7 +151,7 @@ int main(int argc, char** argv)
 
             double x, y;
             glfwGetCursorPos(window, &x, &y);
-            
+
             auto const ray = sbs::rendering::unproject_ray({x, y}, viewport, projection, view);
             auto const picked_triangle = sbs::rendering::pick(ray, surface);
             if (picked_triangle.has_value())
@@ -358,28 +358,24 @@ int main(int argc, char** argv)
 
                 if (ImGui::Button("Cut##Cutting", ImVec2(w / 2.f, 0.f)))
                 {
-                    if (active_physics_node->id == "tetrahedron")
+                    bool const is_tetrahedral_mesh =
+                        (active_physics_node->physical_model.elements().rows() == 4);
+
+                    if (is_tetrahedral_mesh)
                     {
-                        bool const is_tetrahedral_mesh =
-                            (active_physics_node->physical_model.elements().rows() == 4);
+                        bool const has_mesh_been_cut = sbs::physics::cutting::cut_tetrahedral_mesh(
+                            active_physics_node->physical_model,
+                            active_environment_node->render_model);
 
-                        if (is_tetrahedral_mesh)
+                        if (has_mesh_been_cut)
                         {
-                            bool const has_mesh_been_cut =
-                                sbs::physics::cutting::cut_tetrahedral_mesh(
-                                    active_physics_node->physical_model,
-                                    active_environment_node->render_model);
-
-                            if (has_mesh_been_cut)
-                            {
-                                solver.notify_topology_changed();
-                                active_physics_node->render_model =
-                                    active_physics_node->render_state.should_render_wireframe ?
-                                        active_physics_node->physical_model.facets() :
-                                        active_physics_node->physical_model.boundary_surface_mesh();
-                                active_physics_node->render_state.should_transfer_vertices = true;
-                                active_physics_node->render_state.should_transfer_indices  = true;
-                            }
+                            solver.notify_topology_changed();
+                            active_physics_node->render_model =
+                                active_physics_node->render_state.should_render_wireframe ?
+                                    active_physics_node->physical_model.facets() :
+                                    active_physics_node->physical_model.boundary_surface_mesh();
+                            active_physics_node->render_state.should_transfer_vertices = true;
+                            active_physics_node->render_state.should_transfer_indices  = true;
                         }
                     }
                 }

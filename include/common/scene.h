@@ -3,8 +3,8 @@
 
 #include "node.h"
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 namespace sbs {
 namespace common {

@@ -19,7 +19,6 @@ struct node_t
     shared_vertex_surface_mesh_t render_model;
     struct collision_model_t
     {
-
     };
     collision_model_t collision_model;
 
@@ -28,6 +27,7 @@ struct node_t
         bool should_transfer_vertices = true;
         bool should_transfer_indices  = true;
         bool should_render_wireframe  = false;
+        bool should_render_points     = false;
     } render_state;
 
     unsigned int VBO;

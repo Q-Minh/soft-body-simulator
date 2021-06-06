@@ -104,10 +104,10 @@
     ],
     "objects": [
         {
-            "id": "tetrahedron",
+            "id": "bar",
             "geometry": {
                 "type": "tetrahedral mesh",
-                "path": "../meshes/tetrahedron.ply"
+                "path": "../meshes/bar_tet.ply"
             },
             "physics": {
                 "type": "soft",

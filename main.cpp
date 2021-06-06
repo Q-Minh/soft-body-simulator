@@ -245,6 +245,15 @@ int main(int argc, char** argv)
             {
                 ImGui::Checkbox("Activate physics", &are_physics_active);
             }
+            if (ImGui::CollapsingHeader("Mesh"))
+            {
+                std::size_t const num_vertices = static_cast<std::size_t>(
+                    active_physics_node->physical_model.positions().cols());
+                ImGui::Text("Vertices: %d", num_vertices);
+                std::size_t const num_elements =
+                    static_cast<std::size_t>(active_physics_node->physical_model.elements().cols());
+                ImGui::Text("Tetrahedra: %d", num_elements);
+            }
             ImGui::TreePop();
         }
 
@@ -320,6 +329,12 @@ int main(int argc, char** argv)
                             if (has_mesh_been_cut)
                             {
                                 solver.notify_topology_changed();
+                                active_physics_node->render_model =
+                                    active_physics_node->render_state.should_render_wireframe ?
+                                        active_physics_node->physical_model.facets() :
+                                        active_physics_node->physical_model.boundary_surface_mesh();
+                                active_physics_node->render_state.should_transfer_vertices = true;
+                                active_physics_node->render_state.should_transfer_indices  = true;
                             }
                         }
                     }

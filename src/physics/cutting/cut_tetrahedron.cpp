@@ -3,11 +3,24 @@
 #include "common/primitive.h"
 
 #include <Eigen/LU>
-#include <iostream>
 
 namespace sbs {
 namespace physics {
 namespace cutting {
+
+static double lerp_coefficient(Eigen::Vector3d const& A, Eigen::Vector3d const& B, Eigen::Vector3d const& P, double const eps = 1e-8)
+{
+    double const dx = B.x() - A.x();
+    if (std::abs(dx) > eps)
+        return (P.x() - A.x()) / dx;
+
+    double const dy = B.y() - A.y();
+    if (std::abs(dy) > eps)
+        return (P.y() - A.y()) / dy;
+
+    double const dz = B.z() - A.z();
+    return (P.z() - A.z()) / dz;
+}
 
 std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedron(
     common::shared_vertex_mesh_t const& mesh,
@@ -181,11 +194,6 @@ bool cut_tetrahedral_mesh(
 
         auto& [P, T, M, V, F] = subdivided_tets.value();
 
-        std::cout << "positions:\n" << P << "\n";
-        std::cout << "masses:\n" << M << "\n";
-        std::cout << "velocities:\n" << V << "\n";
-        std::cout << "forces:\n" << F << "\n";
-
         std::uint32_t const num_subdivided_tets = static_cast<std::uint32_t>(T.cols());
         /**
          * Check for any vertex index that is >= previous number of elements.
@@ -240,13 +248,8 @@ bool cut_tetrahedral_mesh(
     {
         auto const& [P, T, M, V, F] = subdivided_tets;
 
-        std::cout << "positions:\n" << P << "\n";
-        std::cout << "masses:\n" << M << "\n";
-        std::cout << "velocities:\n" << V << "\n";
-        std::cout << "forces:\n" << F << "\n";
-
         mesh.positions().block(0, v_offset, P.rows(), P.cols())  = P;
-        mesh.masses().block(0, v_offset, M.rows(), M.cols())     = M;
+        mesh.masses().block(v_offset, 0, M.rows(), M.cols())     = M;
         mesh.velocities().block(0, v_offset, V.rows(), V.cols()) = V;
         mesh.forces().block(0, v_offset, F.rows(), F.cols())     = F;
 
@@ -906,12 +909,18 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_1(
     /**
      * Cache interpolation coefficients
      */
-    double const t1 = (edge_intersection_points[0].x() - mesh.positions().col(_v1).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v1).x());
-    double const t2 = (edge_intersection_points[1].x() - mesh.positions().col(_v2).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v2).x());
-    double const t3 = (edge_intersection_points[2].x() - mesh.positions().col(_v3).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v3).x());
+    double const t1 = lerp_coefficient(
+        mesh.positions().col(_v1),
+        mesh.positions().col(_v4),
+        edge_intersection_points[0]);
+    double const t2 = lerp_coefficient(
+        mesh.positions().col(_v2),
+        mesh.positions().col(_v4),
+        edge_intersection_points[1]);
+    double const t3 = lerp_coefficient(
+        mesh.positions().col(_v3),
+        mesh.positions().col(_v4),
+        edge_intersection_points[2]);
 
     /**
      * Transfer forces to subdivided mesh elements
@@ -1013,14 +1022,22 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_2(
     /**
      * Cache interpolation coefficients
      */
-    double const t1 = (edge_intersection_points[0].x() - mesh.positions().col(_v1).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v1).x());
-    double const t2 = (edge_intersection_points[1].x() - mesh.positions().col(_v1).x()) /
-                      (mesh.positions().col(_v3).x() - mesh.positions().col(_v1).x());
-    double const t3 = (edge_intersection_points[2].x() - mesh.positions().col(_v2).x()) /
-                      (mesh.positions().col(_v3).x() - mesh.positions().col(_v2).x());
-    double const t4 = (edge_intersection_points[3].x() - mesh.positions().col(_v2).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v2).x());
+    double const t1 = lerp_coefficient(
+        mesh.positions().col(_v1),
+        mesh.positions().col(_v4),
+        edge_intersection_points[0]);
+    double const t2 = lerp_coefficient(
+        mesh.positions().col(_v1),
+        mesh.positions().col(_v3),
+        edge_intersection_points[1]);
+    double const t3 = lerp_coefficient(
+        mesh.positions().col(_v2),
+        mesh.positions().col(_v3),
+        edge_intersection_points[2]);
+    double const t4 = lerp_coefficient(
+        mesh.positions().col(_v2),
+        mesh.positions().col(_v4),
+        edge_intersection_points[3]);
 
     /**
      * Transfer forces to subdivided mesh elements
@@ -1120,8 +1137,10 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_3(
     /**
      * Cache interpolation coefficients
      */
-    double const t1  = (edge_intersection_points[0].x() - mesh.positions().col(_v1).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v1).x());
+    double const t1 = lerp_coefficient(
+        mesh.positions().col(_v1),
+        mesh.positions().col(_v4),
+        edge_intersection_points[0]);
     auto const [bu2, bv2, bw2] = common::barycentric_coordinates(
         mesh.positions().col(_v1),
         mesh.positions().col(_v2),
@@ -1159,8 +1178,8 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_3(
      * Transfer masses to subdivided mesh elements
      */
     M(_v5) = (1 - t1) * mesh.masses()(_v1) + t1 * mesh.masses()(_v4);
-    M(_v6) = bu2 * mesh.masses()(_v1) + bv2 * mesh.masses()(_v2) + bw2 * (_v4);
-    M(_v7) = bu3 * mesh.masses()(_v1) + bv3 * mesh.masses()(_v4) + bw3 * (_v3);
+    M(_v6) = bu2 * mesh.masses()(_v1) + bv2 * mesh.masses()(_v2) + bw2 * mesh.masses()(_v4);
+    M(_v7) = bu3 * mesh.masses()(_v1) + bv3 * mesh.masses()(_v4) + bw3 * mesh.masses()(_v3);
 
     M(_v5p) = M(_v5);
 
@@ -1228,10 +1247,14 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_4(
     /**
      * Cache interpolation coefficients
      */
-    double const t1 = (edge_intersection_points[0].x() - mesh.positions().col(_v1).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v1).x());
-    double const t2 = (edge_intersection_points[1].x() - mesh.positions().col(_v2).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v2).x());
+    double const t1 = lerp_coefficient(
+        mesh.positions().col(_v1),
+        mesh.positions().col(_v4),
+        edge_intersection_points[0]);
+    double const t2 = lerp_coefficient(
+        mesh.positions().col(_v2),
+        mesh.positions().col(_v4),
+        edge_intersection_points[1]);
     auto const [bu3, bv3, bw3] = common::barycentric_coordinates(
         mesh.positions().col(_v2),
         mesh.positions().col(_v3),
@@ -1353,12 +1376,18 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_5(
     /**
      * Cache interpolation coefficients
      */
-    double const t1 = (edge_intersection_points[0].x() - mesh.positions().col(_v1).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v1).x());
-    double const t2 = (edge_intersection_points[1].x() - mesh.positions().col(_v2).x()) /
-                      (mesh.positions().col(_v4).x() - mesh.positions().col(_v2).x());
-    double const t3 = (edge_intersection_points[2].x() - mesh.positions().col(_v2).x()) /
-                      (mesh.positions().col(_v3).x() - mesh.positions().col(_v2).x());
+    double const t1 = lerp_coefficient(
+        mesh.positions().col(_v1),
+        mesh.positions().col(_v4),
+        edge_intersection_points[0]);
+    double const t2 = lerp_coefficient(
+        mesh.positions().col(_v2),
+        mesh.positions().col(_v4),
+        edge_intersection_points[1]);
+    double const t3 = lerp_coefficient(
+        mesh.positions().col(_v2),
+        mesh.positions().col(_v3),
+        edge_intersection_points[2]);
     auto const [bu4, bv4, bw4] = common::barycentric_coordinates(
         mesh.positions().col(_v1),
         mesh.positions().col(_v3),

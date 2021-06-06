@@ -1,5 +1,6 @@
 #include "common/primitive.h"
 
+#include <Eigen/Geometry>
 #include <Eigen/LU>
 
 namespace sbs {

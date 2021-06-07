@@ -129,9 +129,10 @@ int main(int argc, char** argv)
         if (!is_picking)
             return;
 
-        sbs::common::scene_t const& scene      = renderer.scene();
-        sbs::common::node_t const& active_node = *scene.physics_objects[active_physics_body_idx];
-        sbs::common::shared_vertex_surface_mesh_t const& surface = active_node.render_model;
+        sbs::common::scene_t const& scene = renderer.scene();
+        sbs::common::node_t& active_node  = *scene.physics_objects[active_physics_body_idx];
+        sbs::common::shared_vertex_surface_mesh_t const& surface =
+            active_node.physical_model.boundary_surface_mesh();
 
         int viewport_gl[4];
         glGetIntegerv(GL_VIEWPORT, viewport_gl);
@@ -150,12 +151,10 @@ int main(int argc, char** argv)
         glfwGetCursorPos(window, &x, &y);
 
         auto const ray = sbs::rendering::unproject_ray({x, y}, viewport, projection, view);
-        auto const picked_triangle = sbs::rendering::pick(ray, surface);
-        if (picked_triangle.has_value())
+        auto const vi  = sbs::rendering::pick_vertex(ray, surface);
+        if (vi.has_value())
         {
-            auto const& [f, u, v, w] = picked_triangle.value();
-            std::cout << "Picked triangle " << f << " with (u,v,w)=(" << u << "," << v << "," << w
-                      << ")\n";
+            active_node.physical_model.masses()(*vi) = 1e15;
         }
     };
 

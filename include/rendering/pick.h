@@ -23,6 +23,9 @@ std::optional<
     std::tuple<std::uint32_t /* hit triangle */, double /* u */, double /* v */, double /* w */>>
 pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_t const& mesh);
 
+std::optional<std::uint32_t>
+pick_vertex(common::ray_t const& ray, common::shared_vertex_surface_mesh_t const& mesh);
+
 } // namespace rendering
 } // namespace sbs
 

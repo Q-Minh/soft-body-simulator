@@ -951,9 +951,9 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_1(
     /**
      * Transfer masses to subdivided mesh elements
      */
-    M(_v5) = (1 - t1) * mesh.masses()(_v1) + t1 * mesh.masses()(_v4);
-    M(_v6) = (1 - t2) * mesh.masses()(_v2) + t2 * mesh.masses()(_v4);
-    M(_v7) = (1 - t3) * mesh.masses()(_v3) + t3 * mesh.masses()(_v4);
+    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
+    M(_v6) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
+    M(_v7) = std::min(mesh.masses()(_v3), mesh.masses()(_v4));
 
     M(_v5p) = M(_v5);
     M(_v6p) = M(_v6);
@@ -1072,10 +1072,10 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_2(
     /**
      * Transfer masses to subdivided mesh elements
      */
-    M(_v5) = (1 - t1) * mesh.masses()(_v1) + t1 * mesh.masses()(_v4);
-    M(_v6) = (1 - t2) * mesh.masses()(_v1) + t2 * mesh.masses()(_v3);
-    M(_v7) = (1 - t3) * mesh.masses()(_v2) + t3 * mesh.masses()(_v3);
-    M(_v8) = (1 - t4) * mesh.masses()(_v2) + t4 * mesh.masses()(_v4);
+    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
+    M(_v6) = std::min(mesh.masses()(_v1), mesh.masses()(_v3));
+    M(_v7) = std::min(mesh.masses()(_v2), mesh.masses()(_v3));
+    M(_v8) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
 
     M(_v5p) = M(_v5);
     M(_v6p) = M(_v6);
@@ -1181,9 +1181,9 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_3(
     /**
      * Transfer masses to subdivided mesh elements
      */
-    M(_v5) = (1 - t1) * mesh.masses()(_v1) + t1 * mesh.masses()(_v4);
-    M(_v6) = bu2 * mesh.masses()(_v1) + bv2 * mesh.masses()(_v2) + bw2 * mesh.masses()(_v4);
-    M(_v7) = bu3 * mesh.masses()(_v1) + bv3 * mesh.masses()(_v4) + bw3 * mesh.masses()(_v3);
+    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
+    M(_v6) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v2), mesh.masses()(_v4)));
+    M(_v7) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v4), mesh.masses()(_v3)));
 
     M(_v5p) = M(_v5);
 
@@ -1299,10 +1299,10 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_4(
     /**
      * Transfer masses to subdivided mesh elements
      */
-    M(_v5) = (1 - t1) * mesh.masses()(_v1) + t1 * mesh.masses()(_v4);
-    M(_v6) = (1 - t2) * mesh.masses()(_v2) + t2 * mesh.masses()(_v4);
-    M(_v7) = bu3 * mesh.masses()(_v2) + bv3 * mesh.masses()(_v3) + bw3 * mesh.masses()(_v4);
-    M(_v8) = bu4 * mesh.masses()(_v1) + bv4 * mesh.masses()(_v4) + bw4 * mesh.masses()(_v3);
+    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
+    M(_v6) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
+    M(_v7) = std::min(mesh.masses()(_v2), std::min(mesh.masses()(_v3), mesh.masses()(_v4)));
+    M(_v8) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v4), mesh.masses()(_v3)));
 
     M(_v5p) = M(_v5);
     M(_v6p) = M(_v6);
@@ -1436,11 +1436,11 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_5(
     /**
      * Transfer masses to subdivided mesh elements
      */
-    M(_v5) = (1 - t1) * mesh.masses()(_v1) + t1 * mesh.masses()(_v4);
-    M(_v6) = (1 - t2) * mesh.masses()(_v2) + t2 * mesh.masses()(_v4);
-    M(_v7) = (1 - t3) * mesh.masses()(_v2) + t3 * mesh.masses()(_v3);
-    M(_v8) = bu4 * mesh.masses()(_v1) + bv4 * mesh.masses()(_v3) + bw4 * mesh.masses()(_v2);
-    M(_v9) = bu5 * mesh.masses()(_v1) + bv5 * mesh.masses()(_v4) + bw5 * mesh.masses()(_v3);
+    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
+    M(_v6) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
+    M(_v7) = std::min(mesh.masses()(_v2), mesh.masses()(_v3));
+    M(_v8) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v3), mesh.masses()(_v2)));
+    M(_v9) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v4), mesh.masses()(_v3)));
 
     M(_v5p) = M(_v5);
     M(_v6p) = M(_v6);

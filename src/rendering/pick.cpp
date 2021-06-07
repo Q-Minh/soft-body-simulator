@@ -72,6 +72,23 @@ pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_t const& mesh)
     }
 
     return {};
+}
+std::optional<std::uint32_t>
+pick_vertex(common::ray_t const& ray, common::shared_vertex_surface_mesh_t const& mesh)
+{
+    auto const picked_triangle = pick(ray, mesh);
+    if (!picked_triangle.has_value())
+        return {};
+
+    auto const& [f, u, v, w] = picked_triangle.value();
+    std::uint32_t vi         = mesh.triangles()(0u, f);
+    if (v > u && v > w)
+        vi = mesh.triangles()(1u, f);
+    if (w > u && w > v)
+        vi = mesh.triangles()(2u, f);
+
+    auto const& index_map = mesh.index_map();
+    return index_map[vi];
 };
 
 } // namespace rendering

@@ -107,15 +107,27 @@
             "id": "bar",
             "geometry": {
                 "type": "tetrahedral mesh",
-                "path": "../meshes/tetrahedron.ply"
+                "path": "../meshes/bar_tet.ply"
             },
             "physics": {
                 "type": "soft",
-                "mass": 10.0,
+                "mass": 1.0,
                 "velocity": {
                     "x": 0.0,
                     "y": 0.0,
                     "z": 0.0
+                }
+            },
+            "box": {
+                "min": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "max": {
+                    "x": 3.0,
+                    "y": 0.5,
+                    "z": 0.5
                 }
             },
             "translation": {
@@ -125,8 +137,8 @@
             },
             "color": {
                 "r": 255,
-                "g": 0,
-                "b": 255
+                "g": 255,
+                "b": 0
             }
         }
     ]

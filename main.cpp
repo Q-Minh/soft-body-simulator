@@ -58,9 +58,6 @@ int main(int argc, char** argv)
         for (auto const& body : scene.physics_objects)
         {
             sbs::physics::xpbd::simulation_parameters_t params{};
-            params.alpha           = 1e-3;
-            params.constraint_type = sbs::physics::xpbd::constraint_type_t::distance;
-
             per_body_simulation_parameters.push_back(params);
 
             body->physical_model.forces().setZero();
@@ -70,11 +67,12 @@ int main(int argc, char** argv)
     };
 
     bool are_physics_active          = false;
+    double timestep                  = 1. / 60.;
+    std::uint32_t iterations         = 60u;
+    std::uint32_t substeps           = 60u;
+    double fps                       = 0u;
     renderer.on_new_physics_timestep = [&](double render_frame_dt, sbs::common::scene_t& scene) {
-        static double tb                   = 0.;
-        double constexpr timestep          = 1. / 60.;
-        std::uint32_t constexpr iterations = 60u;
-        std::uint32_t constexpr substeps   = 60u;
+        static double tb = 0.;
 
         tb += render_frame_dt;
         auto const time_between_frames = tb;
@@ -117,7 +115,9 @@ int main(int argc, char** argv)
 
         auto const end = std::chrono::steady_clock::now();
         auto const duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+            std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count();
+
+        fps = 1. / static_cast<double>(duration) * 1e9;
     };
 
     int active_environment_body_idx = 0;
@@ -183,6 +183,7 @@ int main(int argc, char** argv)
 
     renderer.on_new_imgui_frame = [&](sbs::common::scene_t& scene) {
         ImGui::Begin("Soft Body Simulator");
+
         std::shared_ptr<sbs::common::node_t> active_environment_node =
             scene.environment_objects[active_environment_body_idx];
 
@@ -279,6 +280,57 @@ int main(int argc, char** argv)
             ImGui::TreePush();
             if (ImGui::CollapsingHeader("XPBD"))
             {
+                ImGui::Text("Constraint type");
+                ImGui::TreePush();
+                static int constraint_type_choice = 0;
+                ImGui::RadioButton("Green##XPBD", &constraint_type_choice, 0);
+                ImGui::RadioButton("Distance##XPBD", &constraint_type_choice, 1);
+                ImGui::TreePop();
+
+                static float alpha = 1e-8f;
+                ImGui::InputFloat("Compliance##XPBD", &alpha, 0.0000001f, 0.1f, "%.8f");
+                static float mass_per_vertex = 1.f;
+                ImGui::InputFloat("Vertex mass##XPBD", &mass_per_vertex, 1.f, 10.f, "%.1f");
+
+                ImGui::Text("FEM");
+                static float young_modulus = 1e12f;
+                static float poisson_ratio = 0.45f;
+                ImGui::TreePush();
+                ImGui::InputFloat("Young modulus##XPBD", &young_modulus, 1000.f, 10'000.f, "%.1f");
+                ImGui::InputFloat("Poisson ratio##XPBD", &poisson_ratio, 0.01f, 0.1f, "%.2f");
+                ImGui::TreePop();
+
+                ImGui::Text("Solver##XPBD");
+                ImGui::TreePush();
+                static float _timestep = timestep;
+                static int _iterations = iterations;
+                static int _substeps   = substeps;
+                ImGui::InputFloat("Timestep##XPBD", &_timestep, 0.001f, 0.01f);
+                ImGui::InputInt("Iterations##XPBD", &_iterations);
+                ImGui::InputInt("Substeps##XPBD", &_substeps);
+                ImGui::TreePop();
+
+                float const w = ImGui::GetColumnWidth();
+                if (ImGui::Button("Apply##XPBD", ImVec2(w / 2.f, 0.f)))
+                {
+                    per_body_simulation_parameters[active_physics_body_idx].alpha =
+                        static_cast<double>(alpha);
+                    per_body_simulation_parameters[active_physics_body_idx].constraint_type =
+                        constraint_type_choice == 0 ?
+                            sbs::physics::xpbd::constraint_type_t::green :
+                            sbs::physics::xpbd::constraint_type_t::distance;
+                    per_body_simulation_parameters[active_physics_body_idx].young_modulus =
+                        static_cast<double>(young_modulus);
+                    per_body_simulation_parameters[active_physics_body_idx].poisson_ratio =
+                        static_cast<double>(poisson_ratio);
+
+                    timestep   = static_cast<double>(_timestep);
+                    iterations = static_cast<std::uint32_t>(_iterations);
+                    substeps   = static_cast<std::uint32_t>(_substeps);
+
+                    solver.setup(&scene.physics_objects, per_body_simulation_parameters);
+                }
+
                 ImGui::Checkbox("Activate physics", &are_physics_active);
             }
             if (ImGui::CollapsingHeader("Mesh"))
@@ -291,6 +343,8 @@ int main(int argc, char** argv)
                 ImGui::Text("Tetrahedra: %d", num_elements);
             }
             ImGui::TreePop();
+            std::string const fps_str = "FPS: " + std::to_string(fps);
+            ImGui::Text(fps_str.c_str());
         }
 
         if (ImGui::CollapsingHeader("Cutting", ImGuiTreeNodeFlags_DefaultOpen))

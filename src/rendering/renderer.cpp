@@ -11,14 +11,6 @@ renderer_base_t* renderer_base_t::active_renderer = nullptr;
 
 void renderer_t::process_input(GLFWwindow* window, double dt)
 {
-    if (on_new_input)
-    {
-        if (on_new_input(window))
-        {
-            return;
-        }
-    }
-
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, true);
@@ -61,7 +53,7 @@ void renderer_t::framebuffer_size_callback(GLFWwindow* window, int width, int he
     glViewport(0, 0, width, height);
 }
 
-void renderer_t::mouse_callback(GLFWwindow* window, double xpos, double ypos)
+void renderer_t::mouse_move_callback(GLFWwindow* window, double xpos, double ypos)
 {
     static bool first_mouse_movement = true;
     static double last_x_pos         = get_initial_window_width() / 2.f;
@@ -104,6 +96,17 @@ void renderer_t::scroll_callback(GLFWwindow* window, double dx, double dy)
     }
 }
 
+void renderer_t::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (on_mouse_button_pressed)
+    {
+        if (!ImGui::GetIO().WantCaptureMouse)
+        {
+            on_mouse_button_pressed(window, button, action, mods);
+        }
+    }
+}
+
 bool renderer_t::initialize()
 {
     glfwInit();
@@ -126,8 +129,8 @@ bool renderer_t::initialize()
 
     this->set_as_active_renderer();
     glfwSetFramebufferSizeCallback(window, renderer_base_t::framebuffer_size_callback_dispatcher);
-    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    glfwSetCursorPosCallback(window, renderer_base_t::mouse_callback_dispatcher);
+    glfwSetMouseButtonCallback(window, renderer_base_t::mouse_button_callback_dispatcher);
+    glfwSetCursorPosCallback(window, renderer_base_t::mouse_move_callback_dispatcher);
     glfwSetScrollCallback(window, renderer_base_t::scroll_callback_dispatcher);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))

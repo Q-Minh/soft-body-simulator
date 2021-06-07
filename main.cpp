@@ -108,7 +108,7 @@ int main(int argc, char** argv)
 
             for (auto const& body : scene.physics_objects)
             {
-                body->render_model = body->physical_model.boundary_surface_mesh();
+                body->render_model = body->physical_model.boundary_surface_mesh().to_face_based();
                 body->render_state.should_transfer_vertices = true;
                 body->render_state.should_transfer_indices  = true;
                 body->physical_model.forces().setZero();
@@ -123,48 +123,40 @@ int main(int argc, char** argv)
     int active_environment_body_idx = 0;
     int active_physics_body_idx     = 0;
 
-    renderer.on_new_input = [&](GLFWwindow* window) -> bool {
-        bool result{false};
+    renderer.on_mouse_button_pressed = [&](GLFWwindow* window, int button, int action, int mods) {
+        bool const is_picking =
+            (button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_SHIFT && action == GLFW_PRESS);
+        if (!is_picking)
+            return;
 
-        int left_mouse_button_state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-        int left_shift_key_state    = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
+        sbs::common::scene_t const& scene      = renderer.scene();
+        sbs::common::node_t const& active_node = *scene.physics_objects[active_physics_body_idx];
+        sbs::common::shared_vertex_surface_mesh_t const& surface = active_node.render_model;
 
-        if (left_shift_key_state == GLFW_PRESS && left_mouse_button_state == GLFW_PRESS)
+        int viewport_gl[4];
+        glGetIntegerv(GL_VIEWPORT, viewport_gl);
+        Eigen::Vector4d const viewport{
+            static_cast<double>(viewport_gl[0]),
+            static_cast<double>(viewport_gl[1]),
+            static_cast<double>(viewport_gl[2]),
+            static_cast<double>(viewport_gl[3])};
+
+        float const aspect_ratio =
+            static_cast<float>(viewport(2)) / static_cast<float>(viewport(3));
+        Eigen::Matrix4d const projection = renderer.camera().projection_matrix(aspect_ratio);
+        Eigen::Matrix4d const view       = renderer.camera().view_matrix();
+
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+
+        auto const ray = sbs::rendering::unproject_ray({x, y}, viewport, projection, view);
+        auto const picked_triangle = sbs::rendering::pick(ray, surface);
+        if (picked_triangle.has_value())
         {
-            sbs::common::scene_t const& scene = renderer.scene();
-            sbs::common::node_t const& active_node =
-                *scene.physics_objects[active_physics_body_idx];
-            sbs::common::shared_vertex_surface_mesh_t const& surface = active_node.render_model;
-
-            int viewport_gl[4];
-            glGetIntegerv(GL_VIEWPORT, viewport_gl);
-            Eigen::Vector4d const viewport{
-                static_cast<double>(viewport_gl[0]),
-                static_cast<double>(viewport_gl[1]),
-                static_cast<double>(viewport_gl[2]),
-                static_cast<double>(viewport_gl[3])};
-
-            float const aspect_ratio =
-                static_cast<float>(viewport(2)) / static_cast<float>(viewport(3));
-            Eigen::Matrix4d const projection = renderer.camera().projection_matrix(aspect_ratio);
-            Eigen::Matrix4d const view       = renderer.camera().view_matrix();
-
-            double x, y;
-            glfwGetCursorPos(window, &x, &y);
-
-            auto const ray = sbs::rendering::unproject_ray({x, y}, viewport, projection, view);
-            auto const picked_triangle = sbs::rendering::pick(ray, surface);
-            if (picked_triangle.has_value())
-            {
-                auto const& [f, u, v, w] = picked_triangle.value();
-                std::cout << "Picked triangle " << f << " with (u,v,w)=(" << u << "," << v << ","
-                          << w << ")\n";
-            }
-
-            result = true;
+            auto const& [f, u, v, w] = picked_triangle.value();
+            std::cout << "Picked triangle " << f << " with (u,v,w)=(" << u << "," << v << "," << w
+                      << ")\n";
         }
-
-        return result;
     };
 
     double xprev = 0., yprev = 0., dx = 0., dy = 0.;
@@ -243,7 +235,7 @@ int main(int argc, char** argv)
                     {
                         for (auto const& body : scene.physics_objects)
                         {
-                            body->render_model = body->physical_model.facets();
+                            body->render_model = body->physical_model.facets().to_face_based();
                             body->render_state.should_render_wireframe = true;
                         }
                         dirty = true;
@@ -252,7 +244,8 @@ int main(int argc, char** argv)
                     {
                         for (auto const& body : scene.physics_objects)
                         {
-                            body->render_model = body->physical_model.boundary_surface_mesh();
+                            body->render_model =
+                                body->physical_model.boundary_surface_mesh().to_face_based();
                             body->render_state.should_render_wireframe = false;
                         }
                         dirty = true;
@@ -372,8 +365,9 @@ int main(int argc, char** argv)
                             solver.notify_topology_changed();
                             active_physics_node->render_model =
                                 active_physics_node->render_state.should_render_wireframe ?
-                                    active_physics_node->physical_model.facets() :
-                                    active_physics_node->physical_model.boundary_surface_mesh();
+                                    active_physics_node->physical_model.facets().to_face_based() :
+                                    active_physics_node->physical_model.boundary_surface_mesh()
+                                        .to_face_based();
                             active_physics_node->render_state.should_transfer_vertices = true;
                             active_physics_node->render_state.should_transfer_indices  = true;
                         }

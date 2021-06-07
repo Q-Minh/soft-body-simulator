@@ -233,7 +233,7 @@ common::scene_t load_scene(std::filesystem::path const& path)
         std::uint8_t const g = color["g"].get<std::uint8_t>();
         std::uint8_t const b = color["b"].get<std::uint8_t>();
 
-        node->render_model = mesh.boundary_surface_mesh();
+        node->render_model = mesh.boundary_surface_mesh().to_face_based();
         node->render_model.set_color(
             Eigen::Vector3f{static_cast<float>(r), static_cast<float>(g), static_cast<float>(b)} /
             255.f);

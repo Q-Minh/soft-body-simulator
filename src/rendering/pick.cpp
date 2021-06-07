@@ -12,7 +12,7 @@ sbs::common::point_t unproject(
     Eigen::Matrix4d const& view)
 {
     double const x = (coords.x() - viewport(0)) / viewport(2);
-    double const y = (coords.y() - viewport(1)) / viewport(3);
+    double const y = 1. - (coords.y() - viewport(1)) / viewport(3);
 
     Eigen::Vector4d const projective_screen_space_point =
         Eigen::Vector4d{x, y, coords.z(), 1.}.array() * 2. - 1.;
@@ -48,6 +48,8 @@ sbs::common::ray_t unproject_ray(
 std::optional<std::tuple<std::uint32_t, double, double, double>>
 pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_t const& mesh)
 {
+    using return_type = std::optional<std::tuple<std::uint32_t, double, double, double>>;
+
     std::size_t const num_triangles = static_cast<std::size_t>(mesh.triangles().cols());
     for (std::size_t f = 0u; f < num_triangles; ++f)
     {
@@ -66,7 +68,7 @@ pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_t const& mesh)
             continue;
 
         auto const [u, v, w] = common::barycentric_coordinates(a, b, c, intersection.value());
-        return std::make_tuple(f, u, v, w);
+        return std::make_tuple(static_cast<std::uint32_t>(f), u, v, w);
     }
 
     return {};

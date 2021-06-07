@@ -517,6 +517,64 @@ shared_vertex_surface_mesh_t::index_map_type& shared_vertex_surface_mesh_t::inde
     return index_map_;
 }
 
+shared_vertex_surface_mesh_t shared_vertex_surface_mesh_t::to_face_based() const
+{
+    shared_vertex_surface_mesh_t face_based_mesh{};
+
+    std::size_t const num_triangles = static_cast<std::size_t>(this->triangles().cols());
+    face_based_mesh.vertices().resize(3u, 3u * num_triangles);
+    face_based_mesh.colors().resizeLike(face_based_mesh.vertices());
+    face_based_mesh.normals().resizeLike(face_based_mesh.vertices());
+    face_based_mesh.index_map().resize(3u * num_triangles);
+    face_based_mesh.triangles().resize(3u, num_triangles);
+
+    for (std::size_t f = 0u; f < num_triangles; ++f)
+    {
+        auto const v1 = this->triangles()(0u, f);
+        auto const v2 = this->triangles()(1u, f);
+        auto const v3 = this->triangles()(2u, f);
+
+        auto const& p1 = this->vertices().col(v1);
+        auto const& p2 = this->vertices().col(v2);
+        auto const& p3 = this->vertices().col(v3);
+
+        auto const& c1 = this->colors().col(v1);
+        auto const& c2 = this->colors().col(v2);
+        auto const& c3 = this->colors().col(v3);
+
+        auto const idx1 = this->index_map()[v1];
+        auto const idx2 = this->index_map()[v2];
+        auto const idx3 = this->index_map()[v3];
+
+        auto const v1p = f * 3u;
+        auto const v2p = f * 3u + 1u;
+        auto const v3p = f * 3u + 2u;
+
+        face_based_mesh.vertices().col(v1p) = p1;
+        face_based_mesh.vertices().col(v2p) = p2;
+        face_based_mesh.vertices().col(v3p) = p3;
+
+        face_based_mesh.colors().col(v1p) = c1;
+        face_based_mesh.colors().col(v2p) = c2;
+        face_based_mesh.colors().col(v3p) = c3;
+
+        face_based_mesh.index_map()[v1p] = idx1;
+        face_based_mesh.index_map()[v2p] = idx2;
+        face_based_mesh.index_map()[v3p] = idx3;
+
+        Eigen::Vector3d const n            = (p2 - p1).cross(p3 - p1).normalized();
+        face_based_mesh.normals().col(v1p) = n;
+        face_based_mesh.normals().col(v2p) = n;
+        face_based_mesh.normals().col(v3p) = n;
+
+        face_based_mesh.triangles()(0u, f) = static_cast<index_type>(v1p);
+        face_based_mesh.triangles()(1u, f) = static_cast<index_type>(v2p);
+        face_based_mesh.triangles()(2u, f) = static_cast<index_type>(v3p);
+    }
+
+    return face_based_mesh;
+}
+
 std::vector<std::pair<std::uint32_t, std::uint32_t>> edges(shared_vertex_mesh_t const& mesh)
 {
     using edge_type = std::pair<std::uint32_t, std::uint32_t>;

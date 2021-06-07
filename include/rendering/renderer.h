@@ -19,9 +19,10 @@ namespace rendering {
 class renderer_base_t
 {
   public:
-    virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) = 0;
-    virtual void mouse_callback(GLFWwindow* window, double xpos, double ypos)         = 0;
-    virtual void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)  = 0;
+    virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height)        = 0;
+    virtual void mouse_move_callback(GLFWwindow* window, double xpos, double ypos)           = 0;
+    virtual void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)         = 0;
+    virtual void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) = 0;
 
     static renderer_base_t* active_renderer;
 
@@ -33,15 +34,21 @@ class renderer_base_t
         if (active_renderer != nullptr)
             active_renderer->framebuffer_size_callback(window, width, height);
     }
-    static void mouse_callback_dispatcher(GLFWwindow* window, double xpos, double ypos)
+    static void mouse_move_callback_dispatcher(GLFWwindow* window, double xpos, double ypos)
     {
         if (active_renderer != nullptr)
-            active_renderer->mouse_callback(window, xpos, ypos);
+            active_renderer->mouse_move_callback(window, xpos, ypos);
     }
     static void scroll_callback_dispatcher(GLFWwindow* window, double xoffset, double yoffset)
     {
         if (active_renderer != nullptr)
             active_renderer->scroll_callback(window, xoffset, yoffset);
+    }
+    static void
+    mouse_button_callback_dispatcher(GLFWwindow* window, int button, int action, int mods)
+    {
+        if (active_renderer != nullptr)
+            active_renderer->mouse_button_callback(window, button, action, mods);
     }
 };
 
@@ -83,12 +90,14 @@ class renderer_t : public renderer_base_t
      */
     std::function<bool(GLFWwindow* /*window*/, double /*mouse_x_pos*/, double /*mouse_y_pos*/)>
         on_mouse_moved;
-    std::function<bool(GLFWwindow*)> on_new_input;
+    std::function<void(GLFWwindow*, int, int, int)> on_mouse_button_pressed;
 
   protected:
     virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) override;
-    virtual void mouse_callback(GLFWwindow* window, double xpos, double ypos) override;
+    virtual void mouse_move_callback(GLFWwindow* window, double xpos, double ypos) override;
     virtual void scroll_callback(GLFWwindow* window, double dx, double dy) override;
+    virtual void
+    mouse_button_callback(GLFWwindow* window, int button, int action, int mods) override;
 
     void transfer_vertices_to_gpu(
         unsigned int VBO,

@@ -47,6 +47,8 @@ class shared_vertex_surface_mesh_t
     index_map_type const& index_map() const;
     index_map_type& index_map();
 
+    shared_vertex_surface_mesh_t to_face_based() const;
+
   private:
     vertices_type vertices_;
     normals_type normals_;

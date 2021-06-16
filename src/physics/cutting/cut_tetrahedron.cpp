@@ -2,7 +2,7 @@
 
 #include "common/primitive.h"
 
-#include <Eigen/LU>
+#include <iostream>
 
 namespace sbs {
 namespace physics {
@@ -23,41 +23,44 @@ static double lerp_coefficient(
         return (P.y() - A.y()) / dy;
 
     double const dz = B.z() - A.z();
-    return (P.z() - A.z()) / dz;
+    if (std::abs(dz) > eps)
+        return (P.z() - A.z()) / dz;
+
+    return 0.;
 }
 
-std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedron(
-    common::shared_vertex_mesh_t const& mesh,
-    std::uint32_t tetrahedron,
-    std::byte const edge_intersection_mask,
-    std::array<Eigen::Vector3d, 6u> const& edge_intersections,
-    std::array<Eigen::Vector3d, 4u> const& face_intersections)
+tetrahedral_mesh_cutter_t::tetrahedral_mesh_cutter_t(common::shared_vertex_mesh_t& mesh)
+    : mesh_(mesh),
+      cut_edges_(),
+      cut_faces_(),
+      cut_tetrahedra_(),
+      previous_vertex_count_(static_cast<std::uint32_t>(mesh.positions().cols()))
 {
-    tetrahedron_mesh_cutter_t cutter{};
-    auto const tets = cutter.subdivide_mesh(
-        edge_intersection_mask,
-        mesh,
-        tetrahedron,
-        edge_intersections,
-        face_intersections);
-
-    return tets;
 }
 
-std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedron(
-    common::shared_vertex_mesh_t const& mesh,
+void tetrahedral_mesh_cutter_t::detect_cuts(
+    common::shared_vertex_surface_mesh_t const& cutting_surface)
+{
+    std::uint32_t const num_tetrahedra = static_cast<std::uint32_t>(mesh_.elements().cols());
+    for (std::uint32_t e = 0u; e < num_tetrahedra; ++e)
+    {
+        detect_cuts(e, cutting_surface);
+    }
+}
+
+void tetrahedral_mesh_cutter_t::detect_cuts(
     std::uint32_t tetrahedron,
     common::shared_vertex_surface_mesh_t const& cutting_surface)
 {
-    auto const v1 = mesh.elements()(0u, tetrahedron);
-    auto const v2 = mesh.elements()(1u, tetrahedron);
-    auto const v3 = mesh.elements()(2u, tetrahedron);
-    auto const v4 = mesh.elements()(3u, tetrahedron);
+    auto const v1 = mesh_.elements()(0u, tetrahedron);
+    auto const v2 = mesh_.elements()(1u, tetrahedron);
+    auto const v3 = mesh_.elements()(2u, tetrahedron);
+    auto const v4 = mesh_.elements()(3u, tetrahedron);
 
-    auto const& p1 = mesh.positions().col(v1);
-    auto const& p2 = mesh.positions().col(v2);
-    auto const& p3 = mesh.positions().col(v3);
-    auto const& p4 = mesh.positions().col(v4);
+    auto const& p1 = mesh_.positions().col(v1);
+    auto const& p2 = mesh_.positions().col(v2);
+    auto const& p3 = mesh_.positions().col(v3);
+    auto const& p4 = mesh_.positions().col(v4);
 
     collision::line_segment_t const e1{p1, p2};
     collision::line_segment_t const e2{p2, p3};
@@ -68,25 +71,55 @@ std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedro
 
     std::byte edge_intersection_mask{0b00000000};
 
-    std::array<Eigen::Vector3d, 6u> edge_intersections{};
-    std::array<Eigen::Vector3d, 4u> face_intersections{};
-
     /**
      * Find tetrahedron's cut edges
      */
-    std::size_t const num_cutting_triangles =
-        static_cast<std::size_t>(cutting_surface.triangles().cols());
+    std::size_t const num_cutting_triangles = cutting_surface.triangle_count();
+
+    std::size_t const num_vertices = previous_vertex_count_;
+
+    auto const get_num_new_vertices = [this]() {
+        return 2u * cut_edges_.size() + cut_faces_.size();
+    };
+
+    auto const is_over_triangle = [](Eigen::Vector3d const& p, collision::triangle_t const& t) {
+        auto const n = t.normal();
+        auto const v = p - t.a; // Take p from any point on the plane spanned by t
+        return v.dot(n) > 0.;
+    };
+
+    auto const create_cut_edge_facet = [num_vertices, get_num_new_vertices, is_over_triangle, this](
+                                           std::uint32_t ev1,
+                                           std::uint32_t ev2,
+                                           Eigen::Vector3d const& intersection,
+                                           collision::triangle_t const& cut) {
+        edge_facet_key_type const edge_key{ev1, ev2};
+        bool const is_first_detection = (cut_edges_.find(edge_key) == cut_edges_.end());
+        if (is_first_detection)
+        {
+            std::uint32_t const new_vertex_index =
+                static_cast<std::uint32_t>(num_vertices + get_num_new_vertices());
+            cut_edges_[edge_key].vi = new_vertex_index;
+
+            auto const& ep1                 = mesh_.positions().col(ev1);
+            bool const is_ev1_over_triangle = is_over_triangle(ep1, cut);
+
+            cut_edges_[edge_key].v1           = is_ev1_over_triangle ? ev2 : ev1;
+            cut_edges_[edge_key].v2           = is_ev1_over_triangle ? ev1 : ev2;
+            cut_edges_[edge_key].intersection = intersection;
+        }
+    };
 
     for (std::size_t f = 0u; f < num_cutting_triangles; ++f)
     {
-        auto const v1 = cutting_surface.triangles()(0u, f);
-        auto const v2 = cutting_surface.triangles()(1u, f);
-        auto const v3 = cutting_surface.triangles()(2u, f);
+        auto const fv1 = cutting_surface.triangles()(0u, f);
+        auto const fv2 = cutting_surface.triangles()(1u, f);
+        auto const fv3 = cutting_surface.triangles()(2u, f);
 
         collision::triangle_t const cutting_triangle{
-            cutting_surface.vertices().col(v1),
-            cutting_surface.vertices().col(v2),
-            cutting_surface.vertices().col(v3)};
+            cutting_surface.vertices().col(fv1),
+            cutting_surface.vertices().col(fv2),
+            cutting_surface.vertices().col(fv3)};
 
         auto const e1_intersection = collision::intersect_twoway(e1, cutting_triangle);
         auto const e2_intersection = collision::intersect_twoway(e2, cutting_triangle);
@@ -97,33 +130,33 @@ std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedro
 
         if (e1_intersection.has_value())
         {
-            edge_intersections[0] = e1_intersection.value();
             edge_intersection_mask |= std::byte{0b00000001};
+            create_cut_edge_facet(v1, v2, *e1_intersection, cutting_triangle);
         }
         if (e2_intersection.has_value())
         {
-            edge_intersections[1] = e2_intersection.value();
             edge_intersection_mask |= std::byte{0b00000010};
+            create_cut_edge_facet(v2, v3, *e2_intersection, cutting_triangle);
         }
         if (e3_intersection.has_value())
         {
-            edge_intersections[2] = e3_intersection.value();
             edge_intersection_mask |= std::byte{0b00000100};
+            create_cut_edge_facet(v3, v1, *e3_intersection, cutting_triangle);
         }
         if (e4_intersection.has_value())
         {
-            edge_intersections[3] = e4_intersection.value();
             edge_intersection_mask |= std::byte{0b00001000};
+            create_cut_edge_facet(v1, v4, *e4_intersection, cutting_triangle);
         }
         if (e5_intersection.has_value())
         {
-            edge_intersections[4] = e5_intersection.value();
             edge_intersection_mask |= std::byte{0b00010000};
+            create_cut_edge_facet(v2, v4, *e5_intersection, cutting_triangle);
         }
         if (e6_intersection.has_value())
         {
-            edge_intersections[5] = e6_intersection.value();
             edge_intersection_mask |= std::byte{0b00100000};
+            create_cut_edge_facet(v3, v4, *e6_intersection, cutting_triangle);
         }
     }
 
@@ -133,11 +166,27 @@ std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedro
     collision::triangle_t const f4{p1, p3, p2};
 
     auto const boundary_edges = cutting_surface.boundary_edges();
-    for (auto const& [v1, v2] : boundary_edges)
+    for (auto const& [fv1, fv2] : boundary_edges)
     {
+        auto const create_cut_face_facet = [this, num_vertices, get_num_new_vertices](
+                                               std::uint32_t fv1,
+                                               std::uint32_t fv2,
+                                               std::uint32_t fv3,
+                                               Eigen::Vector3d const& intersection) {
+            triangle_facet_key_type const face_key{fv1, fv2, fv3};
+            bool const is_first_detection = (cut_faces_.find(face_key) == cut_faces_.end());
+            if (is_first_detection)
+            {
+                std::uint32_t const new_vertex_index =
+                    static_cast<std::uint32_t>(num_vertices + get_num_new_vertices());
+                cut_faces_[face_key].vi           = new_vertex_index;
+                cut_faces_[face_key].intersection = intersection;
+            }
+        };
+
         collision::line_segment_t const boundary_edge{
-            cutting_surface.vertices().col(v1),
-            cutting_surface.vertices().col(v2)};
+            cutting_surface.vertices().col(fv1),
+            cutting_surface.vertices().col(fv2)};
 
         auto const f1_intersection = collision::intersect_twoway(boundary_edge, f1);
         auto const f2_intersection = collision::intersect_twoway(boundary_edge, f2);
@@ -145,148 +194,451 @@ std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedro
         auto const f4_intersection = collision::intersect_twoway(boundary_edge, f4);
 
         if (f1_intersection.has_value())
-            face_intersections[0] = f1_intersection.value();
+        {
+            create_cut_face_facet(v1, v2, v4, *f1_intersection);
+        }
         if (f2_intersection.has_value())
-            face_intersections[1] = f2_intersection.value();
+        {
+            create_cut_face_facet(v2, v3, v4, *f2_intersection);
+        }
         if (f3_intersection.has_value())
-            face_intersections[2] = f3_intersection.value();
+        {
+            create_cut_face_facet(v3, v1, v4, *f3_intersection);
+        }
         if (f4_intersection.has_value())
-            face_intersections[3] = f4_intersection.value();
+        {
+            create_cut_face_facet(v1, v3, v2, *f4_intersection);
+        }
     }
 
-    return cut_tetrahedron(
-        mesh,
-        tetrahedron,
-        edge_intersection_mask,
-        edge_intersections,
-        face_intersections);
+    bool const should_cut_tet = (edge_intersection_mask != std::byte{0b00000000});
+    if (!should_cut_tet)
+        return;
+
+    tetrahedron_key_type const tetrahedron_key = tetrahedron;
+    // cut_tetrahedra_[tetrahedron_key].edge_intersection_mask |= edge_intersection_mask;
+    // cut_tetrahedra_[tetrahedron_key].v1 = mesh_.elements()(0u, tetrahedron);
+    // cut_tetrahedra_[tetrahedron_key].v2 = mesh_.elements()(1u, tetrahedron);
+    // cut_tetrahedra_[tetrahedron_key].v3 = mesh_.elements()(2u, tetrahedron);
+    // cut_tetrahedra_[tetrahedron_key].v4 = mesh_.elements()(3u, tetrahedron);
+    cut_tetrahedra_[tetrahedron_key] |= edge_intersection_mask;
 }
 
-bool cut_tetrahedral_mesh(
-    common::shared_vertex_mesh_t& mesh,
+void tetrahedral_mesh_cutter_t::create_new_vertices()
+{
+    std::uint32_t const num_vertices =
+        previous_vertex_count_ +
+        static_cast<std::uint32_t>(2u * cut_edges_.size() + cut_faces_.size());
+
+    mesh_.positions().conservativeResize(3u, num_vertices);
+    mesh_.forces().conservativeResize(3u, num_vertices);
+    mesh_.velocities().conservativeResize(3u, num_vertices);
+    mesh_.masses().conservativeResize(num_vertices);
+
+    for (auto& [key, facet] : cut_edges_)
+    {
+        if (facet.has_created_new_vertex)
+            continue;
+
+        auto const& v1 = key[0];
+        auto const& v2 = key[1];
+
+        auto const& p1 = mesh_.positions().col(v1);
+        auto const& p2 = mesh_.positions().col(v2);
+
+        auto const t = lerp_coefficient(p1, p2, facet.intersection);
+
+        int const vi              = static_cast<int>(facet.vi);
+        mesh_.positions().col(vi) = facet.intersection;
+        mesh_.forces().col(vi)    = (1 - t) * mesh_.forces().col(v1) + t * mesh_.forces().col(v2);
+        mesh_.velocities().col(vi) =
+            (1 - t) * mesh_.velocities().col(v1) + t * mesh_.velocities().col(v2);
+        mesh_.masses()(vi) = std::min(mesh_.masses()(v1), mesh_.masses()(v2));
+
+        int const vip               = vi + 1;
+        mesh_.positions().col(vip)  = mesh_.positions().col(vi);
+        mesh_.forces().col(vip)     = mesh_.forces().col(vi);
+        mesh_.velocities().col(vip) = mesh_.velocities().col(vi);
+        mesh_.masses()(vip)         = mesh_.masses()(vi);
+
+        facet.has_created_new_vertex = true;
+    }
+
+    for (auto& [key, facet] : cut_faces_)
+    {
+        if (facet.has_created_new_vertex)
+            continue;
+
+        auto const& v1 = key[0];
+        auto const& v2 = key[1];
+        auto const& v3 = key[2];
+
+        auto const& A = mesh_.positions().col(v1);
+        auto const& B = mesh_.positions().col(v2);
+        auto const& C = mesh_.positions().col(v3);
+
+        auto const [u, v, w] = common::barycentric_coordinates(A, B, C, facet.intersection);
+
+        int const vi              = static_cast<int>(facet.vi);
+        mesh_.positions().col(vi) = facet.intersection;
+        mesh_.forces().col(vi) =
+            u * mesh_.forces().col(v1) + v * mesh_.forces().col(v2) + w * mesh_.forces().col(v3);
+        mesh_.velocities().col(vi) = u * mesh_.velocities().col(v1) +
+                                     v * mesh_.velocities().col(v2) +
+                                     w * mesh_.velocities().col(v3);
+        mesh_.masses()(vi) =
+            u * mesh_.masses()(v1) + v * mesh_.masses()(v2) + w * mesh_.masses()(v3);
+
+        facet.has_created_new_vertex = true;
+    }
+}
+
+bool tetrahedral_mesh_cutter_t::update_topology(
     common::shared_vertex_surface_mesh_t const& cutting_surface)
 {
-    bool has_mesh_been_cut{false};
+    bool has_mesh_been_modified{false};
 
-    std::uint32_t const previous_number_of_elements =
-        static_cast<std::uint32_t>(mesh.elements().cols());
-    std::uint32_t const previous_number_of_vertices =
-        static_cast<std::uint32_t>(mesh.positions().cols());
+    struct cutting_list_element_type
+    {
+        std::uint32_t tetrahedron;
+        std::uint32_t offset;
+        subdivided_element_type subdivided_elements;
+    };
+    std::list<cutting_list_element_type> cutting_list{};
+    std::uint32_t updated_tetrahedra_count = static_cast<std::uint32_t>(mesh_.elements().cols());
+    for (auto it = cut_tetrahedra_.begin(); it != cut_tetrahedra_.end();)
+    {
+        auto const& [tetrahedron, edge_intersection_mask] = *it;
 
-    std::uint32_t current_number_of_vertices = previous_number_of_vertices;
-    std::uint32_t current_number_of_elements = previous_number_of_elements;
+        /**
+         * If the cutting surface and this tetrahedron still intersect,
+         * we delay the cut. When the cutting surface will leave this
+         * tetrahedron in the future, this tetrahedron will be cut.
+         */
+        if (intersects(tetrahedron, cutting_surface))
+        {
+            ++it;
+            continue;
+        }
 
+        auto const tet_to_subdivide = subdivide_mesh(edge_intersection_mask, tetrahedron);
+        if (tet_to_subdivide.has_value())
+        {
+            cutting_list_element_type cutting_list_element{};
+            cutting_list_element.tetrahedron         = tetrahedron;
+            cutting_list_element.subdivided_elements = *tet_to_subdivide;
+            cutting_list_element.offset              = updated_tetrahedra_count;
+
+            std::uint32_t const num_subdivided_elements =
+                static_cast<std::uint32_t>(cutting_list_element.subdivided_elements.cols());
+
+            cutting_list.push_back(cutting_list_element);
+            /**
+             * 1 tetrahedron being subdivided into N elements results in
+             * (N - 1) elements to add in our mesh, because we remove 1 tet, and
+             * we add back N tets.
+             */
+            updated_tetrahedra_count += num_subdivided_elements - 1u;
+            has_mesh_been_modified = true;
+        }
+
+        it = cut_tetrahedra_.erase(it);
+    }
+
+    mesh_.elements().conservativeResize(4u, updated_tetrahedra_count);
+    for (auto const& cutting_list_element : cutting_list)
+    {
+        std::uint32_t const tetrahedron     = cutting_list_element.tetrahedron;
+        tetrahedra_type const& tetrahedra   = cutting_list_element.subdivided_elements;
+        std::uint32_t const offset          = cutting_list_element.offset;
+        int const num_additional_tetrahedra = tetrahedra.cols() - 1;
+
+        mesh_.elements().col(tetrahedron) = tetrahedra.col(0u);
+        mesh_.elements().block(0, offset, 4, num_additional_tetrahedra) =
+            tetrahedra.block(0, 1, 4, num_additional_tetrahedra);
+    }
+
+    return has_mesh_been_modified;
+}
+
+// std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type>
+// tetrahedron_mesh_cutter_t::cut_tetrahedron(
+//    std::uint32_t tetrahedron,
+//    std::byte const edge_intersection_mask,
+//    std::array<Eigen::Vector3d, 6u> const& edge_intersections,
+//    std::array<Eigen::Vector3d, 4u> const& face_intersections)
+//{
+//    auto const tets = subdivide_mesh(
+//        edge_intersection_mask,
+//        mesh_,
+//        tetrahedron,
+//        edge_intersections,
+//        face_intersections);
+//
+//    return tets;
+//}
+
+// std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type>
+// tetrahedron_mesh_cutter_t::cut_tetrahedron(
+//    std::uint32_t tetrahedron,
+//    common::shared_vertex_surface_mesh_t const& cutting_surface)
+//{
+//    auto const v1 = mesh_.elements()(0u, tetrahedron);
+//    auto const v2 = mesh_.elements()(1u, tetrahedron);
+//    auto const v3 = mesh_.elements()(2u, tetrahedron);
+//    auto const v4 = mesh_.elements()(3u, tetrahedron);
+//
+//    auto const& p1 = mesh_.positions().col(v1);
+//    auto const& p2 = mesh_.positions().col(v2);
+//    auto const& p3 = mesh_.positions().col(v3);
+//    auto const& p4 = mesh_.positions().col(v4);
+//
+//    collision::line_segment_t const e1{p1, p2};
+//    collision::line_segment_t const e2{p2, p3};
+//    collision::line_segment_t const e3{p3, p1};
+//    collision::line_segment_t const e4{p1, p4};
+//    collision::line_segment_t const e5{p2, p4};
+//    collision::line_segment_t const e6{p3, p4};
+//
+//    std::byte edge_intersection_mask{0b00000000};
+//
+//    std::array<Eigen::Vector3d, 6u> edge_intersections{};
+//    std::array<Eigen::Vector3d, 4u> face_intersections{};
+//
+//    /**
+//     * Find tetrahedron's cut edges
+//     */
+//    std::size_t const num_cutting_triangles =
+//        static_cast<std::size_t>(cutting_surface.triangles().cols());
+//
+//    for (std::size_t f = 0u; f < num_cutting_triangles; ++f)
+//    {
+//        auto const v1 = cutting_surface.triangles()(0u, f);
+//        auto const v2 = cutting_surface.triangles()(1u, f);
+//        auto const v3 = cutting_surface.triangles()(2u, f);
+//
+//        collision::triangle_t const cutting_triangle{
+//            cutting_surface.vertices().col(v1),
+//            cutting_surface.vertices().col(v2),
+//            cutting_surface.vertices().col(v3)};
+//
+//        auto const e1_intersection = collision::intersect_twoway(e1, cutting_triangle);
+//        auto const e2_intersection = collision::intersect_twoway(e2, cutting_triangle);
+//        auto const e3_intersection = collision::intersect_twoway(e3, cutting_triangle);
+//        auto const e4_intersection = collision::intersect_twoway(e4, cutting_triangle);
+//        auto const e5_intersection = collision::intersect_twoway(e5, cutting_triangle);
+//        auto const e6_intersection = collision::intersect_twoway(e6, cutting_triangle);
+//
+//        if (e1_intersection.has_value())
+//        {
+//            edge_intersections[0] = e1_intersection.value();
+//            edge_intersection_mask |= std::byte{0b00000001};
+//        }
+//        if (e2_intersection.has_value())
+//        {
+//            edge_intersections[1] = e2_intersection.value();
+//            edge_intersection_mask |= std::byte{0b00000010};
+//        }
+//        if (e3_intersection.has_value())
+//        {
+//            edge_intersections[2] = e3_intersection.value();
+//            edge_intersection_mask |= std::byte{0b00000100};
+//        }
+//        if (e4_intersection.has_value())
+//        {
+//            edge_intersections[3] = e4_intersection.value();
+//            edge_intersection_mask |= std::byte{0b00001000};
+//        }
+//        if (e5_intersection.has_value())
+//        {
+//            edge_intersections[4] = e5_intersection.value();
+//            edge_intersection_mask |= std::byte{0b00010000};
+//        }
+//        if (e6_intersection.has_value())
+//        {
+//            edge_intersections[5] = e6_intersection.value();
+//            edge_intersection_mask |= std::byte{0b00100000};
+//        }
+//    }
+//
+//    collision::triangle_t const f1{p1, p2, p4};
+//    collision::triangle_t const f2{p2, p3, p4};
+//    collision::triangle_t const f3{p3, p1, p4};
+//    collision::triangle_t const f4{p1, p3, p2};
+//
+//    auto const boundary_edges = cutting_surface.boundary_edges();
+//    for (auto const& [v1, v2] : boundary_edges)
+//    {
+//        collision::line_segment_t const boundary_edge{
+//            cutting_surface.vertices().col(v1),
+//            cutting_surface.vertices().col(v2)};
+//
+//        auto const f1_intersection = collision::intersect_twoway(boundary_edge, f1);
+//        auto const f2_intersection = collision::intersect_twoway(boundary_edge, f2);
+//        auto const f3_intersection = collision::intersect_twoway(boundary_edge, f3);
+//        auto const f4_intersection = collision::intersect_twoway(boundary_edge, f4);
+//
+//        if (f1_intersection.has_value())
+//            face_intersections[0] = f1_intersection.value();
+//        if (f2_intersection.has_value())
+//            face_intersections[1] = f2_intersection.value();
+//        if (f3_intersection.has_value())
+//            face_intersections[2] = f3_intersection.value();
+//        if (f4_intersection.has_value())
+//            face_intersections[3] = f4_intersection.value();
+//    }
+//
+//    return cut_tetrahedron(
+//        tetrahedron,
+//        edge_intersection_mask,
+//        edge_intersections,
+//        face_intersections);
+//}
+
+bool tetrahedral_mesh_cutter_t ::cut_tetrahedral_mesh(
+    common::shared_vertex_surface_mesh_t const& cutting_surface)
+{
     /**
      * Brute-force search for intersections between the cutting surface and the mesh.
      * Pruning the search space using efficient spatial acceleration structures
      * could be beneficial for performance.
      */
-    std::list<std::pair<
-        std::uint32_t /* index of tetrahedron that was cut */,
-        tetrahedron_mesh_cutter_t::
-            subdivided_element_type /* the subdivided tets originating from the cut tetrahedron*/>>
-        new_tetrahedra{};
+    detect_cuts(cutting_surface);
 
-    for (std::uint32_t e = 0u; e < previous_number_of_elements; ++e)
-    {
-        auto subdivided_tets = cut_tetrahedron(mesh, e, cutting_surface);
+    create_new_vertices();
 
-        if (!subdivided_tets.has_value())
-            continue;
+    bool const has_topology_changed = update_topology(cutting_surface);
+    // if (!has_topology_changed)
+    //    finalize_cut();
 
-        has_mesh_been_cut = true;
-
-        auto& [P, T, M, V, F] = subdivided_tets.value();
-
-        std::uint32_t const num_subdivided_tets = static_cast<std::uint32_t>(T.cols());
-        /**
-         * Check for any vertex index that is >= previous number of elements.
-         * Those vertices are newly created vertices. Since we only affect the
-         * mesh after having found every cut tetrahedron, every new vertex index
-         * must be adjusted to account for all other new vertex indices. For example,
-         * for a mesh of size 5 initially, if we cut one of its tets and generate 3 new
-         * vertices, then the new vertices will have indices 5,6,7. But if in the
-         * same cut, another tet was cut and generated 3 new vertices, we can't
-         * also give those the indices 5,6,7. We will have to start from 8 to account
-         * for the previously cut tet. So the 6 new vertices will have indices 5,6,7,8,9,10.
-         */
-        for (std::uint32_t t = 0u; t < num_subdivided_tets; ++t)
-        {
-            for (std::uint32_t i = 0u; i < 4u; ++i)
-            {
-                auto const vi = T(i, t);
-
-                if (vi < previous_number_of_vertices)
-                    continue;
-
-                auto const offset = vi - previous_number_of_vertices;
-                auto const vip    = current_number_of_vertices + offset;
-                T(i, t)           = vip;
-            }
-        }
-
-        std::uint32_t const num_new_vertices = static_cast<std::uint32_t>(P.cols());
-        current_number_of_vertices += num_new_vertices;
-
-        /**
-         * Here, we subtract the number of subdivided tets by 1, because the initial tetrahedron
-         * from which these subdivided tets come from will be removed from the mesh. Thus,
-         * we add all subdivided tets to the mesh, but we remove the initial tetrahedron from the
-         * mesh.
-         */
-        current_number_of_elements += num_subdivided_tets - 1u;
-
-        new_tetrahedra.push_back(std::make_pair(e, subdivided_tets.value()));
-    }
-
-    mesh.elements().conservativeResize(4u, current_number_of_elements);
-    mesh.positions().conservativeResize(3u, current_number_of_vertices);
-    mesh.masses().conservativeResize(current_number_of_vertices);
-    mesh.velocities().conservativeResize(3u, current_number_of_vertices);
-    mesh.forces().conservativeResize(3u, current_number_of_vertices);
-
-    std::int64_t e_offset = static_cast<std::int64_t>(previous_number_of_elements);
-    std::int64_t v_offset = static_cast<std::int64_t>(previous_number_of_vertices);
-
-    for (auto const& [cut_tetrahedron, subdivided_tets] : new_tetrahedra)
-    {
-        auto const& [P, T, M, V, F] = subdivided_tets;
-
-        mesh.positions().block(0, v_offset, P.rows(), P.cols())  = P;
-        mesh.masses().block(v_offset, 0, M.rows(), M.cols())     = M;
-        mesh.velocities().block(0, v_offset, V.rows(), V.cols()) = V;
-        mesh.forces().block(0, v_offset, F.rows(), F.cols())     = F;
-
-        v_offset += P.cols();
-
-        std::int64_t const num_tetrahedra_to_append = T.cols() - 1;
-
-        /**
-         * We replace the cut tetrahedron by the first tetrahedron of the
-         * subdivided tet.
-         */
-        mesh.elements().col(cut_tetrahedron) = T.col(0);
-        /**
-         * We then append the second to last subdivided tets the
-         * our mesh elements.
-         */
-        mesh.elements().block(0, e_offset, T.rows(), num_tetrahedra_to_append) =
-            T.block(0, 1, T.rows(), num_tetrahedra_to_append);
-
-        e_offset += num_tetrahedra_to_append;
-    }
-
-    return has_mesh_been_cut;
+    return has_topology_changed;
 }
 
-std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type>
-tetrahedron_mesh_cutter_t::subdivide_mesh(
-    std::byte const& edge_intersection_mask,
-    common::shared_vertex_mesh_t const& mesh,
-    std::uint32_t tetrahedron,
-    std::array<Eigen::Vector3d, 6u> const& edge_intersection_points,
-    std::array<Eigen::Vector3d, 4u> const& face_intersection_points)
+void tetrahedral_mesh_cutter_t::finalize_cut()
 {
+    cut_edges_.clear();
+    cut_faces_.clear();
+    cut_tetrahedra_.clear();
+    previous_vertex_count_ = static_cast<std::uint32_t>(mesh_.positions().cols());
+}
+
+bool tetrahedral_mesh_cutter_t::intersects(
+    std::uint32_t tetrahedron,
+    common::shared_vertex_surface_mesh_t const& cutting_surface) const
+{
+    auto const v1 = mesh_.elements()(0u, tetrahedron);
+    auto const v2 = mesh_.elements()(1u, tetrahedron);
+    auto const v3 = mesh_.elements()(2u, tetrahedron);
+    auto const v4 = mesh_.elements()(3u, tetrahedron);
+
+    auto const& p1 = mesh_.positions().col(v1);
+    auto const& p2 = mesh_.positions().col(v2);
+    auto const& p3 = mesh_.positions().col(v3);
+    auto const& p4 = mesh_.positions().col(v4);
+
+    collision::line_segment_t const e1{p1, p2};
+    collision::line_segment_t const e2{p2, p3};
+    collision::line_segment_t const e3{p3, p1};
+    collision::line_segment_t const e4{p1, p4};
+    collision::line_segment_t const e5{p2, p4};
+    collision::line_segment_t const e6{p3, p4};
+
+    std::size_t const num_cutting_triangles = cutting_surface.triangle_count();
+
+    for (std::size_t f = 0u; f < num_cutting_triangles; ++f)
+    {
+        auto const fv1 = cutting_surface.triangles()(0u, f);
+        auto const fv2 = cutting_surface.triangles()(1u, f);
+        auto const fv3 = cutting_surface.triangles()(2u, f);
+
+        collision::triangle_t const cutting_triangle{
+            cutting_surface.vertices().col(fv1),
+            cutting_surface.vertices().col(fv2),
+            cutting_surface.vertices().col(fv3)};
+
+        auto const e1_intersection = collision::intersect_twoway(e1, cutting_triangle);
+        if (e1_intersection.has_value())
+            return true;
+
+        auto const e2_intersection = collision::intersect_twoway(e2, cutting_triangle);
+        if (e2_intersection.has_value())
+            return true;
+
+        auto const e3_intersection = collision::intersect_twoway(e3, cutting_triangle);
+        if (e3_intersection.has_value())
+            return true;
+
+        auto const e4_intersection = collision::intersect_twoway(e4, cutting_triangle);
+        if (e4_intersection.has_value())
+            return true;
+
+        auto const e5_intersection = collision::intersect_twoway(e5, cutting_triangle);
+        if (e5_intersection.has_value())
+            return true;
+
+        auto const e6_intersection = collision::intersect_twoway(e6, cutting_triangle);
+        if (e6_intersection.has_value())
+            return true;
+    }
+
+    collision::triangle_t const f1{p1, p2, p4};
+    collision::triangle_t const f2{p2, p3, p4};
+    collision::triangle_t const f3{p3, p1, p4};
+    collision::triangle_t const f4{p1, p3, p2};
+
+    auto const boundary_edges = cutting_surface.boundary_edges();
+    for (auto const& [fv1, fv2] : boundary_edges)
+    {
+        collision::line_segment_t const boundary_edge{
+            cutting_surface.vertices().col(fv1),
+            cutting_surface.vertices().col(fv2)};
+
+        auto const f1_intersection = collision::intersect_twoway(boundary_edge, f1);
+        if (f1_intersection.has_value())
+            return true;
+
+        auto const f2_intersection = collision::intersect_twoway(boundary_edge, f2);
+        if (f2_intersection.has_value())
+            return true;
+
+        auto const f3_intersection = collision::intersect_twoway(boundary_edge, f3);
+        if (f3_intersection.has_value())
+            return true;
+
+        auto const f4_intersection = collision::intersect_twoway(boundary_edge, f4);
+        if (f4_intersection.has_value())
+            return true;
+    }
+
+    return false;
+}
+
+std::optional<tetrahedral_mesh_cutter_t::subdivided_element_type>
+tetrahedral_mesh_cutter_t::subdivide_mesh(
+    std::byte const& edge_intersection_mask,
+    std::uint32_t tetrahedron)
+{
+    auto const _v1 = mesh_.elements()(0u, tetrahedron);
+    auto const _v2 = mesh_.elements()(1u, tetrahedron);
+    auto const _v3 = mesh_.elements()(2u, tetrahedron);
+    auto const _v4 = mesh_.elements()(3u, tetrahedron);
+
+    edge_facet_key_type const e1_key{_v1, _v2};
+    edge_facet_key_type const e2_key{_v2, _v3};
+    edge_facet_key_type const e3_key{_v3, _v1};
+    edge_facet_key_type const e4_key{_v1, _v4};
+    edge_facet_key_type const e5_key{_v2, _v4};
+    edge_facet_key_type const e6_key{_v3, _v4};
+
+    triangle_facet_key_type const f1_key{_v1, _v2, _v4};
+    triangle_facet_key_type const f2_key{_v2, _v3, _v4};
+    triangle_facet_key_type const f3_key{_v3, _v1, _v4};
+    triangle_facet_key_type const f4_key{_v1, _v3, _v2};
+
+    std::array<edge_facet_key_type, 6u> const
+        cut_edge_keys{e1_key, e2_key, e3_key, e4_key, e5_key, e6_key};
+    std::array<triangle_facet_key_type, 4u> const cut_face_keys{f1_key, f2_key, f3_key, f4_key};
+
     int constexpr v1{0};
     int constexpr v2{1};
     int constexpr v3{2};
@@ -311,38 +663,38 @@ tetrahedron_mesh_cutter_t::subdivide_mesh(
 
     if (edge_intersection_mask == case_1_125)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pe2 = edge_intersection_points[e2];
-        auto const& pe3 = edge_intersection_points[e5];
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& ce2 = cut_edge_keys[e2];
+        auto const& ce3 = cut_edge_keys[e5];
         auto const tets =
-            subdivide_mesh_for_common_case_1(mesh, tetrahedron, {v1, v3, v4, v2}, {pe1, pe2, pe3});
+            subdivide_mesh_for_common_case_1(tetrahedron, {v1, v3, v4, v2}, {ce1, ce2, ce3});
         return tets;
     }
     if (edge_intersection_mask == case_1_134)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pe2 = edge_intersection_points[e4];
-        auto const& pe3 = edge_intersection_points[e3];
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& ce2 = cut_edge_keys[e4];
+        auto const& ce3 = cut_edge_keys[e3];
         auto const tets =
-            subdivide_mesh_for_common_case_1(mesh, tetrahedron, {v2, v4, v3, v1}, {pe1, pe2, pe3});
+            subdivide_mesh_for_common_case_1(tetrahedron, {v2, v4, v3, v1}, {ce1, ce2, ce3});
         return tets;
     }
     if (edge_intersection_mask == case_1_236)
     {
-        auto const& pe1 = edge_intersection_points[e2];
-        auto const& pe2 = edge_intersection_points[e3];
-        auto const& pe3 = edge_intersection_points[e6];
+        auto const& ce1 = cut_edge_keys[e2];
+        auto const& ce2 = cut_edge_keys[e3];
+        auto const& ce3 = cut_edge_keys[e6];
         auto const tets =
-            subdivide_mesh_for_common_case_1(mesh, tetrahedron, {v2, v1, v4, v3}, {pe1, pe2, pe3});
+            subdivide_mesh_for_common_case_1(tetrahedron, {v2, v1, v4, v3}, {ce1, ce2, ce3});
         return tets;
     }
     if (edge_intersection_mask == case_1_456)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pe2 = edge_intersection_points[e5];
-        auto const& pe3 = edge_intersection_points[e6];
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& ce2 = cut_edge_keys[e5];
+        auto const& ce3 = cut_edge_keys[e6];
         auto const tets =
-            subdivide_mesh_for_common_case_1(mesh, tetrahedron, {v1, v2, v3, v4}, {pe1, pe2, pe3});
+            subdivide_mesh_for_common_case_1(tetrahedron, {v1, v2, v3, v4}, {ce1, ce2, ce3});
         return tets;
     }
 
@@ -352,41 +704,32 @@ tetrahedron_mesh_cutter_t::subdivide_mesh(
 
     if (edge_intersection_mask == case_2_1246)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pe2 = edge_intersection_points[e2];
-        auto const& pe3 = edge_intersection_points[e6];
-        auto const& pe4 = edge_intersection_points[e4];
-        auto const tets = subdivide_mesh_for_common_case_2(
-            mesh,
-            tetrahedron,
-            {v2, v4, v3, v1},
-            {pe1, pe2, pe3, pe4});
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& ce2 = cut_edge_keys[e2];
+        auto const& ce3 = cut_edge_keys[e6];
+        auto const& ce4 = cut_edge_keys[e4];
+        auto const tets =
+            subdivide_mesh_for_common_case_2(tetrahedron, {v2, v4, v3, v1}, {ce1, ce2, ce3, ce4});
         return tets;
     }
     if (edge_intersection_mask == case_2_1356)
     {
-        auto const& pe1 = edge_intersection_points[e5];
-        auto const& pe2 = edge_intersection_points[e1];
-        auto const& pe3 = edge_intersection_points[e3];
-        auto const& pe4 = edge_intersection_points[e6];
-        auto const tets = subdivide_mesh_for_common_case_2(
-            mesh,
-            tetrahedron,
-            {v2, v3, v1, v4},
-            {pe1, pe2, pe3, pe4});
+        auto const& ce1 = cut_edge_keys[e5];
+        auto const& ce2 = cut_edge_keys[e1];
+        auto const& ce3 = cut_edge_keys[e3];
+        auto const& ce4 = cut_edge_keys[e6];
+        auto const tets =
+            subdivide_mesh_for_common_case_2(tetrahedron, {v2, v3, v1, v4}, {ce1, ce2, ce3, ce4});
         return tets;
     }
     if (edge_intersection_mask == case_2_2345)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pe2 = edge_intersection_points[e3];
-        auto const& pe3 = edge_intersection_points[e2];
-        auto const& pe4 = edge_intersection_points[e5];
-        auto const tets = subdivide_mesh_for_common_case_2(
-            mesh,
-            tetrahedron,
-            {v1, v2, v3, v4},
-            {pe1, pe2, pe3, pe4});
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& ce2 = cut_edge_keys[e3];
+        auto const& ce3 = cut_edge_keys[e2];
+        auto const& ce4 = cut_edge_keys[e5];
+        auto const tets =
+            subdivide_mesh_for_common_case_2(tetrahedron, {v1, v2, v3, v4}, {ce1, ce2, ce3, ce4});
         return tets;
     }
 
@@ -399,80 +742,56 @@ tetrahedron_mesh_cutter_t::subdivide_mesh(
 
     if (edge_intersection_mask == case_3_1)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f1];
-        auto const tets = subdivide_mesh_for_common_case_3(
-            mesh,
-            tetrahedron,
-            {v1, v3, v4, v2},
-            {pe1},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f1];
+        auto const tets =
+            subdivide_mesh_for_common_case_3(tetrahedron, {v1, v3, v4, v2}, {ce1}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_3_2)
     {
-        auto const& pe1 = edge_intersection_points[e2];
-        auto const& pf1 = face_intersection_points[f2];
-        auto const& pf2 = face_intersection_points[f4];
-        auto const tets = subdivide_mesh_for_common_case_3(
-            mesh,
-            tetrahedron,
-            {v3, v4, v1, v2},
-            {pe1},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e2];
+        auto const& cf1 = cut_face_keys[f2];
+        auto const& cf2 = cut_face_keys[f4];
+        auto const tets =
+            subdivide_mesh_for_common_case_3(tetrahedron, {v3, v4, v1, v2}, {ce1}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_3_3)
     {
-        auto const& pe1 = edge_intersection_points[e3];
-        auto const& pf1 = face_intersection_points[f3];
-        auto const& pf2 = face_intersection_points[f4];
-        auto const tets = subdivide_mesh_for_common_case_3(
-            mesh,
-            tetrahedron,
-            {v1, v4, v2, v3},
-            {pe1},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e3];
+        auto const& cf1 = cut_face_keys[f3];
+        auto const& cf2 = cut_face_keys[f4];
+        auto const tets =
+            subdivide_mesh_for_common_case_3(tetrahedron, {v1, v4, v2, v3}, {ce1}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_3_4)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pf1 = face_intersection_points[f1];
-        auto const& pf2 = face_intersection_points[f3];
-        auto const tets = subdivide_mesh_for_common_case_3(
-            mesh,
-            tetrahedron,
-            {v1, v2, v3, v4},
-            {pe1},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& cf1 = cut_face_keys[f1];
+        auto const& cf2 = cut_face_keys[f3];
+        auto const tets =
+            subdivide_mesh_for_common_case_3(tetrahedron, {v1, v2, v3, v4}, {ce1}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_3_5)
     {
-        auto const& pe1 = edge_intersection_points[e5];
-        auto const& pf1 = face_intersection_points[f2];
-        auto const& pf2 = face_intersection_points[f1];
-        auto const tets = subdivide_mesh_for_common_case_3(
-            mesh,
-            tetrahedron,
-            {v2, v3, v1, v4},
-            {pe1},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e5];
+        auto const& cf1 = cut_face_keys[f2];
+        auto const& cf2 = cut_face_keys[f1];
+        auto const tets =
+            subdivide_mesh_for_common_case_3(tetrahedron, {v2, v3, v1, v4}, {ce1}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_3_6)
     {
-        auto const& pe1 = edge_intersection_points[e6];
-        auto const& pf1 = face_intersection_points[f3];
-        auto const& pf2 = face_intersection_points[f2];
-        auto const tets = subdivide_mesh_for_common_case_3(
-            mesh,
-            tetrahedron,
-            {v3, v1, v2, v4},
-            {pe1},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e6];
+        auto const& cf1 = cut_face_keys[f3];
+        auto const& cf2 = cut_face_keys[f2];
+        auto const tets =
+            subdivide_mesh_for_common_case_3(tetrahedron, {v3, v1, v2, v4}, {ce1}, {cf1, cf2});
         return tets;
     }
 
@@ -491,170 +810,122 @@ tetrahedron_mesh_cutter_t::subdivide_mesh(
 
     if (edge_intersection_mask == case_4_12)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pe2 = edge_intersection_points[e2];
-        auto const& pf1 = face_intersection_points[f2];
-        auto const& pf2 = face_intersection_points[f1];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v1, v3, v4, v2},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& ce2 = cut_edge_keys[e2];
+        auto const& cf1 = cut_face_keys[f2];
+        auto const& cf2 = cut_face_keys[f1];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v1, v3, v4, v2}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_13)
     {
-        auto const& pe1 = edge_intersection_points[e3];
-        auto const& pe2 = edge_intersection_points[e1];
-        auto const& pf1 = face_intersection_points[f1];
-        auto const& pf2 = face_intersection_points[f3];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v3, v2, v4, v1},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e3];
+        auto const& ce2 = cut_edge_keys[e1];
+        auto const& cf1 = cut_face_keys[f1];
+        auto const& cf2 = cut_face_keys[f3];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v3, v2, v4, v1}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_14)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pe2 = edge_intersection_points[e4];
-        auto const& pf1 = face_intersection_points[f3];
-        auto const& pf2 = face_intersection_points[f4];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v2, v4, v3, v1},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& ce2 = cut_edge_keys[e4];
+        auto const& cf1 = cut_face_keys[f3];
+        auto const& cf2 = cut_face_keys[f4];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v2, v4, v3, v1}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_15)
     {
-        auto const& pe1 = edge_intersection_points[e5];
-        auto const& pe2 = edge_intersection_points[e1];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f2];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v4, v1, v3, v2},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e5];
+        auto const& ce2 = cut_edge_keys[e1];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f2];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v4, v1, v3, v2}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_23)
     {
-        auto const& pe1 = edge_intersection_points[e2];
-        auto const& pe2 = edge_intersection_points[e3];
-        auto const& pf1 = face_intersection_points[f3];
-        auto const& pf2 = face_intersection_points[f2];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v2, v1, v4, v3},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e2];
+        auto const& ce2 = cut_edge_keys[e3];
+        auto const& cf1 = cut_face_keys[f3];
+        auto const& cf2 = cut_face_keys[f2];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v2, v1, v4, v3}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_25)
     {
-        auto const& pe1 = edge_intersection_points[e2];
-        auto const& pe2 = edge_intersection_points[e5];
-        auto const& pf1 = face_intersection_points[f1];
-        auto const& pf2 = face_intersection_points[f4];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v3, v4, v1, v2},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e2];
+        auto const& ce2 = cut_edge_keys[e5];
+        auto const& cf1 = cut_face_keys[f1];
+        auto const& cf2 = cut_face_keys[f4];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v3, v4, v1, v2}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_26)
     {
-        auto const& pe1 = edge_intersection_points[e6];
-        auto const& pe2 = edge_intersection_points[e2];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f3];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v4, v2, v1, v3},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e6];
+        auto const& ce2 = cut_edge_keys[e2];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f3];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v4, v2, v1, v3}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_34)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pe2 = edge_intersection_points[e3];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f1];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v4, v3, v2, v1},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& ce2 = cut_edge_keys[e3];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f1];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v4, v3, v2, v1}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_36)
     {
-        auto const& pe1 = edge_intersection_points[e3];
-        auto const& pe2 = edge_intersection_points[e6];
-        auto const& pf1 = face_intersection_points[f2];
-        auto const& pf2 = face_intersection_points[f4];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v1, v4, v2, v3},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e3];
+        auto const& ce2 = cut_edge_keys[e6];
+        auto const& cf1 = cut_face_keys[f2];
+        auto const& cf2 = cut_face_keys[f4];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v1, v4, v2, v3}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_45)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pe2 = edge_intersection_points[e5];
-        auto const& pf1 = face_intersection_points[f2];
-        auto const& pf2 = face_intersection_points[f3];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v1, v2, v3, v4},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& ce2 = cut_edge_keys[e5];
+        auto const& cf1 = cut_face_keys[f2];
+        auto const& cf2 = cut_face_keys[f3];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v1, v2, v3, v4}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_46)
     {
-        auto const& pe1 = edge_intersection_points[e6];
-        auto const& pe2 = edge_intersection_points[e4];
-        auto const& pf1 = face_intersection_points[f1];
-        auto const& pf2 = face_intersection_points[f2];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v3, v1, v2, v4},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e6];
+        auto const& ce2 = cut_edge_keys[e4];
+        auto const& cf1 = cut_face_keys[f1];
+        auto const& cf2 = cut_face_keys[f2];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v3, v1, v2, v4}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_4_56)
     {
-        auto const& pe1 = edge_intersection_points[e5];
-        auto const& pe2 = edge_intersection_points[e6];
-        auto const& pf1 = face_intersection_points[f3];
-        auto const& pf2 = face_intersection_points[f1];
-        auto const tets = subdivide_mesh_for_common_case_4(
-            mesh,
-            tetrahedron,
-            {v2, v3, v1, v4},
-            {pe1, pe2},
-            {pf1, pf2});
+        auto const& ce1 = cut_edge_keys[e5];
+        auto const& ce2 = cut_edge_keys[e6];
+        auto const& cf1 = cut_face_keys[f3];
+        auto const& cf2 = cut_face_keys[f1];
+        auto const tets =
+            subdivide_mesh_for_common_case_4(tetrahedron, {v2, v3, v1, v4}, {ce1, ce2}, {cf1, cf2});
         return tets;
     }
 
@@ -674,290 +945,220 @@ tetrahedron_mesh_cutter_t::subdivide_mesh(
     bool constexpr symmetry{true};
     if (edge_intersection_mask == case_5_124)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pe2 = edge_intersection_points[e1];
-        auto const& pe3 = edge_intersection_points[e2];
-        auto const& pf1 = face_intersection_points[f2];
-        auto const& pf2 = face_intersection_points[f3];
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& ce2 = cut_edge_keys[e1];
+        auto const& ce3 = cut_edge_keys[e2];
+        auto const& cf1 = cut_face_keys[f2];
+        auto const& cf2 = cut_face_keys[f3];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v4, v2, v3, v1},
-            {pe1, pe2, pe3},
-            {pf1, pf2},
+            {ce1, ce2, ce3},
+            {cf1, cf2},
             symmetry);
         return tets;
     }
     if (edge_intersection_mask == case_5_126)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pe2 = edge_intersection_points[e2];
-        auto const& pe3 = edge_intersection_points[e6];
-        auto const& pf1 = face_intersection_points[f3];
-        auto const& pf2 = face_intersection_points[f1];
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& ce2 = cut_edge_keys[e2];
+        auto const& ce3 = cut_edge_keys[e6];
+        auto const& cf1 = cut_face_keys[f3];
+        auto const& cf2 = cut_face_keys[f1];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v1, v3, v4, v2},
-            {pe1, pe2, pe3},
-            {pf1, pf2});
+            {ce1, ce2, ce3},
+            {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_5_135)
     {
-        auto const& pe1 = edge_intersection_points[e5];
-        auto const& pe2 = edge_intersection_points[e1];
-        auto const& pe3 = edge_intersection_points[e3];
-        auto const& pf1 = face_intersection_points[f3];
-        auto const& pf2 = face_intersection_points[f2];
+        auto const& ce1 = cut_edge_keys[e5];
+        auto const& ce2 = cut_edge_keys[e1];
+        auto const& ce3 = cut_edge_keys[e3];
+        auto const& cf1 = cut_face_keys[f3];
+        auto const& cf2 = cut_face_keys[f2];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v4, v1, v3, v2},
-            {pe1, pe2, pe3},
-            {pf1, pf2});
+            {ce1, ce2, ce3},
+            {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_5_136)
     {
-        auto const& pe1 = edge_intersection_points[e6];
-        auto const& pe2 = edge_intersection_points[e3];
-        auto const& pe3 = edge_intersection_points[e1];
-        auto const& pf1 = face_intersection_points[f1];
-        auto const& pf2 = face_intersection_points[f2];
+        auto const& ce1 = cut_edge_keys[e6];
+        auto const& ce2 = cut_edge_keys[e3];
+        auto const& ce3 = cut_edge_keys[e1];
+        auto const& cf1 = cut_face_keys[f1];
+        auto const& cf2 = cut_face_keys[f2];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v4, v1, v2, v3},
-            {pe1, pe2, pe3},
-            {pf1, pf2},
+            {ce1, ce2, ce3},
+            {cf1, cf2},
             symmetry);
         return tets;
     }
     if (edge_intersection_mask == case_5_146)
     {
-        auto const& pe1 = edge_intersection_points[e1];
-        auto const& pe2 = edge_intersection_points[e4];
-        auto const& pe3 = edge_intersection_points[e6];
-        auto const& pf1 = face_intersection_points[f2];
-        auto const& pf2 = face_intersection_points[f4];
+        auto const& ce1 = cut_edge_keys[e1];
+        auto const& ce2 = cut_edge_keys[e4];
+        auto const& ce3 = cut_edge_keys[e6];
+        auto const& cf1 = cut_face_keys[f2];
+        auto const& cf2 = cut_face_keys[f4];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v2, v4, v3, v1},
-            {pe1, pe2, pe3},
-            {pf1, pf2});
+            {ce1, ce2, ce3},
+            {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_5_156)
     {
-        auto const& pe1 = edge_intersection_points[e6];
-        auto const& pe2 = edge_intersection_points[e5];
-        auto const& pe3 = edge_intersection_points[e1];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f3];
+        auto const& ce1 = cut_edge_keys[e6];
+        auto const& ce2 = cut_edge_keys[e5];
+        auto const& ce3 = cut_edge_keys[e1];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f3];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v3, v2, v1, v4},
-            {pe1, pe2, pe3},
-            {pf1, pf2},
+            {ce1, ce2, ce3},
+            {cf1, cf2},
             symmetry);
         return tets;
     }
     if (edge_intersection_mask == case_5_234)
     {
-        auto const& pe1 = edge_intersection_points[e2];
-        auto const& pe2 = edge_intersection_points[e3];
-        auto const& pe3 = edge_intersection_points[e4];
-        auto const& pf1 = face_intersection_points[f1];
-        auto const& pf2 = face_intersection_points[f2];
+        auto const& ce1 = cut_edge_keys[e2];
+        auto const& ce2 = cut_edge_keys[e3];
+        auto const& ce3 = cut_edge_keys[e4];
+        auto const& cf1 = cut_face_keys[f1];
+        auto const& cf2 = cut_face_keys[f2];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v2, v1, v4, v3},
-            {pe1, pe2, pe3},
-            {pf1, pf2});
+            {ce1, ce2, ce3},
+            {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_5_235)
     {
-        auto const& pe1 = edge_intersection_points[e3];
-        auto const& pe2 = edge_intersection_points[e2];
-        auto const& pe3 = edge_intersection_points[e5];
-        auto const& pf1 = face_intersection_points[f1];
-        auto const& pf2 = face_intersection_points[f3];
+        auto const& ce1 = cut_edge_keys[e3];
+        auto const& ce2 = cut_edge_keys[e2];
+        auto const& ce3 = cut_edge_keys[e5];
+        auto const& cf1 = cut_face_keys[f1];
+        auto const& cf2 = cut_face_keys[f3];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v1, v2, v4, v3},
-            {pe1, pe2, pe3},
-            {pf1, pf2},
+            {ce1, ce2, ce3},
+            {cf1, cf2},
             symmetry);
         return tets;
     }
     if (edge_intersection_mask == case_5_245)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pe2 = edge_intersection_points[e5];
-        auto const& pe3 = edge_intersection_points[e2];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f3];
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& ce2 = cut_edge_keys[e5];
+        auto const& ce3 = cut_edge_keys[e2];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f3];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v1, v2, v3, v4},
-            {pe1, pe2, pe3},
-            {pf1, pf2});
+            {ce1, ce2, ce3},
+            {cf1, cf2});
         return tets;
     }
     if (edge_intersection_mask == case_5_246)
     {
-        auto const& pe1 = edge_intersection_points[e4];
-        auto const& pe2 = edge_intersection_points[e6];
-        auto const& pe3 = edge_intersection_points[e2];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f1];
+        auto const& ce1 = cut_edge_keys[e4];
+        auto const& ce2 = cut_edge_keys[e6];
+        auto const& ce3 = cut_edge_keys[e2];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f1];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v1, v3, v2, v4},
-            {pe1, pe2, pe3},
-            {pf1, pf2},
+            {ce1, ce2, ce3},
+            {cf1, cf2},
             symmetry);
         return tets;
     }
     if (edge_intersection_mask == case_5_345)
     {
-        auto const& pe1 = edge_intersection_points[e5];
-        auto const& pe2 = edge_intersection_points[e4];
-        auto const& pe3 = edge_intersection_points[e3];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f2];
+        auto const& ce1 = cut_edge_keys[e5];
+        auto const& ce2 = cut_edge_keys[e4];
+        auto const& ce3 = cut_edge_keys[e3];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f2];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v2, v1, v3, v4},
-            {pe1, pe2, pe3},
-            {pf1, pf2},
+            {ce1, ce2, ce3},
+            {cf1, cf2},
             symmetry);
         return tets;
     }
     if (edge_intersection_mask == case_5_356)
     {
-        auto const& pe1 = edge_intersection_points[e5];
-        auto const& pe2 = edge_intersection_points[e6];
-        auto const& pe3 = edge_intersection_points[e3];
-        auto const& pf1 = face_intersection_points[f4];
-        auto const& pf2 = face_intersection_points[f1];
+        auto const& ce1 = cut_edge_keys[e5];
+        auto const& ce2 = cut_edge_keys[e6];
+        auto const& ce3 = cut_edge_keys[e3];
+        auto const& cf1 = cut_face_keys[f4];
+        auto const& cf2 = cut_face_keys[f1];
         auto const tets = subdivide_mesh_for_common_case_5(
-            mesh,
             tetrahedron,
             {v2, v3, v1, v4},
-            {pe1, pe2, pe3},
-            {pf1, pf2});
+            {ce1, ce2, ce3},
+            {cf1, cf2});
         return tets;
     }
 
     return {};
 }
 
-tetrahedron_mesh_cutter_t::subdivided_element_type
-tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_1(
-    common::shared_vertex_mesh_t const& mesh,
+tetrahedral_mesh_cutter_t::subdivided_element_type
+tetrahedral_mesh_cutter_t::subdivide_mesh_for_common_case_1(
     std::uint32_t tetrahedron,
     std::array<std::uint32_t, 4u> const& vertex_ordering,
-    std::array<Eigen::Vector3d, 3u> const& edge_intersection_points)
+    std::array<edge_facet_key_type, 3u> const& edge_intersections)
 {
-    std::uint32_t const num_vertices = static_cast<std::uint32_t>(mesh.positions().cols());
+    std::uint32_t const _v1 = mesh_.elements().col(tetrahedron)(vertex_ordering[0]);
+    std::uint32_t const _v2 = mesh_.elements().col(tetrahedron)(vertex_ordering[1]);
+    std::uint32_t const _v3 = mesh_.elements().col(tetrahedron)(vertex_ordering[2]);
+    std::uint32_t const _v4 = mesh_.elements().col(tetrahedron)(vertex_ordering[3]);
 
-    std::uint32_t const _v1 = mesh.elements().col(tetrahedron)(vertex_ordering[0]);
-    std::uint32_t const _v2 = mesh.elements().col(tetrahedron)(vertex_ordering[1]);
-    std::uint32_t const _v3 = mesh.elements().col(tetrahedron)(vertex_ordering[2]);
-    std::uint32_t const _v4 = mesh.elements().col(tetrahedron)(vertex_ordering[3]);
+    auto const ce1_v1 = _v1;
+    auto const ce1_v2 = _v4;
+    auto const ce2_v1 = _v2;
+    auto const ce2_v2 = _v4;
+    auto const ce3_v1 = _v3;
+    auto const ce3_v2 = _v4;
+
+    auto const& ce1 = cut_edges_[{ce1_v1, ce1_v2}];
+    auto const& ce2 = cut_edges_[{ce2_v1, ce2_v2}];
+    auto const& ce3 = cut_edges_[{ce3_v1, ce3_v2}];
 
     std::uint32_t const v1 = _v1;
     std::uint32_t const v2 = _v2;
     std::uint32_t const v3 = _v3;
 
-    std::uint32_t constexpr _v5  = 0u;
-    std::uint32_t constexpr _v6  = 1u;
-    std::uint32_t constexpr _v7  = 2u;
-    std::uint32_t constexpr _v5p = 3u;
-    std::uint32_t constexpr _v6p = 4u;
-    std::uint32_t constexpr _v7p = 5u;
+    bool const should_not_reverse_ce1 = (ce1.v1 == ce1_v1) && (ce1.v2 == ce1_v2);
+    bool const should_not_reverse_ce2 = (ce2.v1 == ce2_v1) && (ce2.v2 == ce2_v2);
+    bool const should_not_reverse_ce3 = (ce3.v1 == ce3_v1) && (ce3.v2 == ce3_v2);
 
-    std::uint32_t const v5 = num_vertices + _v5;
-    std::uint32_t const v6 = num_vertices + _v6;
-    std::uint32_t const v7 = num_vertices + _v7;
+    std::uint32_t const v5 = should_not_reverse_ce1 ? ce1.vi : ce1.vi + 1u;
+    std::uint32_t const v6 = should_not_reverse_ce2 ? ce2.vi : ce2.vi + 1u;
+    std::uint32_t const v7 = should_not_reverse_ce3 ? ce3.vi : ce3.vi + 1u;
 
     std::uint32_t const v4  = _v4;
-    std::uint32_t const v5p = num_vertices + _v5p;
-    std::uint32_t const v6p = num_vertices + _v6p;
-    std::uint32_t const v7p = num_vertices + _v7p;
-
-    std::uint32_t constexpr num_new_vertices = 6u;
-    positions_type P(3u, num_new_vertices);
-    masses_type M(num_new_vertices);
-    velocities_type V(3u, num_new_vertices);
-    forces_type F(3u, num_new_vertices);
-
-    P.col(_v5) = edge_intersection_points[0];
-    P.col(_v6) = edge_intersection_points[1];
-    P.col(_v7) = edge_intersection_points[2];
-
-    P.col(_v5p) = P.col(_v5);
-    P.col(_v6p) = P.col(_v6);
-    P.col(_v7p) = P.col(_v7);
-
-    /**
-     * Cache interpolation coefficients
-     */
-    double const t1 = lerp_coefficient(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        edge_intersection_points[0]);
-    double const t2 = lerp_coefficient(
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v4),
-        edge_intersection_points[1]);
-    double const t3 = lerp_coefficient(
-        mesh.positions().col(_v3),
-        mesh.positions().col(_v4),
-        edge_intersection_points[2]);
-
-    /**
-     * Transfer forces to subdivided mesh elements
-     */
-    F.col(_v5) = (1 - t1) * mesh.forces().col(_v1) + t1 * mesh.forces().col(_v4);
-    F.col(_v6) = (1 - t2) * mesh.forces().col(_v2) + t2 * mesh.forces().col(_v4);
-    F.col(_v7) = (1 - t3) * mesh.forces().col(_v3) + t3 * mesh.forces().col(_v4);
-
-    F.col(_v5p) = F.col(_v5);
-    F.col(_v6p) = F.col(_v6);
-    F.col(_v7p) = F.col(_v7);
-
-    /**
-     * Transfer velocities to subdivided mesh elements
-     */
-    V.col(_v5) = (1 - t1) * mesh.velocities().col(_v1) + t1 * mesh.velocities().col(_v4);
-    V.col(_v6) = (1 - t2) * mesh.velocities().col(_v2) + t2 * mesh.velocities().col(_v4);
-    V.col(_v7) = (1 - t3) * mesh.velocities().col(_v3) + t3 * mesh.velocities().col(_v4);
-
-    V.col(_v5p) = V.col(_v5);
-    V.col(_v6p) = V.col(_v6);
-    V.col(_v7p) = V.col(_v7);
-
-    /**
-     * Transfer masses to subdivided mesh elements
-     */
-    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
-    M(_v6) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
-    M(_v7) = std::min(mesh.masses()(_v3), mesh.masses()(_v4));
-
-    M(_v5p) = M(_v5);
-    M(_v6p) = M(_v6);
-    M(_v7p) = M(_v7);
+    std::uint32_t const v5p = should_not_reverse_ce1 ? ce1.vi + 1u : ce1.vi;
+    std::uint32_t const v6p = should_not_reverse_ce2 ? ce2.vi + 1u : ce2.vi;
+    std::uint32_t const v7p = should_not_reverse_ce3 ? ce3.vi + 1u : ce3.vi;
 
     std::size_t constexpr num_new_tetrahedra = 4u;
     tetrahedra_type T(4u, num_new_tetrahedra);
@@ -967,120 +1168,52 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_1(
     T.col(2u) = tetrahedron_type{v6, v5, v7, v2};
     T.col(3u) = tetrahedron_type{v5p, v6p, v7p, v4};
 
-    return std::make_tuple(P, T, M, V, F);
+    return T;
 }
 
-tetrahedron_mesh_cutter_t::subdivided_element_type
-tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_2(
-    common::shared_vertex_mesh_t const& mesh,
+tetrahedral_mesh_cutter_t::subdivided_element_type
+tetrahedral_mesh_cutter_t::subdivide_mesh_for_common_case_2(
     std::uint32_t tetrahedron,
     std::array<std::uint32_t, 4u> const& vertex_ordering,
-    std::array<Eigen::Vector3d, 4u> const& edge_intersection_points)
+    std::array<edge_facet_key_type, 4u> const& edge_intersections)
 {
-    std::uint32_t const num_vertices = static_cast<std::uint32_t>(mesh.positions().cols());
+    std::uint32_t const _v1 = mesh_.elements().col(tetrahedron)(vertex_ordering[0]);
+    std::uint32_t const _v2 = mesh_.elements().col(tetrahedron)(vertex_ordering[1]);
+    std::uint32_t const _v3 = mesh_.elements().col(tetrahedron)(vertex_ordering[2]);
+    std::uint32_t const _v4 = mesh_.elements().col(tetrahedron)(vertex_ordering[3]);
 
-    std::uint32_t const _v1 = mesh.elements().col(tetrahedron)(vertex_ordering[0]);
-    std::uint32_t const _v2 = mesh.elements().col(tetrahedron)(vertex_ordering[1]);
-    std::uint32_t const _v3 = mesh.elements().col(tetrahedron)(vertex_ordering[2]);
-    std::uint32_t const _v4 = mesh.elements().col(tetrahedron)(vertex_ordering[3]);
+    auto const ce1_v1 = _v1;
+    auto const ce1_v2 = _v4;
+    auto const ce2_v1 = _v3;
+    auto const ce2_v2 = _v1;
+    auto const ce3_v1 = _v2;
+    auto const ce3_v2 = _v3;
+    auto const ce4_v1 = _v2;
+    auto const ce4_v2 = _v4;
 
-    std::uint32_t constexpr _v5  = 0u;
-    std::uint32_t constexpr _v6  = 1u;
-    std::uint32_t constexpr _v7  = 2u;
-    std::uint32_t constexpr _v8  = 3u;
-    std::uint32_t constexpr _v5p = 4u;
-    std::uint32_t constexpr _v6p = 5u;
-    std::uint32_t constexpr _v7p = 6u;
-    std::uint32_t constexpr _v8p = 7u;
+    auto const& ce1 = cut_edges_[{ce1_v1, ce1_v2}];
+    auto const& ce2 = cut_edges_[{ce2_v1, ce2_v2}];
+    auto const& ce3 = cut_edges_[{ce3_v1, ce3_v2}];
+    auto const& ce4 = cut_edges_[{ce4_v1, ce4_v2}];
+
+    bool const should_not_reverse_ce1 = (ce1.v1 == ce1_v1) && (ce1.v2 == ce1_v2);
+    bool const should_not_reverse_ce2 = (ce2.v1 == ce2_v2) && (ce2.v2 == ce2_v1);
+    bool const should_not_reverse_ce3 = (ce3.v1 == ce3_v1) && (ce3.v2 == ce3_v2);
+    bool const should_not_reverse_ce4 = (ce4.v1 == ce4_v1) && (ce4.v2 == ce4_v2);
 
     std::uint32_t const v3 = _v3;
     std::uint32_t const v4 = _v4;
-    std::uint32_t const v5 = num_vertices + _v5;
-    std::uint32_t const v6 = num_vertices + _v6;
-    std::uint32_t const v7 = num_vertices + _v7;
-    std::uint32_t const v8 = num_vertices + _v8;
+    std::uint32_t const v5 = should_not_reverse_ce1 ? ce1.vi + 1u : ce1.vi;
+    std::uint32_t const v6 = should_not_reverse_ce2 ? ce2.vi + 1u : ce2.vi;
+    std::uint32_t const v7 = should_not_reverse_ce3 ? ce3.vi + 1u : ce3.vi;
+    std::uint32_t const v8 = should_not_reverse_ce4 ? ce4.vi + 1u : ce4.vi;
 
     std::uint32_t const v1  = _v1;
     std::uint32_t const v2  = _v2;
-    std::uint32_t const v5p = num_vertices + _v5p;
-    std::uint32_t const v6p = num_vertices + _v6p;
-    std::uint32_t const v7p = num_vertices + _v7p;
-    std::uint32_t const v8p = num_vertices + _v8p;
-
-    std::uint32_t constexpr num_new_vertices = 8u;
-    positions_type P(3u, num_new_vertices);
-    masses_type M(num_new_vertices);
-    velocities_type V(3u, num_new_vertices);
-    forces_type F(3u, num_new_vertices);
-
-    P.col(_v5) = edge_intersection_points[0];
-    P.col(_v6) = edge_intersection_points[1];
-    P.col(_v7) = edge_intersection_points[2];
-    P.col(_v8) = edge_intersection_points[3];
-
-    P.col(_v5p) = P.col(_v5);
-    P.col(_v6p) = P.col(_v6);
-    P.col(_v7p) = P.col(_v7);
-    P.col(_v8p) = P.col(_v8);
-
-    /**
-     * Cache interpolation coefficients
-     */
-    double const t1 = lerp_coefficient(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        edge_intersection_points[0]);
-    double const t2 = lerp_coefficient(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v3),
-        edge_intersection_points[1]);
-    double const t3 = lerp_coefficient(
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v3),
-        edge_intersection_points[2]);
-    double const t4 = lerp_coefficient(
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v4),
-        edge_intersection_points[3]);
-
-    /**
-     * Transfer forces to subdivided mesh elements
-     */
-    F.col(_v5) = (1 - t1) * mesh.forces().col(_v1) + t1 * mesh.forces().col(_v4);
-    F.col(_v6) = (1 - t2) * mesh.forces().col(_v1) + t2 * mesh.forces().col(_v3);
-    F.col(_v7) = (1 - t3) * mesh.forces().col(_v2) + t3 * mesh.forces().col(_v3);
-    F.col(_v8) = (1 - t4) * mesh.forces().col(_v2) + t4 * mesh.forces().col(_v4);
-
-    F.col(_v5p) = F.col(_v5);
-    F.col(_v6p) = F.col(_v6);
-    F.col(_v7p) = F.col(_v7);
-    F.col(_v8p) = F.col(_v8);
-
-    /**
-     * Transfer velocities to subdivided mesh elements
-     */
-    V.col(_v5) = (1 - t1) * mesh.velocities().col(_v1) + t1 * mesh.velocities().col(_v4);
-    V.col(_v6) = (1 - t2) * mesh.velocities().col(_v1) + t2 * mesh.velocities().col(_v3);
-    V.col(_v7) = (1 - t3) * mesh.velocities().col(_v2) + t3 * mesh.velocities().col(_v3);
-    V.col(_v8) = (1 - t4) * mesh.velocities().col(_v2) + t4 * mesh.velocities().col(_v4);
-
-    V.col(_v5p) = V.col(_v5);
-    V.col(_v6p) = V.col(_v6);
-    V.col(_v7p) = V.col(_v7);
-    V.col(_v8p) = V.col(_v8);
-
-    /**
-     * Transfer masses to subdivided mesh elements
-     */
-    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
-    M(_v6) = std::min(mesh.masses()(_v1), mesh.masses()(_v3));
-    M(_v7) = std::min(mesh.masses()(_v2), mesh.masses()(_v3));
-    M(_v8) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
-
-    M(_v5p) = M(_v5);
-    M(_v6p) = M(_v6);
-    M(_v7p) = M(_v7);
-    M(_v8p) = M(_v8);
+    std::uint32_t const v5p = should_not_reverse_ce1 ? ce1.vi : ce1.vi + 1u;
+    std::uint32_t const v6p = should_not_reverse_ce2 ? ce2.vi : ce2.vi + 1u;
+    std::uint32_t const v7p = should_not_reverse_ce3 ? ce3.vi : ce3.vi + 1u;
+    std::uint32_t const v8p = should_not_reverse_ce4 ? ce4.vi : ce4.vi + 1u;
 
     std::uint32_t constexpr num_new_tetrahedra = 6u;
     tetrahedra_type T(4u, num_new_tetrahedra);
@@ -1093,99 +1226,38 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_2(
     T.col(4u) = tetrahedron_type{v1, v2, v6p, v8p};
     T.col(5u) = tetrahedron_type{v2, v7p, v6p, v8p};
 
-    return std::make_tuple(P, T, M, V, F);
+    return T;
 }
 
-tetrahedron_mesh_cutter_t::subdivided_element_type
-tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_3(
-    common::shared_vertex_mesh_t const& mesh,
+tetrahedral_mesh_cutter_t::subdivided_element_type
+tetrahedral_mesh_cutter_t::subdivide_mesh_for_common_case_3(
     std::uint32_t tetrahedron,
     std::array<std::uint32_t, 4u> const& vertex_ordering,
-    std::array<Eigen::Vector3d, 1u> const& edge_intersection_points,
-    std::array<Eigen::Vector3d, 2u> const& face_intersection_points)
+    std::array<edge_facet_key_type, 1u> const& edge_intersections,
+    std::array<triangle_facet_key_type, 2u> const& face_intersections)
 {
-    std::uint32_t const num_vertices = static_cast<std::uint32_t>(mesh.positions().cols());
+    std::uint32_t const _v1 = mesh_.elements().col(tetrahedron)(vertex_ordering[0]);
+    std::uint32_t const _v2 = mesh_.elements().col(tetrahedron)(vertex_ordering[1]);
+    std::uint32_t const _v3 = mesh_.elements().col(tetrahedron)(vertex_ordering[2]);
+    std::uint32_t const _v4 = mesh_.elements().col(tetrahedron)(vertex_ordering[3]);
 
-    std::uint32_t const _v1 = mesh.elements().col(tetrahedron)(vertex_ordering[0]);
-    std::uint32_t const _v2 = mesh.elements().col(tetrahedron)(vertex_ordering[1]);
-    std::uint32_t const _v3 = mesh.elements().col(tetrahedron)(vertex_ordering[2]);
-    std::uint32_t const _v4 = mesh.elements().col(tetrahedron)(vertex_ordering[3]);
+    auto const ce1_v1 = _v1;
+    auto const ce1_v2 = _v4;
 
-    std::uint32_t constexpr num_new_vertices = 4u;
+    auto const& ce1 = cut_edges_[{ce1_v1, ce1_v2}];
+    auto const& cf1 = cut_faces_[face_intersections[0]];
+    auto const& cf2 = cut_faces_[face_intersections[1]];
 
-    std::uint32_t constexpr _v5  = 0u;
-    std::uint32_t constexpr _v6  = 1u;
-    std::uint32_t constexpr _v7  = 2u;
-    std::uint32_t constexpr _v5p = 3u;
+    bool const should_not_reverse_ce1 = (ce1.v1 == ce1_v1) && (ce1.v2 == ce1_v2);
 
     std::uint32_t const v1  = _v1;
     std::uint32_t const v2  = _v2;
     std::uint32_t const v3  = _v3;
     std::uint32_t const v4  = _v4;
-    std::uint32_t const v5  = num_vertices + _v5;
-    std::uint32_t const v6  = num_vertices + _v6;
-    std::uint32_t const v7  = num_vertices + _v7;
-    std::uint32_t const v5p = num_vertices + _v5p;
-
-    positions_type P(3u, num_new_vertices);
-    masses_type M(num_new_vertices);
-    velocities_type V(3u, num_new_vertices);
-    forces_type F(3u, num_new_vertices);
-
-    P.col(_v5) = edge_intersection_points[0];
-    P.col(_v6) = face_intersection_points[0];
-    P.col(_v7) = face_intersection_points[1];
-
-    P.col(_v5p) = P.col(_v5);
-
-    /**
-     * Cache interpolation coefficients
-     */
-    double const t1 = lerp_coefficient(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        edge_intersection_points[0]);
-    auto const [bu2, bv2, bw2] = common::barycentric_coordinates(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v4),
-        face_intersection_points[0]);
-    auto const [bu3, bv3, bw3] = common::barycentric_coordinates(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        mesh.positions().col(_v3),
-        face_intersection_points[1]);
-
-    /**
-     * Transfer forces to subdivided mesh elements
-     */
-    F.col(_v5) = (1 - t1) * mesh.forces().col(_v1) + t1 * mesh.forces().col(_v4);
-    F.col(_v6) =
-        bu2 * mesh.forces().col(_v1) + bv2 * mesh.forces().col(_v2) + bw2 * mesh.forces().col(_v4);
-    F.col(_v7) =
-        bu3 * mesh.forces().col(_v1) + bv3 * mesh.forces().col(_v4) + bw3 * mesh.forces().col(_v3);
-
-    F.col(_v5p) = F.col(_v5);
-
-    /**
-     * Transfer velocities to subdivided mesh elements
-     */
-    V.col(_v5) = (1 - t1) * mesh.velocities().col(_v1) + t1 * mesh.velocities().col(_v4);
-    V.col(_v6) = bu2 * mesh.velocities().col(_v1) + bv2 * mesh.velocities().col(_v2) +
-                 bw2 * mesh.velocities().col(_v4);
-    V.col(_v7) = bu3 * mesh.velocities().col(_v1) + bv3 * mesh.velocities().col(_v4) +
-                 bw3 * mesh.velocities().col(_v3);
-
-    V.col(_v5p) = V.col(_v5);
-
-    /**
-     * Transfer masses to subdivided mesh elements
-     */
-    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
-    M(_v6) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v2), mesh.masses()(_v4)));
-    M(_v7) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v4), mesh.masses()(_v3)));
-
-    M(_v5p) = M(_v5);
+    std::uint32_t const v5  = should_not_reverse_ce1 ? ce1.vi : ce1.vi + 1u;
+    std::uint32_t const v6  = cf1.vi;
+    std::uint32_t const v7  = cf2.vi;
+    std::uint32_t const v5p = should_not_reverse_ce1 ? ce1.vi + 1u : ce1.vi;
 
     std::uint32_t constexpr num_new_tetrahedra = 6u;
     tetrahedra_type T(4u, num_new_tetrahedra);
@@ -1197,115 +1269,44 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_3(
     T.col(4u) = tetrahedron_type{v1, v7, v6, v3};
     T.col(5u) = tetrahedron_type{v1, v2, v3, v6};
 
-    return std::make_tuple(P, T, M, V, F);
+    return T;
 }
 
-tetrahedron_mesh_cutter_t::subdivided_element_type
-tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_4(
-    common::shared_vertex_mesh_t const& mesh,
+tetrahedral_mesh_cutter_t::subdivided_element_type
+tetrahedral_mesh_cutter_t::subdivide_mesh_for_common_case_4(
     std::uint32_t tetrahedron,
     std::array<std::uint32_t, 4u> const& vertex_ordering,
-    std::array<Eigen::Vector3d, 2u> const& edge_intersection_points,
-    std::array<Eigen::Vector3d, 2u> const& face_intersection_points)
+    std::array<edge_facet_key_type, 2u> const& edge_intersections,
+    std::array<triangle_facet_key_type, 2u> const& face_intersections)
 {
-    std::uint32_t const num_vertices = static_cast<std::uint32_t>(mesh.positions().cols());
+    std::uint32_t const _v1 = mesh_.elements().col(tetrahedron)(vertex_ordering[0]);
+    std::uint32_t const _v2 = mesh_.elements().col(tetrahedron)(vertex_ordering[1]);
+    std::uint32_t const _v3 = mesh_.elements().col(tetrahedron)(vertex_ordering[2]);
+    std::uint32_t const _v4 = mesh_.elements().col(tetrahedron)(vertex_ordering[3]);
 
-    std::uint32_t const _v1 = mesh.elements().col(tetrahedron)(vertex_ordering[0]);
-    std::uint32_t const _v2 = mesh.elements().col(tetrahedron)(vertex_ordering[1]);
-    std::uint32_t const _v3 = mesh.elements().col(tetrahedron)(vertex_ordering[2]);
-    std::uint32_t const _v4 = mesh.elements().col(tetrahedron)(vertex_ordering[3]);
+    auto const ce1_v1 = _v1;
+    auto const ce1_v2 = _v4;
+    auto const ce2_v1 = _v2;
+    auto const ce2_v2 = _v4;
 
-    std::uint32_t constexpr num_new_vertices = 6u;
+    auto const& ce1 = cut_edges_[{ce1_v1, ce1_v2}];
+    auto const& ce2 = cut_edges_[{ce2_v1, ce2_v2}];
+    auto const& cf1 = cut_faces_[face_intersections[0]];
+    auto const& cf2 = cut_faces_[face_intersections[1]];
 
-    std::uint32_t constexpr _v5  = 0u;
-    std::uint32_t constexpr _v6  = 1u;
-    std::uint32_t constexpr _v7  = 2u;
-    std::uint32_t constexpr _v8  = 3u;
-    std::uint32_t constexpr _v5p = 4u;
-    std::uint32_t constexpr _v6p = 5u;
+    bool const should_not_reverse_ce1 = (ce1.v1 == ce1_v1) && (ce1.v2 == ce1_v2);
+    bool const should_not_reverse_ce2 = (ce2.v1 == ce2_v1) && (ce2.v2 == ce2_v2);
 
     std::uint32_t const v1  = _v1;
     std::uint32_t const v2  = _v2;
     std::uint32_t const v3  = _v3;
     std::uint32_t const v4  = _v4;
-    std::uint32_t const v5  = num_vertices + _v5;
-    std::uint32_t const v6  = num_vertices + _v6;
-    std::uint32_t const v7  = num_vertices + _v7;
-    std::uint32_t const v8  = num_vertices + _v8;
-    std::uint32_t const v5p = num_vertices + _v5p;
-    std::uint32_t const v6p = num_vertices + _v6p;
-
-    positions_type P(3u, num_new_vertices);
-    masses_type M(num_new_vertices);
-    velocities_type V(3u, num_new_vertices);
-    forces_type F(3u, num_new_vertices);
-
-    P.col(_v5) = edge_intersection_points[0];
-    P.col(_v6) = edge_intersection_points[1];
-    P.col(_v7) = face_intersection_points[0];
-    P.col(_v8) = face_intersection_points[1];
-
-    P.col(_v5p) = P.col(_v5);
-    P.col(_v6p) = P.col(_v6);
-
-    /**
-     * Cache interpolation coefficients
-     */
-    double const t1 = lerp_coefficient(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        edge_intersection_points[0]);
-    double const t2 = lerp_coefficient(
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v4),
-        edge_intersection_points[1]);
-    auto const [bu3, bv3, bw3] = common::barycentric_coordinates(
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v3),
-        mesh.positions().col(_v4),
-        face_intersection_points[0]);
-    auto const [bu4, bv4, bw4] = common::barycentric_coordinates(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        mesh.positions().col(_v3),
-        face_intersection_points[1]);
-
-    /**
-     * Transfer forces to subdivided mesh elements
-     */
-    F.col(_v5) = (1 - t1) * mesh.forces().col(_v1) + t1 * mesh.forces().col(_v4);
-    F.col(_v6) = (1 - t2) * mesh.forces().col(_v2) + t2 * mesh.forces().col(_v4);
-    F.col(_v7) =
-        bu3 * mesh.forces().col(_v2) + bv3 * mesh.forces().col(_v3) + bw3 * mesh.forces().col(_v4);
-    F.col(_v8) =
-        bu4 * mesh.forces().col(_v1) + bv4 * mesh.forces().col(_v4) + bw4 * mesh.forces().col(_v3);
-
-    F.col(_v5p) = F.col(_v5);
-    F.col(_v6p) = F.col(_v6);
-
-    /**
-     * Transfer velocities to subdivided mesh elements
-     */
-    V.col(_v5) = (1 - t1) * mesh.velocities().col(_v1) + t1 * mesh.velocities().col(_v4);
-    V.col(_v6) = (1 - t2) * mesh.velocities().col(_v2) + t2 * mesh.velocities().col(_v4);
-    V.col(_v7) = bu3 * mesh.velocities().col(_v2) + bv3 * mesh.velocities().col(_v3) +
-                 bw3 * mesh.velocities().col(_v4);
-    V.col(_v8) = bu4 * mesh.velocities().col(_v1) + bv4 * mesh.velocities().col(_v4) +
-                 bw4 * mesh.velocities().col(_v3);
-
-    V.col(_v5p) = V.col(_v5);
-    V.col(_v6p) = V.col(_v6);
-
-    /**
-     * Transfer masses to subdivided mesh elements
-     */
-    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
-    M(_v6) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
-    M(_v7) = std::min(mesh.masses()(_v2), std::min(mesh.masses()(_v3), mesh.masses()(_v4)));
-    M(_v8) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v4), mesh.masses()(_v3)));
-
-    M(_v5p) = M(_v5);
-    M(_v6p) = M(_v6);
+    std::uint32_t const v5  = should_not_reverse_ce1 ? ce1.vi : ce1.vi + 1u;
+    std::uint32_t const v6  = should_not_reverse_ce2 ? ce2.vi : ce2.vi + 1u;
+    std::uint32_t const v7  = cf1.vi;
+    std::uint32_t const v8  = cf2.vi;
+    std::uint32_t const v5p = should_not_reverse_ce1 ? ce1.vi + 1u : ce1.vi;
+    std::uint32_t const v6p = should_not_reverse_ce2 ? ce2.vi + 1u : ce2.vi;
 
     std::uint32_t constexpr num_new_tetrahedra = 8u;
     tetrahedra_type T(4u, num_new_tetrahedra);
@@ -1319,132 +1320,51 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_4(
     T.col(6u) = tetrahedron_type{v5, v8, v2, v1};
     T.col(7u) = tetrahedron_type{v1, v2, v3, v8};
 
-    return std::make_tuple(P, T, M, V, F);
+    return T;
 }
 
-tetrahedron_mesh_cutter_t::subdivided_element_type
-tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_5(
-    common::shared_vertex_mesh_t const& mesh,
+tetrahedral_mesh_cutter_t::subdivided_element_type
+tetrahedral_mesh_cutter_t::subdivide_mesh_for_common_case_5(
     std::uint32_t tetrahedron,
     std::array<std::uint32_t, 4u> const& vertex_ordering,
-    std::array<Eigen::Vector3d, 3u> const& edge_intersection_points,
-    std::array<Eigen::Vector3d, 2u> const& face_intersection_points,
+    std::array<edge_facet_key_type, 3u> const& edge_intersections,
+    std::array<triangle_facet_key_type, 2u> const& face_intersections,
     bool symmetry)
 {
-    std::uint32_t const num_vertices = static_cast<std::uint32_t>(mesh.positions().cols());
+    std::uint32_t const _v1 = mesh_.elements().col(tetrahedron)(vertex_ordering[0]);
+    std::uint32_t const _v2 = mesh_.elements().col(tetrahedron)(vertex_ordering[1]);
+    std::uint32_t const _v3 = mesh_.elements().col(tetrahedron)(vertex_ordering[2]);
+    std::uint32_t const _v4 = mesh_.elements().col(tetrahedron)(vertex_ordering[3]);
 
-    std::uint32_t const _v1 = mesh.elements().col(tetrahedron)(vertex_ordering[0]);
-    std::uint32_t const _v2 = mesh.elements().col(tetrahedron)(vertex_ordering[1]);
-    std::uint32_t const _v3 = mesh.elements().col(tetrahedron)(vertex_ordering[2]);
-    std::uint32_t const _v4 = mesh.elements().col(tetrahedron)(vertex_ordering[3]);
+    auto const ce1_v1 = _v1;
+    auto const ce1_v2 = _v4;
+    auto const ce2_v1 = _v2;
+    auto const ce2_v2 = _v4;
+    auto const ce3_v1 = _v2;
+    auto const ce3_v2 = _v3;
 
-    std::uint32_t constexpr num_new_vertices = 8u;
+    auto const& ce1 = cut_edges_[{ce1_v1, ce1_v2}];
+    auto const& ce2 = cut_edges_[{ce2_v1, ce2_v2}];
+    auto const& ce3 = cut_edges_[{ce3_v1, ce3_v2}];
+    auto const& cf1 = cut_faces_[face_intersections[0]];
+    auto const& cf2 = cut_faces_[face_intersections[1]];
 
-    std::uint32_t constexpr _v5  = 0u;
-    std::uint32_t constexpr _v6  = 1u;
-    std::uint32_t constexpr _v7  = 2u;
-    std::uint32_t constexpr _v8  = 3u;
-    std::uint32_t constexpr _v9  = 4u;
-    std::uint32_t constexpr _v5p = 5u;
-    std::uint32_t constexpr _v6p = 6u;
-    std::uint32_t constexpr _v7p = 7u;
+    bool const should_not_reverse_ce1 = (ce1.v1 == ce1_v1) && (ce1.v2 == ce1_v2);
+    bool const should_not_reverse_ce3 = (ce3.v1 == ce3_v1) && (ce3.v2 == ce3_v2);
+    bool const should_not_reverse_ce2 = (ce2.v1 == ce2_v1) && (ce2.v2 == ce2_v2);
 
     std::uint32_t const v1  = _v1;
     std::uint32_t const v2  = _v2;
     std::uint32_t const v3  = _v3;
     std::uint32_t const v4  = _v4;
-    std::uint32_t const v5  = num_vertices + _v5;
-    std::uint32_t const v6  = num_vertices + _v6;
-    std::uint32_t const v7  = num_vertices + _v7;
-    std::uint32_t const v8  = num_vertices + _v8;
-    std::uint32_t const v9  = num_vertices + _v9;
-    std::uint32_t const v5p = num_vertices + _v5p;
-    std::uint32_t const v6p = num_vertices + _v6p;
-    std::uint32_t const v7p = num_vertices + _v7p;
-
-    positions_type P(3u, num_new_vertices);
-    masses_type M(num_new_vertices);
-    velocities_type V(3u, num_new_vertices);
-    forces_type F(3u, num_new_vertices);
-
-    P.col(_v5) = edge_intersection_points[0];
-    P.col(_v6) = edge_intersection_points[1];
-    P.col(_v7) = edge_intersection_points[2];
-    P.col(_v8) = face_intersection_points[0];
-    P.col(_v9) = face_intersection_points[1];
-
-    P.col(_v5p) = P.col(_v5);
-    P.col(_v6p) = P.col(_v6);
-    P.col(_v7p) = P.col(_v7);
-
-    /**
-     * Cache interpolation coefficients
-     */
-    double const t1 = lerp_coefficient(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        edge_intersection_points[0]);
-    double const t2 = lerp_coefficient(
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v4),
-        edge_intersection_points[1]);
-    double const t3 = lerp_coefficient(
-        mesh.positions().col(_v2),
-        mesh.positions().col(_v3),
-        edge_intersection_points[2]);
-    auto const [bu4, bv4, bw4] = common::barycentric_coordinates(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v3),
-        mesh.positions().col(_v2),
-        face_intersection_points[0]);
-    auto const [bu5, bv5, bw5] = common::barycentric_coordinates(
-        mesh.positions().col(_v1),
-        mesh.positions().col(_v4),
-        mesh.positions().col(_v3),
-        face_intersection_points[1]);
-
-    /**
-     * Transfer forces to subdivided mesh elements
-     */
-    F.col(_v5) = (1 - t1) * mesh.forces().col(_v1) + t1 * mesh.forces().col(_v4);
-    F.col(_v6) = (1 - t2) * mesh.forces().col(_v2) + t2 * mesh.forces().col(_v4);
-    F.col(_v7) = (1 - t3) * mesh.forces().col(_v2) + t3 * mesh.forces().col(_v3);
-    F.col(_v8) =
-        bu4 * mesh.forces().col(_v1) + bv4 * mesh.forces().col(_v3) + bw4 * mesh.forces().col(_v2);
-    F.col(_v9) =
-        bu5 * mesh.forces().col(_v1) + bv5 * mesh.forces().col(_v4) + bw5 * mesh.forces().col(_v3);
-
-    F.col(_v5p) = F.col(_v5);
-    F.col(_v6p) = F.col(_v6);
-    F.col(_v7p) = F.col(_v7);
-
-    /**
-     * Transfer velocities to subdivided mesh elements
-     */
-    V.col(_v5) = (1 - t1) * mesh.velocities().col(_v1) + t1 * mesh.velocities().col(_v4);
-    V.col(_v6) = (1 - t2) * mesh.velocities().col(_v2) + t2 * mesh.velocities().col(_v4);
-    V.col(_v7) = (1 - t3) * mesh.velocities().col(_v2) + t3 * mesh.velocities().col(_v3);
-    V.col(_v8) = bu4 * mesh.velocities().col(_v1) + bv4 * mesh.velocities().col(_v3) +
-                 bw4 * mesh.velocities().col(_v2);
-    V.col(_v9) = bu5 * mesh.velocities().col(_v1) + bv5 * mesh.velocities().col(_v4) +
-                 bw5 * mesh.velocities().col(_v3);
-
-    V.col(_v5p) = V.col(_v5);
-    V.col(_v6p) = V.col(_v6);
-    V.col(_v7p) = V.col(_v7);
-
-    /**
-     * Transfer masses to subdivided mesh elements
-     */
-    M(_v5) = std::min(mesh.masses()(_v1), mesh.masses()(_v4));
-    M(_v6) = std::min(mesh.masses()(_v2), mesh.masses()(_v4));
-    M(_v7) = std::min(mesh.masses()(_v2), mesh.masses()(_v3));
-    M(_v8) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v3), mesh.masses()(_v2)));
-    M(_v9) = std::min(mesh.masses()(_v1), std::min(mesh.masses()(_v4), mesh.masses()(_v3)));
-
-    M(_v5p) = M(_v5);
-    M(_v6p) = M(_v6);
-    M(_v7p) = M(_v7);
+    std::uint32_t const v5  = should_not_reverse_ce1 ? ce1.vi : ce1.vi + 1u;
+    std::uint32_t const v6  = should_not_reverse_ce2 ? ce2.vi : ce2.vi + 1u;
+    std::uint32_t const v7  = should_not_reverse_ce3 ? ce3.vi : ce3.vi + 1u;
+    std::uint32_t const v8  = cf1.vi;
+    std::uint32_t const v9  = cf2.vi;
+    std::uint32_t const v5p = should_not_reverse_ce1 ? ce1.vi + 1u : ce1.vi;
+    std::uint32_t const v6p = should_not_reverse_ce2 ? ce2.vi + 1u : ce2.vi;
+    std::uint32_t const v7p = should_not_reverse_ce3 ? ce3.vi + 1u : ce3.vi;
 
     std::uint32_t constexpr num_new_tetrahedra = 9u;
     tetrahedra_type T(4u, num_new_tetrahedra);
@@ -1474,7 +1394,7 @@ tetrahedron_mesh_cutter_t::subdivide_mesh_for_common_case_5(
         T.col(8u) = tetrahedron_type{v8, v7p, v3, v6p};
     }
 
-    return std::make_tuple(P, T, M, V, F);
+    return T;
 }
 
 } // namespace cutting

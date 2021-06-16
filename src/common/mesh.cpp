@@ -321,6 +321,16 @@ shared_vertex_surface_mesh_t shared_vertex_mesh_t::facets(Eigen::Vector3f const&
     return triangle_mesh;
 }
 
+std::size_t shared_vertex_mesh_t::position_count() const
+{
+    return static_cast<std::size_t>(positions_.cols());
+}
+
+std::size_t shared_vertex_mesh_t::element_count() const
+{
+    return static_cast<std::size_t>(elements_.cols());
+}
+
 shared_vertex_surface_mesh_t::shared_vertex_surface_mesh_t(common::geometry_t const& geometry)
 {
     if (geometry.geometry_type != geometry_t::geometry_type_t::triangle)
@@ -573,6 +583,16 @@ shared_vertex_surface_mesh_t shared_vertex_surface_mesh_t::to_face_based() const
     }
 
     return face_based_mesh;
+}
+
+std::size_t shared_vertex_surface_mesh_t::vertex_count() const
+{
+    return static_cast<std::size_t>(vertices_.cols());
+}
+
+std::size_t shared_vertex_surface_mesh_t::triangle_count() const
+{
+    return static_cast<std::size_t>(triangles_.cols());
 }
 
 std::vector<std::pair<std::uint32_t, std::uint32_t>> edges(shared_vertex_mesh_t const& mesh)

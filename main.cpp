@@ -33,7 +33,7 @@ int main(int argc, char** argv)
         initial_scene.environment_objects.begin(),
         initial_scene.environment_objects.end(),
         [](std::shared_ptr<sbs::common::node_t> const object) {
-            return object->id == "cutting surface";
+            return object->id == "cutter";
         });
 
     sbs::rendering::trackball_rotation_adapter_t cutting_surface_trackball_adapter{};
@@ -49,16 +49,27 @@ int main(int argc, char** argv)
             sbs::rendering::trackball_rotation_adapter_t{model_space_cutting_surface};
     }
 
+    int active_environment_body_idx = 0;
+    int active_physics_body_idx     = 0;
+    std::shared_ptr<sbs::common::node_t> active_environment_node{};
+    std::shared_ptr<sbs::common::node_t> active_physics_node{};
+
     /**
      * physics update goes here
      */
     std::vector<sbs::physics::xpbd::simulation_parameters_t> per_body_simulation_parameters{};
+    std::vector<sbs::physics::cutting::tetrahedral_mesh_cutter_t> per_body_mesh_cutters{};
     renderer.on_scene_loaded = [&](sbs::common::scene_t& scene) {
         per_body_simulation_parameters.clear();
+        per_body_mesh_cutters.clear();
+
         for (auto const& body : scene.physics_objects)
         {
             sbs::physics::xpbd::simulation_parameters_t params{};
             per_body_simulation_parameters.push_back(params);
+
+            per_body_mesh_cutters.push_back(
+                sbs::physics::cutting::tetrahedral_mesh_cutter_t{body->physical_model});
 
             body->physical_model.forces().setZero();
         }
@@ -89,6 +100,26 @@ int main(int argc, char** argv)
 
         auto const begin = std::chrono::steady_clock::now();
 
+        bool has_topology_changed{false};
+        if (active_environment_node->id == "cutter")
+        {
+            for (auto& cutter : per_body_mesh_cutters)
+            {
+                bool const was_mesh_cut =
+                    cutter.cut_tetrahedral_mesh(active_environment_node->render_model);
+
+                if (!was_mesh_cut)
+                    continue;
+
+                has_topology_changed = true;
+            }
+
+            if (has_topology_changed)
+            {
+                solver.notify_topology_changed();
+            }
+        }
+
         /**
          * Compute external forces
          */
@@ -103,10 +134,15 @@ int main(int argc, char** argv)
             }
 
             solver.step(timestep, iterations, substeps);
-
+        }
+        if (are_physics_active || has_topology_changed)
+        {
             for (auto const& body : scene.physics_objects)
             {
-                body->render_model = body->physical_model.boundary_surface_mesh().to_face_based();
+                body->render_model =
+                    body->render_state.should_render_wireframe ?
+                        body->physical_model.facets().to_face_based() :
+                        body->physical_model.boundary_surface_mesh().to_face_based();
                 body->render_state.should_transfer_vertices = true;
                 body->render_state.should_transfer_indices  = true;
                 body->physical_model.forces().setZero();
@@ -119,9 +155,6 @@ int main(int argc, char** argv)
 
         fps = 1. / static_cast<double>(duration) * 1e9;
     };
-
-    int active_environment_body_idx = 0;
-    int active_physics_body_idx     = 0;
 
     renderer.on_mouse_button_pressed = [&](GLFWwindow* window, int button, int action, int mods) {
         bool const is_picking =
@@ -184,11 +217,8 @@ int main(int argc, char** argv)
     renderer.on_new_imgui_frame = [&](sbs::common::scene_t& scene) {
         ImGui::Begin("Soft Body Simulator");
 
-        std::shared_ptr<sbs::common::node_t> active_environment_node =
-            scene.environment_objects[active_environment_body_idx];
-
-        std::shared_ptr<sbs::common::node_t> active_physics_node =
-            scene.physics_objects[active_physics_body_idx];
+        active_environment_node = scene.environment_objects[active_environment_body_idx];
+        active_physics_node     = scene.physics_objects[active_physics_body_idx];
 
         if (ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_None))
         {
@@ -293,14 +323,14 @@ int main(int argc, char** argv)
                 ImGui::InputFloat("Vertex mass##XPBD", &mass_per_vertex, 1.f, 10.f, "%.1f");
 
                 ImGui::Text("FEM");
-                static float young_modulus = 1e12f;
+                static float young_modulus = 1e6f;
                 static float poisson_ratio = 0.45f;
                 ImGui::TreePush();
                 ImGui::InputFloat("Young modulus##XPBD", &young_modulus, 1000.f, 10'000.f, "%.1f");
                 ImGui::InputFloat("Poisson ratio##XPBD", &poisson_ratio, 0.01f, 0.1f, "%.2f");
                 ImGui::TreePop();
 
-                ImGui::Text("Solver##XPBD");
+                ImGui::Text("Solver");
                 ImGui::TreePush();
                 static float _timestep = timestep;
                 static int _iterations = iterations;
@@ -328,7 +358,8 @@ int main(int argc, char** argv)
                     iterations = static_cast<std::uint32_t>(_iterations);
                     substeps   = static_cast<std::uint32_t>(_substeps);
 
-                    solver.setup(&scene.physics_objects, per_body_simulation_parameters);
+                    renderer.unload_current_scene();
+                    renderer.load_scene(scene);
                 }
 
                 ImGui::Checkbox("Activate physics", &are_physics_active);
@@ -349,7 +380,7 @@ int main(int argc, char** argv)
 
         if (ImGui::CollapsingHeader("Cutting", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            if (active_environment_node->id == "cutting surface")
+            if (active_environment_node->id == "cutter")
             {
                 ImGui::TreePush();
 
@@ -404,27 +435,28 @@ int main(int argc, char** argv)
 
                 if (ImGui::Button("Cut##Cutting", ImVec2(w / 2.f, 0.f)))
                 {
-                    bool const is_tetrahedral_mesh =
-                        (active_physics_node->physical_model.elements().rows() == 4);
+                    // bool const is_tetrahedral_mesh =
+                    //    (active_physics_node->physical_model.elements().rows() == 4);
 
-                    if (is_tetrahedral_mesh)
-                    {
-                        bool const has_mesh_been_cut = sbs::physics::cutting::cut_tetrahedral_mesh(
-                            active_physics_node->physical_model,
-                            active_environment_node->render_model);
+                    // if (is_tetrahedral_mesh)
+                    //{
+                    //    bool const has_mesh_been_cut =
+                    //    sbs::physics::cutting::cut_tetrahedral_mesh(
+                    //        active_physics_node->physical_model,
+                    //        active_environment_node->render_model);
 
-                        if (has_mesh_been_cut)
-                        {
-                            solver.notify_topology_changed();
-                            active_physics_node->render_model =
-                                active_physics_node->render_state.should_render_wireframe ?
-                                    active_physics_node->physical_model.facets().to_face_based() :
-                                    active_physics_node->physical_model.boundary_surface_mesh()
-                                        .to_face_based();
-                            active_physics_node->render_state.should_transfer_vertices = true;
-                            active_physics_node->render_state.should_transfer_indices  = true;
-                        }
-                    }
+                    //    if (has_mesh_been_cut)
+                    //    {
+                    //        solver.notify_topology_changed();
+                    //        active_physics_node->render_model =
+                    //            active_physics_node->render_state.should_render_wireframe ?
+                    //                active_physics_node->physical_model.facets().to_face_based() :
+                    //                active_physics_node->physical_model.boundary_surface_mesh()
+                    //                    .to_face_based();
+                    //        active_physics_node->render_state.should_transfer_vertices = true;
+                    //        active_physics_node->render_state.should_transfer_indices  = true;
+                    //    }
+                    //}
                 }
 
                 ImGui::TreePop();

@@ -49,6 +49,9 @@ class shared_vertex_surface_mesh_t
 
     shared_vertex_surface_mesh_t to_face_based() const;
 
+    std::size_t vertex_count() const;
+    std::size_t triangle_count() const;
+
   private:
     vertices_type vertices_;
     normals_type normals_;
@@ -108,6 +111,9 @@ class shared_vertex_mesh_t
 
     shared_vertex_surface_mesh_t
     facets(Eigen::Vector3f const& color = Eigen::Vector3f{1.f, 1.f, 0.f}) const;
+
+    std::size_t position_count() const;
+    std::size_t element_count() const;
 
   private:
     positions_type positions_;

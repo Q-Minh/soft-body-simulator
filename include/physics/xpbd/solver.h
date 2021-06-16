@@ -20,8 +20,8 @@ struct simulation_parameters_t
     /**
      * FEM parameters
      */
-    double young_modulus = 1e9;
-    double poisson_ratio = 0.48;
+    double young_modulus = 1e6;
+    double poisson_ratio = 0.45;
 };
 
 class solver_t

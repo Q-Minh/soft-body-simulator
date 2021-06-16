@@ -78,7 +78,7 @@
             }
         },
         {
-            "id": "cutting surface",
+            "id": "cutter",
             "geometry": {
                 "type": "triangle mesh",
                 "path": "../meshes/xz_plane.ply"
@@ -120,20 +120,20 @@
             },
             "box": {
                 "min": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
+                    "x": -3.0,
+                    "y": -0.25,
+                    "z": -0.25
                 },
                 "max": {
                     "x": 3.0,
-                    "y": 0.5,
-                    "z": 0.5
+                    "y": 0.25,
+                    "z": 0.25
                 }
             },
             "translation": {
                 "x": 0.0,
                 "y": 2.0,
-                "z": -5.0
+                "z": -2.0
             },
             "color": {
                 "r": 255,

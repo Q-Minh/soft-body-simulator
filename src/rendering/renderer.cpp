@@ -107,6 +107,71 @@ void renderer_t::mouse_button_callback(GLFWwindow* window, int button, int actio
     }
 }
 
+void renderer_t::render_objects(
+    int position_attribute_location,
+    int normal_attribute_location,
+    int color_attribute_location,
+    std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const
+{
+    /**
+     * Render the scene. Transfers data to the GPU every frame, since
+     * we are primarily working with soft bodies. This is of course
+     * not optimal, but is great for prototyping.
+     */
+    for (std::shared_ptr<common::renderable_node_t> const& object : objects)
+    {
+        unsigned int& VAO = object->VAO();
+        unsigned int& VBO = object->VBO();
+        unsigned int& EBO = object->EBO();
+
+        glBindVertexArray(VAO);
+
+        /**
+         * Only send data to the GPU if geometry has changed
+         */
+        if (object->should_transfer_vertices())
+        {
+            object->prepare_vertices_for_rendering();
+            transfer_vertices_to_gpu(
+                VBO,
+                position_attribute_location,
+                normal_attribute_location,
+                color_attribute_location,
+                object);
+            object->mark_vertices_clean();
+        }
+
+        if (object->should_transfer_indices())
+        {
+            object->prepare_indices_for_rendering();
+            transfer_indices_to_gpu(EBO, object);
+            object->mark_indices_clean();
+        }
+
+        if (object->should_render_wireframe())
+        {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        }
+        else
+        {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+
+        auto const num_indices = object->get_render_indices().size();
+
+        /**
+         * Draw the mesh
+         */
+        glDrawElements(GL_TRIANGLES, static_cast<int>(num_indices), GL_UNSIGNED_INT, 0);
+
+        /**
+         * Unbind buffers and vertex arrays
+         */
+        glBindBuffer(GL_ARRAY_BUFFER, 0u);
+        glBindVertexArray(0u);
+    }
+}
+
 bool renderer_t::initialize()
 {
     glfwInit();
@@ -157,38 +222,36 @@ void renderer_t::unload_current_scene()
     auto const delete_objects_from_opengl = [](auto const& objects) {
         for (auto const& object : objects)
         {
-            glDeleteVertexArrays(1, &(object->VAO));
-            glDeleteBuffers(1, &(object->VBO));
-            glDeleteBuffers(1, &(object->EBO));
+            glDeleteVertexArrays(1, &(object->VAO()));
+            glDeleteBuffers(1, &(object->VBO()));
+            glDeleteBuffers(1, &(object->EBO()));
         }
     };
 
-    delete_objects_from_opengl(scene_.environment_objects);
-    delete_objects_from_opengl(scene_.physics_objects);
+    delete_objects_from_opengl(scene_.nodes);
 }
 
 void renderer_t::load_scene(common::scene_t const& scene)
 {
     auto const create_objects_for_opengl = [](auto const& objects) {
-        for (auto const& object : objects)
+        for (std::shared_ptr<common::renderable_node_t> const& object : objects)
         {
-            unsigned int& VAO = object->VAO;
-            unsigned int& VBO = object->VBO;
-            unsigned int& EBO = object->EBO;
+            unsigned int& VAO = object->VAO();
+            unsigned int& VBO = object->VBO();
+            unsigned int& EBO = object->EBO();
 
             glGenVertexArrays(1, &VAO);
             glGenBuffers(1, &VBO);
             glGenBuffers(1, &EBO);
 
-            object->render_state.should_transfer_vertices = true;
-            object->render_state.should_transfer_indices  = true;
+            object->mark_vertices_dirty();
+            object->mark_indices_dirty();
         }
     };
 
     scene_ = scene;
 
-    create_objects_for_opengl(scene_.environment_objects);
-    create_objects_for_opengl(scene_.physics_objects);
+    create_objects_for_opengl(scene_.nodes);
 
     if (on_scene_loaded)
     {
@@ -196,30 +259,32 @@ void renderer_t::load_scene(common::scene_t const& scene)
     }
 }
 
-void renderer_t::remove_physics_object_from_scene(std::uint32_t object_idx)
+void renderer_t::remove_object_from_scene(std::uint32_t object_idx)
 {
-    auto const& object = scene_.physics_objects[object_idx];
-    glDeleteVertexArrays(1, &(object->VAO));
-    glDeleteBuffers(1, &(object->VBO));
-    glDeleteBuffers(1, &(object->EBO));
-    scene_.physics_objects.erase(scene_.physics_objects.begin() + object_idx);
+    auto const& object = scene_.nodes[object_idx];
+    glDeleteVertexArrays(1, &(object->VAO()));
+    glDeleteBuffers(1, &(object->VBO()));
+    glDeleteBuffers(1, &(object->EBO()));
+    scene_.nodes.erase(scene_.nodes.begin() + object_idx);
 }
 
-std::uint32_t renderer_t::add_physics_object_to_scene(std::shared_ptr<common::node_t> const& node)
+std::uint32_t
+renderer_t::add_object_to_scene(std::shared_ptr<common::renderable_node_t> const& node)
 {
-    auto const object_idx = scene_.physics_objects.size();
+    auto const object_idx = scene_.nodes.size();
 
-    unsigned int& VAO = node->VAO;
-    unsigned int& VBO = node->VBO;
-    unsigned int& EBO = node->EBO;
+    unsigned int& VAO = node->VAO();
+    unsigned int& VBO = node->VBO();
+    unsigned int& EBO = node->EBO();
 
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
 
-    node->render_state.should_transfer_vertices = true;
-    node->render_state.should_transfer_indices  = true;
-    scene_.physics_objects.push_back(node);
+    node->mark_vertices_dirty();
+    node->mark_indices_dirty();
+
+    scene_.nodes.push_back(node);
 
     return static_cast<std::uint32_t>(object_idx);
 }
@@ -276,72 +341,11 @@ void renderer_t::launch()
          */
         update_shader_uniforms();
 
-        auto const render_objects = [this,
-                                     position_attribute_location,
-                                     normal_attribute_location,
-                                     color_attribute_location](auto const& objects) {
-            /**
-             * Render the scene. Transfers data to the GPU every frame, since
-             * we are primarily working with soft bodies. This is of course
-             * not optimal, but is great for prototyping.
-             */
-            for (auto& object : objects)
-            {
-                unsigned int& VAO = object->VAO;
-                unsigned int& VBO = object->VBO;
-                unsigned int& EBO = object->EBO;
-
-                glBindVertexArray(VAO);
-
-                /**
-                 * Only send data to the GPU if geometry has changed
-                 */
-                if (object->render_state.should_transfer_vertices)
-                {
-                    transfer_vertices_to_gpu(
-                        VBO,
-                        position_attribute_location,
-                        normal_attribute_location,
-                        color_attribute_location,
-                        object);
-
-                    object->render_state.should_transfer_vertices = false;
-                }
-
-                if (object->render_state.should_transfer_indices)
-                {
-                    transfer_indices_to_gpu(EBO, object);
-                    object->render_state.should_transfer_indices = false;
-                }
-
-                if (object->render_state.should_render_wireframe)
-                {
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                }
-                else
-                {
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-                }
-
-                auto const number_of_faces =
-                    static_cast<std::size_t>(object->render_model.triangles().cols());
-                auto const num_indices = 3u * number_of_faces;
-
-                /**
-                 * Draw the mesh
-                 */
-                glDrawElements(GL_TRIANGLES, static_cast<int>(num_indices), GL_UNSIGNED_INT, 0);
-
-                /**
-                 * Unbind buffers and vertex arrays
-                 */
-                glBindBuffer(GL_ARRAY_BUFFER, 0u);
-                glBindVertexArray(0u);
-            }
-        };
-
-        render_objects(scene_.environment_objects);
-        render_objects(scene_.physics_objects);
+        render_objects(
+            position_attribute_location,
+            normal_attribute_location,
+            color_attribute_location,
+            scene_.nodes);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -355,13 +359,16 @@ void renderer_t::close()
     auto const delete_object_from_opengl = [](auto const& objects) {
         for (auto const& object : objects)
         {
-            glDeleteVertexArrays(1, &(object->VAO));
-            glDeleteBuffers(1, &(object->VBO));
-            glDeleteBuffers(1, &(object->EBO));
+            auto& VAO = object->VAO();
+            auto& VBO = object->VBO();
+            auto& EBO = object->EBO();
+
+            glDeleteVertexArrays(1, &VAO);
+            glDeleteBuffers(1, &VBO);
+            glDeleteBuffers(1, &EBO);
         }
     };
-    delete_object_from_opengl(scene_.environment_objects);
-    delete_object_from_opengl(scene_.physics_objects);
+    delete_object_from_opengl(scene_.nodes);
 
     shader_.destroy();
     glfwTerminate();
@@ -372,7 +379,7 @@ void renderer_t::transfer_vertices_to_gpu(
     int position_attribute_location,
     int normal_attribute_location,
     int color_attribute_location,
-    std::shared_ptr<common::node_t> const& object) const
+    std::shared_ptr<common::renderable_node_t> const& object) const
 {
     std::vector<float> cpu_buffer{};
     auto constexpr num_bytes_per_float = sizeof(float);
@@ -380,32 +387,7 @@ void renderer_t::transfer_vertices_to_gpu(
                                         3u * num_bytes_per_float /* nx,ny,nz normal components */ +
                                         3u * num_bytes_per_float /* r,g,b colors */;
 
-    auto const number_of_vertices =
-        static_cast<std::size_t>(object->render_model.vertices().cols());
-    cpu_buffer.reserve(number_of_vertices * size_of_one_vertex);
-    for (std::size_t i = 0u; i < number_of_vertices; ++i)
-    {
-        float const x = static_cast<float>(object->render_model.vertices()(0u, i));
-        float const y = static_cast<float>(object->render_model.vertices()(1u, i));
-        float const z = static_cast<float>(object->render_model.vertices()(2u, i));
-        cpu_buffer.push_back(x);
-        cpu_buffer.push_back(y);
-        cpu_buffer.push_back(z);
-
-        float const nx = static_cast<float>(object->render_model.normals()(0u, i));
-        float const ny = static_cast<float>(object->render_model.normals()(1u, i));
-        float const nz = static_cast<float>(object->render_model.normals()(2u, i));
-        cpu_buffer.push_back(nx);
-        cpu_buffer.push_back(ny);
-        cpu_buffer.push_back(nz);
-
-        float const r = static_cast<float>(object->render_model.colors()(0u, i));
-        float const g = static_cast<float>(object->render_model.colors()(1u, i));
-        float const b = static_cast<float>(object->render_model.colors()(2u, i));
-        cpu_buffer.push_back(r);
-        cpu_buffer.push_back(g);
-        cpu_buffer.push_back(b);
-    }
+    std::vector<float> const& cpu_buffer = object->get_render_vertices();
 
     /**
      * Transfer vertex data to the GPU
@@ -422,7 +404,7 @@ void renderer_t::transfer_vertices_to_gpu(
      */
     auto constexpr stride_between_vertices = size_of_one_vertex;
     auto constexpr vertex_position_offset  = 0u;
-    auto constexpr vertex_normal_offset    = 3u * num_bytes_per_float;
+    auto constexpr vertex_normal_offset    = vertex_position_offset + 3u * num_bytes_per_float;
     auto constexpr vertex_color_offset     = vertex_normal_offset + 3u * num_bytes_per_float;
 
     glVertexAttribPointer(
@@ -455,19 +437,10 @@ void renderer_t::transfer_vertices_to_gpu(
 
 void renderer_t::transfer_indices_to_gpu(
     unsigned int EBO,
-    std::shared_ptr<common::node_t> const& object) const
+    std::shared_ptr<common::renderable_node_t> const& object) const
 {
-    auto const number_of_faces = static_cast<std::size_t>(object->render_model.triangles().cols());
-    auto const num_indices     = 3u * number_of_faces;
-
-    std::vector<std::uint32_t> indices{};
-    indices.reserve(num_indices);
-    for (std::size_t f = 0u; f < number_of_faces; ++f)
-    {
-        indices.push_back(object->render_model.triangles()(0u, f));
-        indices.push_back(object->render_model.triangles()(1u, f));
-        indices.push_back(object->render_model.triangles()(2u, f));
-    }
+    std::vector<std::uint32_t> const& indices = object->get_render_indices();
+    auto const num_indices                    = indices.size();
 
     /**
      * Transfer triangle data to the GPU

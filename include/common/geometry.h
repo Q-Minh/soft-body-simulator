@@ -16,6 +16,14 @@ struct geometry_t
 
     enum class geometry_type_t { triangle, tetrahedron };
     geometry_type_t geometry_type;
+
+    bool has_colors() const;
+    bool has_positions() const;
+    bool has_indices() const;
+    bool has_normals() const;
+    bool has_uvs() const;
+    bool is_triangle_mesh() const;
+    bool is_tetrahedral_mesh() const;
 };
 
 } // namespace common

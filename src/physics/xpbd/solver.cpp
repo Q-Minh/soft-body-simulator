@@ -12,7 +12,7 @@ namespace physics {
 namespace xpbd {
 
 void solver_t::setup(
-    std::vector<std::shared_ptr<common::node_t>>* bodies,
+    std::vector<std::shared_ptr<common::renderable_node_t>>* bodies,
     std::vector<simulation_parameters_t> const& per_body_simulation_parameters)
 {
     bodies_                         = bodies;
@@ -111,7 +111,7 @@ void solver_t::notify_topology_changed()
         bodies_->begin(),
         bodies_->end(),
         std::size_t{0u},
-        [](std::size_t sum, std::shared_ptr<common::node_t> const& body) {
+        [](std::size_t sum, std::shared_ptr<common::renderable_node_t> const& body) {
             std::size_t const num_elements_of_body =
                 static_cast<std::size_t>(body->physical_model.elements().cols());
             return sum + num_elements_of_body;
@@ -129,7 +129,7 @@ void solver_t::notify_topology_changed()
      */
     for (std::size_t b = 0u; b < bodies_->size(); ++b)
     {
-        std::shared_ptr<common::node_t> const& body = (*bodies_)[b];
+        std::shared_ptr<common::renderable_node_t> const& body = (*bodies_)[b];
 
         constraint_type_t const constraint_type =
             per_body_simulation_parameters_[b].constraint_type;

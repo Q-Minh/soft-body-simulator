@@ -28,7 +28,7 @@ class solver_t
 {
   public:
     void setup(
-        std::vector<std::shared_ptr<common::node_t>>* bodies,
+        std::vector<std::shared_ptr<common::renderable_node_t>>* bodies,
         std::vector<simulation_parameters_t> const& per_body_simulation_parameters);
 
     void step(double timestep, std::uint32_t iterations, std::uint32_t substeps);
@@ -41,7 +41,7 @@ class solver_t
     void handle_collisions(std::vector<Eigen::Matrix3Xd> const& P);
 
   private:
-    std::vector<std::shared_ptr<common::node_t>>* bodies_;
+    std::vector<std::shared_ptr<common::renderable_node_t>>* bodies_;
     std::vector<simulation_parameters_t> per_body_simulation_parameters_;
 
     std::vector<std::unique_ptr<constraint_t>> constraints_;

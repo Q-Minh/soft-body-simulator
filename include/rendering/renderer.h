@@ -59,8 +59,8 @@ class renderer_t : public renderer_base_t
     void unload_current_scene();
     void load_scene(common::scene_t const& scene);
 
-    void remove_physics_object_from_scene(std::uint32_t object_idx);
-    std::uint32_t add_physics_object_to_scene(std::shared_ptr<common::node_t> const& node);
+    void remove_object_from_scene(std::uint32_t object_idx);
+    std::uint32_t add_object_to_scene(std::shared_ptr<common::renderable_node_t> const& node);
 
     bool use_shaders(
         std::filesystem::path const& vertex_shader_path,
@@ -99,15 +99,22 @@ class renderer_t : public renderer_base_t
     virtual void
     mouse_button_callback(GLFWwindow* window, int button, int action, int mods) override;
 
+    void render_objects(
+        int position_attribute_location,
+        int normal_attribute_location,
+        int color_attribute_location,
+        std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const;
+
     void transfer_vertices_to_gpu(
         unsigned int VBO,
         int position_attribute_location,
         int normal_attribute_location,
         int color_attribute_location,
-        std::shared_ptr<common::node_t> const& object) const;
+        std::shared_ptr<common::renderable_node_t> const& object) const;
 
-    void
-    transfer_indices_to_gpu(unsigned int EBO, std::shared_ptr<common::node_t> const& object) const;
+    void transfer_indices_to_gpu(
+        unsigned int EBO,
+        std::shared_ptr<common::renderable_node_t> const& object) const;
 
     void update_shader_uniforms() const;
 

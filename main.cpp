@@ -27,54 +27,58 @@ int main(int argc, char** argv)
     sbs::rendering::renderer_t renderer{};
     sbs::physics::xpbd::solver_t solver{};
 
-    auto initial_scene = sbs::io::load_scene(scene_specification_path);
+    auto initial_scene = sbs::io::load_scene(scene_specification_path, );
 
-    auto const cutting_surface_node_it = std::find_if(
-        initial_scene.environment_objects.begin(),
-        initial_scene.environment_objects.end(),
-        [](std::shared_ptr<sbs::common::node_t> const object) { return object->id == "cutter"; });
+    //auto const cutting_surface_node_it = std::find_if(
+    //    initial_scene.nodes.begin(),
+    //    initial_scene.nodes.end(),
+    //    [](std::shared_ptr<sbs::common::renderable_node_t> const object) {
+    //        return object->id() == "cutter";
+    //    });
 
-    std::unique_ptr<sbs::physics::cutting::virtual_scalpel_h> virtual_scalpel{};
-    if (cutting_surface_node_it != initial_scene.environment_objects.end())
-    {
-        std::shared_ptr<sbs::common::node_t> const cutting_surface_node = *cutting_surface_node_it;
-        sbs::common::shared_vertex_surface_mesh_t model_space_cutting_surface =
-            cutting_surface_node->render_model;
+    //std::unique_ptr<sbs::physics::cutting::virtual_scalpel_h> virtual_scalpel{};
+    //if (cutting_surface_node_it != initial_scene.nodes.end())
+    //{
+    //    std::shared_ptr<sbs::common::renderable_node_t> const cutting_surface_node =
+    //        *cutting_surface_node_it;
 
-        virtual_scalpel = std::make_unique<sbs::physics::cutting::virtual_scalpel_h>(
-            sbs::common::line_segment_t{
-                model_space_cutting_surface.vertices().col(0),
-                model_space_cutting_surface.vertices().col(1)},
-            model_space_cutting_surface);
-    }
+    //    auto const& p1 = cutting_surface_node->get_position(0u);
+    //    auto const& p2 = cutting_surface_node->get_position(1u);
 
-    int active_environment_body_idx = 0;
-    int active_physics_body_idx     = 0;
-    std::shared_ptr<sbs::common::node_t> active_environment_node{};
-    std::shared_ptr<sbs::common::node_t> active_physics_node{};
+    //    virtual_scalpel = std::make_unique<sbs::physics::cutting::virtual_scalpel_h>(
+    //        sbs::common::line_segment_t{
+    //            sbs::common::point_t{p1.x, p1.y, p1.z},
+    //            sbs::common::point_t{p2.x, p2.y, p2.z}},
+    //        );
+    //}
+
+    //int active_environment_body_idx = 0;
+    //int active_physics_body_idx     = 0;
+    //std::shared_ptr<sbs::common::renderable_node_t> active_environment_node{};
+    //std::shared_ptr<sbs::common::renderable_node_t> active_physics_node{};
 
     /**
      * physics update goes here
      */
-    std::vector<sbs::physics::xpbd::simulation_parameters_t> per_body_simulation_parameters{};
-    std::vector<sbs::physics::cutting::tetrahedral_mesh_cutter_t> per_body_mesh_cutters{};
-    renderer.on_scene_loaded = [&](sbs::common::scene_t& scene) {
-        per_body_simulation_parameters.clear();
-        per_body_mesh_cutters.clear();
+    //std::vector<sbs::physics::xpbd::simulation_parameters_t> per_body_simulation_parameters{};
+    //std::vector<sbs::physics::cutting::tetrahedral_mesh_cutter_t> per_body_mesh_cutters{};
+    //renderer.on_scene_loaded = [&](sbs::common::scene_t& scene) {
+    //    per_body_simulation_parameters.clear();
+    //    per_body_mesh_cutters.clear();
 
-        for (auto const& body : scene.physics_objects)
-        {
-            sbs::physics::xpbd::simulation_parameters_t params{};
-            per_body_simulation_parameters.push_back(params);
+    //    for (auto const& body : scene.nodes)
+    //    {
+    //        sbs::physics::xpbd::simulation_parameters_t params{};
+    //        per_body_simulation_parameters.push_back(params);
 
-            per_body_mesh_cutters.push_back(
-                sbs::physics::cutting::tetrahedral_mesh_cutter_t{body->physical_model});
+    //        per_body_mesh_cutters.push_back(
+    //            sbs::physics::cutting::tetrahedral_mesh_cutter_t{body->physical_model});
 
-            body->physical_model.forces().setZero();
-        }
+    //        body->physical_model.forces().setZero();
+    //    }
 
-        solver.setup(&scene.physics_objects, per_body_simulation_parameters);
-    };
+    //    solver.setup(&scene.nodes, per_body_simulation_parameters);
+    //};
 
     bool are_physics_active          = false;
     double timestep                  = 1. / 60.;
@@ -101,28 +105,28 @@ int main(int argc, char** argv)
 
         bool has_topology_changed{false};
 
-        virtual_scalpel->step();
-        if (active_environment_node->id == "cutter")
-        {
-            auto const cutting_surface = virtual_scalpel->get_render_swept_surface();
-            for (auto& cutter : per_body_mesh_cutters)
-            {
-                // bool const was_mesh_cut =
-                //    cutter.cut_tetrahedral_mesh(active_environment_node->render_model);
+        //virtual_scalpel->step();
+        //if (active_environment_node->id == "cutter")
+        //{
+        //    auto const cutting_surface = virtual_scalpel->get_render_swept_surface();
+        //    for (auto& cutter : per_body_mesh_cutters)
+        //    {
+        //        // bool const was_mesh_cut =
+        //        //    cutter.cut_tetrahedral_mesh(active_environment_node->render_model);
 
-                bool const was_mesh_cut = cutter.cut_tetrahedral_mesh(cutting_surface);
+        //        bool const was_mesh_cut = cutter.cut_tetrahedral_mesh(cutting_surface);
 
-                if (!was_mesh_cut)
-                    continue;
+        //        if (!was_mesh_cut)
+        //            continue;
 
-                has_topology_changed = true;
-            }
+        //        has_topology_changed = true;
+        //    }
 
-            if (has_topology_changed)
-            {
-                solver.notify_topology_changed();
-            }
-        }
+        //    if (has_topology_changed)
+        //    {
+        //        solver.notify_topology_changed();
+        //    }
+        //}
 
         /**
          * Compute external forces
@@ -167,7 +171,8 @@ int main(int argc, char** argv)
             return;
 
         sbs::common::scene_t const& scene = renderer.scene();
-        sbs::common::node_t& active_node  = *scene.physics_objects[active_physics_body_idx];
+        sbs::common::renderable_node_t& active_node =
+            *scene.physics_objects[active_physics_body_idx];
         sbs::common::shared_vertex_surface_mesh_t const& surface =
             active_node.physical_model.boundary_surface_mesh();
 

@@ -112,16 +112,6 @@ class tetrahedral_mesh_cutter_t
      */
     bool update_topology(common::shared_vertex_surface_mesh_t const& cutting_surface);
 
-    // std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedron(
-    //    std::uint32_t tetrahedron,
-    //    std::byte const edge_intersection_mask,
-    //    std::array<Eigen::Vector3d, 6u> const& edge_intersections,
-    //    std::array<Eigen::Vector3d, 4u> const& face_intersections);
-
-    // std::optional<tetrahedron_mesh_cutter_t::subdivided_element_type> cut_tetrahedron(
-    //    std::uint32_t tetrahedron,
-    //    common::shared_vertex_surface_mesh_t const& cutting_surface);
-
     std::optional<subdivided_element_type>
     subdivide_mesh(std::byte const& edge_intersection_mask, std::uint32_t tetrahedron);
 

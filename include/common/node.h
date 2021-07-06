@@ -17,10 +17,10 @@ struct node_t
 
     shared_vertex_mesh_t physical_model;
     shared_vertex_surface_mesh_t render_model;
-    struct collision_model_t
-    {
-    };
-    collision_model_t collision_model;
+    //struct collision_model_t
+    //{
+    //};
+    //collision_model_t collision_model;
 
     struct render_state_t
     {

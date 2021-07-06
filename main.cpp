@@ -1,9 +1,9 @@
 #include "io/load_scene.h"
 #include "physics/cutting/cut_tetrahedron.h"
+#include "physics/cutting/virtual_scalpel.h"
 #include "physics/xpbd/solver.h"
 #include "rendering/pick.h"
 #include "rendering/renderer.h"
-#include "rendering/trackball_rotation_adapter.h"
 
 #include <chrono>
 #include <imgui/imgui.h>
@@ -27,26 +27,25 @@ int main(int argc, char** argv)
     sbs::rendering::renderer_t renderer{};
     sbs::physics::xpbd::solver_t solver{};
 
-    auto const initial_scene = sbs::io::load_scene(scene_specification_path);
+    auto initial_scene = sbs::io::load_scene(scene_specification_path);
 
     auto const cutting_surface_node_it = std::find_if(
         initial_scene.environment_objects.begin(),
         initial_scene.environment_objects.end(),
-        [](std::shared_ptr<sbs::common::node_t> const object) {
-            return object->id == "cutter";
-        });
+        [](std::shared_ptr<sbs::common::node_t> const object) { return object->id == "cutter"; });
 
-    sbs::rendering::trackball_rotation_adapter_t cutting_surface_trackball_adapter{};
+    std::unique_ptr<sbs::physics::cutting::virtual_scalpel_h> virtual_scalpel{};
     if (cutting_surface_node_it != initial_scene.environment_objects.end())
     {
         std::shared_ptr<sbs::common::node_t> const cutting_surface_node = *cutting_surface_node_it;
         sbs::common::shared_vertex_surface_mesh_t model_space_cutting_surface =
             cutting_surface_node->render_model;
 
-        auto const edges = model_space_cutting_surface.boundary_edges();
-
-        cutting_surface_trackball_adapter =
-            sbs::rendering::trackball_rotation_adapter_t{model_space_cutting_surface};
+        virtual_scalpel = std::make_unique<sbs::physics::cutting::virtual_scalpel_h>(
+            sbs::common::line_segment_t{
+                model_space_cutting_surface.vertices().col(0),
+                model_space_cutting_surface.vertices().col(1)},
+            model_space_cutting_surface);
     }
 
     int active_environment_body_idx = 0;
@@ -101,12 +100,17 @@ int main(int argc, char** argv)
         auto const begin = std::chrono::steady_clock::now();
 
         bool has_topology_changed{false};
+
+        virtual_scalpel->step();
         if (active_environment_node->id == "cutter")
         {
+            auto const cutting_surface = virtual_scalpel->get_render_swept_surface();
             for (auto& cutter : per_body_mesh_cutters)
             {
-                bool const was_mesh_cut =
-                    cutter.cut_tetrahedral_mesh(active_environment_node->render_model);
+                // bool const was_mesh_cut =
+                //    cutter.cut_tetrahedral_mesh(active_environment_node->render_model);
+
+                bool const was_mesh_cut = cutter.cut_tetrahedral_mesh(cutting_surface);
 
                 if (!was_mesh_cut)
                     continue;
@@ -408,56 +412,25 @@ int main(int argc, char** argv)
                     static_cast<double>(ty),
                     static_cast<double>(tz)};
 
+                virtual_scalpel->set_translation(translation);
                 if (should_handle_cutting_surface_rotation)
                 {
-                    cutting_surface_trackball_adapter.set_rotation_speed(
-                        static_cast<double>(sensitivity));
-
-                    cutting_surface_trackball_adapter.set_yaw_axis(Eigen::Vector3d{
+                    virtual_scalpel->set_rotation_speed(static_cast<double>(sensitivity));
+                    virtual_scalpel->set_yaw_axis(Eigen::Vector3d{
                         renderer.camera().front().x,
                         renderer.camera().front().y,
                         renderer.camera().front().z});
-
-                    cutting_surface_trackball_adapter.set_pitch_axis(Eigen::Vector3d{
+                    virtual_scalpel->set_pitch_axis(Eigen::Vector3d{
                         -renderer.camera().right().x,
                         -renderer.camera().right().y,
                         -renderer.camera().right().z});
-
-                    cutting_surface_trackball_adapter.rotate(dx, dy);
+                    virtual_scalpel->rotate(dx, dy);
 
                     should_handle_cutting_surface_rotation = false;
                 }
 
-                active_environment_node->render_model.vertices() =
-                    cutting_surface_trackball_adapter.mesh().vertices();
-                active_environment_node->render_model.vertices().colwise() += translation;
+                active_environment_node->render_model = virtual_scalpel->get_render_swept_surface();
                 active_environment_node->render_state.should_transfer_vertices = true;
-
-                if (ImGui::Button("Cut##Cutting", ImVec2(w / 2.f, 0.f)))
-                {
-                    // bool const is_tetrahedral_mesh =
-                    //    (active_physics_node->physical_model.elements().rows() == 4);
-
-                    // if (is_tetrahedral_mesh)
-                    //{
-                    //    bool const has_mesh_been_cut =
-                    //    sbs::physics::cutting::cut_tetrahedral_mesh(
-                    //        active_physics_node->physical_model,
-                    //        active_environment_node->render_model);
-
-                    //    if (has_mesh_been_cut)
-                    //    {
-                    //        solver.notify_topology_changed();
-                    //        active_physics_node->render_model =
-                    //            active_physics_node->render_state.should_render_wireframe ?
-                    //                active_physics_node->physical_model.facets().to_face_based() :
-                    //                active_physics_node->physical_model.boundary_surface_mesh()
-                    //                    .to_face_based();
-                    //        active_physics_node->render_state.should_transfer_vertices = true;
-                    //        active_physics_node->render_state.should_transfer_indices  = true;
-                    //    }
-                    //}
-                }
 
                 ImGui::TreePop();
             }

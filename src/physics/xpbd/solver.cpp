@@ -22,9 +22,94 @@ void solver_t::setup(
         bodies->size() == per_body_simulation_parameters.size();
     assert(bodies_and_constraint_types_vectors_are_of_same_size);
 
+    notify_topology_changed();
+}
+
+void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t substeps)
+{
+    auto const num_iterations = iterations / substeps;
+    double dt                 = timestep / static_cast<double>(substeps);
+    auto const J              = constraints_.size();
+    std::vector<double> lagrange_multipliers(J, 0.);
+    std::vector<double> collision_lagrange_multipliers{};
+
+    std::vector<Eigen::Matrix3Xd> P{};
+    P.reserve(bodies_->size());
+
+    std::vector<Eigen::VectorXd> M{};
+    M.reserve(bodies_->size());
+
+    for (auto s = 0u; s < substeps; ++s)
+    {
+        P.clear();
+        M.clear();
+
+        /**
+         * Explicit euler step
+         */
+        for (auto const& body : *bodies_)
+        {
+            auto& v = body->physical_model.velocities();
+            auto& x = body->physical_model.positions();
+
+            Eigen::VectorXd const& m     = body->physical_model.masses();
+            Eigen::Matrix3Xd const& fext = body->physical_model.forces();
+            Eigen::Matrix3Xd const a     = fext.array().rowwise() / m.transpose().array();
+
+            auto vexplicit           = v + dt * a;
+            Eigen::Matrix3Xd const p = x + dt * vexplicit;
+            P.push_back(p);
+            M.push_back(m);
+        }
+
+        // generate collision constraints here ...
+        // handle_collisions(P);
+        // std::size_t const Mc = collision_constraints_.size();
+        // collision_lagrange_multipliers.resize(Mc);
+        // std::fill(
+        //    collision_lagrange_multipliers.begin(),
+        //    collision_lagrange_multipliers.end(),
+        //    0.0);
+
+        // sequential gauss seidel type solve
+        std::fill(lagrange_multipliers.begin(), lagrange_multipliers.end(), 0.0);
+        for (auto n = 0u; n < num_iterations; ++n)
+        {
+            for (auto j = 0u; j < J; ++j)
+            {
+                auto const& constraint = constraints_[j];
+                constraint->project(P, M, lagrange_multipliers[j], dt);
+            }
+            // for (auto c = 0u; c < Mc; ++c)
+            //{
+            //    auto const& constraint = collision_constraints_[c];
+            //    constraint->project(P, M, collision_lagrange_multipliers[c], dt);
+            //}
+        }
+
+        // collision_constraints_.clear();
+
+        // update solution
+        for (std::size_t b = 0u; b < bodies_->size(); ++b)
+        {
+            auto const& body = (*bodies_)[b];
+            auto const& p    = P[b];
+            auto const& x    = body->physical_model.positions();
+
+            body->physical_model.velocities() = (p - x) / dt;
+            body->physical_model.positions()  = p;
+        }
+
+        // friction or other non-conservative forces here ...
+    }
+}
+
+void solver_t::notify_topology_changed()
+{
+    constraints_.clear();
     std::size_t const num_elements = std::accumulate(
-        bodies->begin(),
-        bodies->end(),
+        bodies_->begin(),
+        bodies_->end(),
         std::size_t{0u},
         [](std::size_t sum, std::shared_ptr<common::node_t> const& body) {
             std::size_t const num_elements_of_body =
@@ -42,7 +127,7 @@ void solver_t::setup(
     /**
      * Initialize constraints
      */
-    for (std::size_t b = 0u; b < bodies->size(); ++b)
+    for (std::size_t b = 0u; b < bodies_->size(); ++b)
     {
         std::shared_ptr<common::node_t> const& body = (*bodies_)[b];
 
@@ -97,91 +182,6 @@ void solver_t::setup(
     }
 }
 
-void solver_t::step(double timestep, std::uint32_t iterations, std::uint32_t substeps)
-{
-    auto const num_iterations = iterations / substeps;
-    double dt                 = timestep / static_cast<double>(substeps);
-    auto const J              = constraints_.size();
-    std::vector<double> lagrange_multipliers(J, 0.);
-    std::vector<double> collision_lagrange_multipliers{};
-
-    std::vector<Eigen::Matrix3Xd> P{};
-    P.reserve(bodies_->size());
-
-    std::vector<Eigen::VectorXd> M{};
-    M.reserve(bodies_->size());
-
-    for (auto s = 0u; s < substeps; ++s)
-    {
-        P.clear();
-        M.clear();
-
-        /**
-         * Explicit euler step
-         */
-        for (auto const& body : *bodies_)
-        {
-            auto& v = body->physical_model.velocities();
-            auto& x = body->physical_model.positions();
-
-            Eigen::VectorXd const& m     = body->physical_model.masses();
-            Eigen::Matrix3Xd const& fext = body->physical_model.forces();
-            Eigen::Matrix3Xd const a     = fext.array().rowwise() / m.transpose().array();
-
-            auto vexplicit           = v + dt * a;
-            Eigen::Matrix3Xd const p = x + dt * vexplicit;
-            P.push_back(std::move(p));
-            M.push_back(std::move(m));
-        }
-
-        // generate collision constraints here ...
-        handle_collisions(P);
-        std::size_t const Mc = collision_constraints_.size();
-        collision_lagrange_multipliers.resize(Mc);
-        std::fill(
-            collision_lagrange_multipliers.begin(),
-            collision_lagrange_multipliers.end(),
-            0.0);
-
-        // sequential gauss seidel type solve
-        std::fill(lagrange_multipliers.begin(), lagrange_multipliers.end(), 0.0);
-        for (auto n = 0u; n < num_iterations; ++n)
-        {
-            for (auto j = 0u; j < J; ++j)
-            {
-                auto const& constraint = constraints_[j];
-                constraint->project(P, M, lagrange_multipliers[j], dt);
-            }
-            for (auto c = 0u; c < Mc; ++c)
-            {
-                auto const& constraint = collision_constraints_[c];
-                constraint->project(P, M, collision_lagrange_multipliers[c], dt);
-            }
-        }
-
-        collision_constraints_.clear();
-
-        // update solution
-        for (std::size_t b = 0u; b < bodies_->size(); ++b)
-        {
-            auto const& body = (*bodies_)[b];
-            auto const& p    = P[b];
-            auto const& x    = body->physical_model.positions();
-
-            body->physical_model.velocities() = (p - x) / dt;
-            body->physical_model.positions()  = p;
-        }
-
-        // friction or other non-conservative forces here ...
-    }
-}
-
-void solver_t::notify_topology_changed()
-{
-    constraints_.clear();
-    this->setup(bodies_, per_body_simulation_parameters_);
-}
-
 simulation_parameters_t const&
 solver_t::get_simulation_parameters_for_body(std::uint32_t index) const
 {
@@ -223,7 +223,7 @@ void solver_t::handle_collisions(std::vector<Eigen::Matrix3Xd> const& P)
 
         /**
          * Detect and handle collisions against other physically simulated bodies
-        */
+         */
         for (std::size_t bj = 0u; bj < bodies_->size(); ++bj)
         {
             if (bj == bi)

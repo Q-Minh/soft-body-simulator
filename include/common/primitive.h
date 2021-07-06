@@ -15,6 +15,13 @@ using vector3d_t  = Eigen::Vector3d;
 struct line_segment_t
 {
     line_segment_t(point_t const& p, point_t const& q);
+
+    friend bool operator==(line_segment_t const& l1, line_segment_t const& l2);
+    friend bool operator!=(line_segment_t const& l1, line_segment_t const& l2);
+    friend line_segment_t operator*(Eigen::Matrix3d const& R, line_segment_t const& l);
+    friend line_segment_t operator+(line_segment_t const& l, vector3d_t const& t);
+    friend line_segment_t operator+(vector3d_t const& t, line_segment_t const& l);
+
     point_t p, q;
 };
 

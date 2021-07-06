@@ -81,19 +81,7 @@
             "id": "cutter",
             "geometry": {
                 "type": "triangle mesh",
-                "path": "../meshes/xz_plane.ply"
-            },
-            "box": {
-                "min": {
-                    "x": -1.0,
-                    "y": 0.0,
-                    "z": -1.0
-                },
-                "max": {
-                    "x": 1.0,
-                    "y": 0.0,
-                    "z": 1.0
-                }
+                "path": "../meshes/line.ply"
             },
             "color": {
                 "r": 255,

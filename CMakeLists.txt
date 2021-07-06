@@ -125,8 +125,10 @@ PRIVATE
 
     # physics/cutting
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/cutting/cut_tetrahedron.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/cutting/virtual_scalpel.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/cutting/cut_tetrahedron.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/cutting/virtual_scalpel.cpp"
 
     # rendering
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/camera.h"

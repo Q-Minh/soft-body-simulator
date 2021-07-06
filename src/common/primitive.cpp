@@ -22,6 +22,31 @@ sphere_t::sphere_t(point_t const& center, double radius) : center(center), radiu
 
 aabb_t::aabb_t(point_t const& center, vector3d_t const& extent) : center(center), extent(extent) {}
 
+bool operator==(line_segment_t const& l1, line_segment_t const& l2)
+{
+    return (l1.p == l2.p) && (l1.q == l2.q);
+}
+
+bool operator!=(line_segment_t const& l1, line_segment_t const& l2)
+{
+    return !(l1 == l2);
+}
+
+line_segment_t operator+(line_segment_t const& l, vector3d_t const& t)
+{
+    return line_segment_t(l.p + t, l.q + t);
+}
+
+line_segment_t operator+(vector3d_t const& t, line_segment_t const& l)
+{
+    return l + t;
+}
+
+line_segment_t operator*(Eigen::Matrix3d const& R, line_segment_t const& l)
+{
+    return line_segment_t(R * l.p, R * l.q);
+}
+
 std::tuple<double, double, double>
 barycentric_coordinates(point_t const& A, point_t const& B, point_t const& C, point_t const& p)
 {

@@ -30,6 +30,7 @@ struct triangle_t
     triangle_t(point_t const& a, point_t const& b, point_t const& c);
 
     normal_t normal() const;
+    double area() const;
 
     point_t a, b, c;
 };

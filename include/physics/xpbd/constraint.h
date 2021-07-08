@@ -1,32 +1,32 @@
 #ifndef SBS_PHYSICS_XPBD_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_CONSTRAINT_H
 
-#include "common/scene.h"
-
-#include <Eigen/Core>
-#include <cstdint>
+#include <memory>
+#include <vector>
 
 namespace sbs {
 namespace physics {
 namespace xpbd {
 
+// forward declares
+class tetrahedral_mesh_t;
+
 class constraint_t
 {
   public:
-    using scalar_type    = double;
-    using index_type     = std::uint32_t;
-    using positions_type = Eigen::Matrix3Xd;
-    using masses_type    = Eigen::VectorXd;
+    using scalar_type = double;
 
     constraint_t(scalar_type const alpha) : alpha_(alpha) {}
 
     virtual void project(
-        std::vector<positions_type>& positions,
-        std::vector<masses_type> const& masses,
+        std::vector<std::shared_ptr<tetrahedral_mesh_t>> const& bodies,
         scalar_type& lagrange_multiplier,
         scalar_type const dt) const = 0;
 
-  protected:
+    scalar_type const& alpha() const;
+    scalar_type& alpha();
+
+  private:
     scalar_type alpha_;
 };
 

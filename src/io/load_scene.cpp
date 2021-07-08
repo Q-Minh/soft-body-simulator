@@ -269,7 +269,7 @@ common::scene_t load_scene(
 
         auto const& physics_spec        = object_spec["physics"];
         std::string const body_type_str = physics_spec["type"].get<std::string>();
-        double const mass_per_vertex    = physics_spec["mass"].get<double>();
+        double const mass_density       = physics_spec["mass"].get<double>();
         auto const& velocity_spec       = physics_spec["velocity"];
         double const vx                 = velocity_spec["x"].get<double>();
         double const vy                 = velocity_spec["y"].get<double>();
@@ -321,8 +321,12 @@ common::scene_t load_scene(
         }
 
         scene::physics_body_info pbi;
-        pbi.id       = id;
-        pbi.geometry = geometry.value();
+        pbi.id           = id;
+        pbi.geometry     = geometry.value();
+        pbi.velocity.vx  = vx;
+        pbi.velocity.vy  = vy;
+        pbi.velocity.vz  = vz;
+        pbi.mass_density = mass_density;
 
         auto node = physics_body_factory(pbi);
         node->set_id(pbi.id);

@@ -116,12 +116,16 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/constraint.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/distance_constraint.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/green_constraint.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/mesh.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/simulation_parameters.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/solver.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/collision_constraint.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/constraint.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/distance_constraint.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/green_constraint.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/mesh.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/simulation_parameters.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/solver.cpp"
 
     # physics/collision
@@ -141,12 +145,14 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/renderer.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/shader.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/trackball_rotation_adapter.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/rendering/physics_timestep_throttler.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/rendering/pick.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/camera.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/renderer.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/shader.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/trackball_rotation_adapter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/rendering/physics_timestep_throttler.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/rendering/pick.cpp"
 )
 target_include_directories(sbs-viewer 

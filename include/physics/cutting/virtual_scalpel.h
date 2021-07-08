@@ -4,18 +4,18 @@
 //#include "common/mesh.h"
 //#include "common/primitive.h"
 //
-//namespace sbs {
-//namespace physics {
-//namespace cutting {
+// namespace sbs {
+// namespace physics {
+// namespace cutting {
 //
-//class virtual_scalpel_h
+// class virtual_scalpel_h : public common::renderable_node_t
 //{
 //  public:
 //    using self_type = virtual_scalpel_h;
 //
 //    virtual_scalpel_h(
 //        common::line_segment_t const& l,
-//        common::shared_vertex_surface_mesh_t const& render_model,
+//        common::quad_t const& render_model,
 //        double rotation_speed = 1e-3,
 //        double eps            = 1e-10);
 //    virtual_scalpel_h(self_type const& rhs) = default;
@@ -51,7 +51,7 @@
 //    Eigen::Vector3d pitch_axis_, yaw_axis_;
 //    double eps_;
 //
-//    common::shared_vertex_surface_mesh_t render_model_;
+//    common::quad_t render_model_;
 //    state_t state_;
 //};
 //

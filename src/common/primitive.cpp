@@ -16,6 +16,11 @@ normal_t triangle_t::normal() const
     return ab.cross(ac).normalized();
 }
 
+double triangle_t::area() const
+{
+    return 0.5 * (b - a).cross(c - a).norm();
+}
+
 ray_t::ray_t(point_t const& p, direction_t const& v) : p(p), v(v) {}
 
 sphere_t::sphere_t(point_t const& center, double radius) : center(center), radius(radius) {}

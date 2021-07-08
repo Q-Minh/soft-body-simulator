@@ -1,7 +1,9 @@
 #include "physics/xpbd/green_constraint.h"
 
-#include <Eigen/SVD>
+#include "physics/xpbd/mesh.h"
+
 #include <Eigen/LU>
+#include <Eigen/SVD>
 
 namespace sbs {
 namespace physics {
@@ -9,31 +11,35 @@ namespace xpbd {
 
 green_constraint_t::green_constraint_t(
     scalar_type const alpha,
-    positions_type const& positions,
-    index_pair_type const& vb1,
-    index_pair_type const& vb2,
-    index_pair_type const& vb3,
-    index_pair_type const& vb4,
+    position_key_type const& vb1,
+    position_key_type const& vb2,
+    position_key_type const& vb3,
+    position_key_type const& vb4,
     scalar_type young_modulus,
     scalar_type poisson_ratio)
     : constraint_t(alpha),
-      v1_(vb1.first),
-      v2_(vb2.first),
-      v3_(vb3.first),
-      v4_(vb4.first),
-      b1_(vb1.second),
-      b2_(vb2.second),
-      b3_(vb3.second),
-      b4_(vb4.second),
+      b1_(vb1.first),
+      v1_(vb1.second),
+      b2_(vb2.first),
+      v2_(vb2.second),
+      b3_(vb3.first),
+      v3_(vb3.second),
+      b4_(vb4.first),
+      v4_(vb4.second),
       DmInv_(),
       V0_(),
       mu_(),
       lambda_()
 {
-    Eigen::Vector3d const p1 = positions.col(v1_);
-    Eigen::Vector3d const p2 = positions.col(v2_);
-    Eigen::Vector3d const p3 = positions.col(v3_);
-    Eigen::Vector3d const p4 = positions.col(v4_);
+    physics::vertex_t const& v1 = b1_->vertices().at(v1_);
+    physics::vertex_t const& v2 = b2_->vertices().at(v2_);
+    physics::vertex_t const& v3 = b3_->vertices().at(v3_);
+    physics::vertex_t const& v4 = b4_->vertices().at(v4_);
+
+    Eigen::Vector3d const p1 = v1.position();
+    Eigen::Vector3d const p2 = v2.position();
+    Eigen::Vector3d const p3 = v3.position();
+    Eigen::Vector3d const p4 = v4.position();
 
     Eigen::Matrix3d Dm;
     Dm.col(0) = (p1 - p4).transpose();
@@ -47,20 +53,24 @@ green_constraint_t::green_constraint_t(
 }
 
 void green_constraint_t::project(
-    std::vector<positions_type>& positions,
-    std::vector<masses_type> const& masses,
+    std::vector<std::shared_ptr<tetrahedral_mesh_t>> const& positions,
     scalar_type& lagrange_multiplier,
     scalar_type const dt) const
 {
-    auto const p1 = positions[b1_].col(v1_);
-    auto const p2 = positions[b2_].col(v2_);
-    auto const p3 = positions[b3_].col(v3_);
-    auto const p4 = positions[b4_].col(v4_);
+    physics::vertex_t& v1 = b1_->vertices().at(v1_);
+    physics::vertex_t& v2 = b2_->vertices().at(v2_);
+    physics::vertex_t& v3 = b3_->vertices().at(v3_);
+    physics::vertex_t& v4 = b4_->vertices().at(v4_);
 
-    auto const w1 = 1. / masses[b1_](v1_);
-    auto const w2 = 1. / masses[b2_](v2_);
-    auto const w3 = 1. / masses[b3_](v3_);
-    auto const w4 = 1. / masses[b4_](v4_);
+    Eigen::Vector3d const p1 = v1.position();
+    Eigen::Vector3d const p2 = v2.position();
+    Eigen::Vector3d const p3 = v3.position();
+    Eigen::Vector3d const p4 = v4.position();
+
+    auto const w1 = 1. / v1.mass();
+    auto const w2 = 1. / v2.mass();
+    auto const w3 = 1. / v3.mass();
+    auto const w4 = 1. / v4.mass();
 
     auto const Vsigned        = signed_volume(p1, p2, p3, p4);
     bool const is_V_positive  = Vsigned >= 0.;
@@ -136,16 +146,16 @@ void green_constraint_t::project(
         return;
 
     scalar_type const C           = V0 * psi;
-    scalar_type const alpha_tilde = alpha_ / (dt * dt);
+    scalar_type const alpha_tilde = alpha() / (dt * dt);
     scalar_type const delta_lagrange =
         -(C + alpha_tilde * lagrange_multiplier) / (weighted_sum_of_gradients + alpha_tilde);
 
     lagrange_multiplier += delta_lagrange;
     // because f = - grad(potential), then grad(potential) = -f and thus grad(C) = -f
-    positions[b1_].col(v1_) += w1 * -f1 * delta_lagrange;
-    positions[b2_].col(v2_) += w2 * -f2 * delta_lagrange;
-    positions[b3_].col(v3_) += w3 * -f3 * delta_lagrange;
-    positions[b4_].col(v4_) += w4 * -f4 * delta_lagrange;
+    v1.position() += w1 * -f1 * delta_lagrange;
+    v2.position() += w2 * -f2 * delta_lagrange;
+    v3.position() += w3 * -f3 * delta_lagrange;
+    v4.position() += w4 * -f4 * delta_lagrange;
 }
 
 green_constraint_t::scalar_type green_constraint_t::signed_volume(

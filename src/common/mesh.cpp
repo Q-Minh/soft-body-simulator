@@ -3,9 +3,9 @@
 #include "common/geometry.h"
 #include "common/primitive.h"
 
-#include <algorithm>
 #include <array>
 #include <numeric>
+#include "..\..\include\physics\xpbd\mesh.h"
 
 namespace sbs {
 namespace common {
@@ -138,7 +138,39 @@ shared_vertex_surface_mesh_i::vertex_type static_mesh::vertex(std::size_t vi) co
     return v;
 }
 
-shared_vertex_surface_mesh_i::triangle_type static_mesh::triangle(std::size_t f)
+shared_vertex_surface_mesh_i::triangle_type static_mesh::triangle(std::size_t f) const
+{
+    auto const& index_buffer = get_cpu_index_buffer();
+    triangle_type t{};
+    auto const idx = f * 3u;
+    t.v1           = index_buffer[idx + 0u];
+    t.v2           = index_buffer[idx + 1u];
+    t.v3           = index_buffer[idx + 2u];
+    return t;
+}
+
+dynamic_surface_mesh::dynamic_surface_mesh(geometry_t const& geometry) {}
+
+void dynamic_surface_mesh::prepare_vertices_for_rendering() {}
+
+void dynamic_surface_mesh::prepare_indices_for_rendering() {}
+
+std::size_t dynamic_surface_mesh::triangle_count() const
+{
+    return std::size_t();
+}
+
+std::size_t dynamic_surface_mesh::vertex_count() const
+{
+    return std::size_t();
+}
+
+dynamic_surface_mesh::vertex_type dynamic_surface_mesh::vertex(std::size_t vi) const
+{
+    return vertex_type();
+}
+
+dynamic_surface_mesh::triangle_type dynamic_surface_mesh::triangle(std::size_t fi) const
 {
     return triangle_type();
 }

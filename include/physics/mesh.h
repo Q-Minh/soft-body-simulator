@@ -1,8 +1,7 @@
 #ifndef SBS_PHYSICS_MESH_H
 #define SBS_PHYSICS_MESH_H
 
-#include "common/geometry.h"
-#include "common/node.h"
+#include "common/mesh.h"
 
 #include <Eigen/Core>
 #include <array>
@@ -246,6 +245,26 @@ struct build_topology_parameters_t
 
     bool edge_to_triangle{false};   ///< Edges must have references to their adjacent triangles
     bool edge_to_tetrahedra{false}; ///< Edges must have references to their adjacent tetrahedra
+
+    void include_vertex_to_edge_adjacency();
+    void include_vertex_to_triangle_adjacency();
+    void include_vertex_to_tetrahedra_adjacency();
+    void include_triangle_to_edge_adjacency();
+    void include_triangle_to_tetrahedra_adjacency();
+    void include_tetrahedron_to_edge_adjacency();
+    void include_tetrahedron_to_triangle_adjacency();
+    void include_edge_to_triangle_adjacency();
+    void include_edge_to_tetrahedra_adjacency();
+
+    void exclude_vertex_to_edge_adjacency();
+    void exclude_vertex_to_triangle_adjacency();
+    void exclude_vertex_to_tetrahedra_adjacency();
+    void exclude_triangle_to_edge_adjacency();
+    void exclude_triangle_to_tetrahedra_adjacency();
+    void exclude_tetrahedron_to_edge_adjacency();
+    void exclude_tetrahedron_to_triangle_adjacency();
+    void exclude_edge_to_triangle_adjacency();
+    void exclude_edge_to_tetrahedra_adjacency();
 };
 
 class topological_simulated_tetrahedral_mesh_t
@@ -270,8 +289,8 @@ class topological_simulated_tetrahedral_mesh_t
     std::vector<vertex_t> const& vertices() const;
     std::vector<vertex_t>& vertices();
 
-    std::vector<edge_t> const& edge_indices() const;
-    std::vector<edge_t>& edge_indices();
+    std::vector<edge_t> const& edges() const;
+    std::vector<edge_t>& edges();
 
     std::vector<triangle_t> const& triangles() const;
     std::vector<triangle_t>& triangles();
@@ -281,6 +300,10 @@ class topological_simulated_tetrahedral_mesh_t
 
     build_topology_parameters_t const& topology_parameters() const;
     void build_topology(build_topology_parameters_t const& params);
+
+    std::vector<triangle_t const*> boundary_triangles() const;
+
+    std::size_t boundary_triangle_count() const;
 
     /**
      * @brief Get adjacent tetrahedra to the given edge
@@ -371,21 +394,71 @@ class topological_simulated_tetrahedral_mesh_t
  * Mesh that can be used for simulation as well as rendering.
  * Renders as a face-based mesh.
  */
-class renderable_topological_simulated_tetrahedral_mesh
+class renderable_topological_simulated_tetrahedral_mesh_t
     : public topological_simulated_tetrahedral_mesh_t,
       public common::renderable_node_t
 {
   public:
-    renderable_topological_simulated_tetrahedral_mesh(
+    renderable_topological_simulated_tetrahedral_mesh_t(
         common::geometry_t const& geometry,
         build_topology_parameters_t const& params = build_topology_parameters_t{});
 
     // TODO: Support wireframe rendering
     virtual void prepare_vertices_for_rendering() override;
     virtual void prepare_indices_for_rendering() override;
+};
+
+/**
+ * @brief Surface mesh representation of a tetrahedral mesh's boundary surface.
+ */
+class tetrahedral_mesh_surface_mesh_adapter_t : public common::shared_vertex_surface_mesh_i
+{
+  public:
+    using vertex_type   = common::shared_vertex_surface_mesh_i::vertex_type;
+    using triangle_type = common::shared_vertex_surface_mesh_i::triangle_type;
+
+    tetrahedral_mesh_surface_mesh_adapter_t(topological_simulated_tetrahedral_mesh_t const* mesh);
+
+    virtual std::size_t triangle_count() const override;
+    virtual std::size_t vertex_count() const override;
+
+    virtual shared_vertex_surface_mesh_i::vertex_type vertex(std::size_t vi) const override;
+    virtual shared_vertex_surface_mesh_i::triangle_type triangle(std::size_t f) const override;
+
+    /**
+     * @brief Gets the mapping from this surface mesh's vertex indices to its underlying tetrahedral
+     * mesh's vertex indices
+     * @return The map from surface mesh vertex indices to tetrahedral mesh indices
+     */
+    std::vector<index_type> const& surface_to_tetrahedral_mesh_index_map() const;
+
+    /**
+     * @brief Returns the tetrahedral mesh's corresponding index of the surface mesh's index vi.
+     * @param vi The surface mesh's vertex index
+     * @return The tetrahedral mesh's vertex index corresponding to the surface mesh's vertex index
+     * vi
+     */
+    index_type from_surface_vertex(std::size_t vi) const;
+
+    /**
+     * @brief Recompute the tetrahedral mesh's boundary surface mesh
+     */
+    void extract_boundary_surface();
+    /**
+     * @brief Compute the boundary surface mesh's vertex normals
+     */
+    void extract_surface_normals();
+
+    topological_simulated_tetrahedral_mesh_t const* tetrahedral_mesh() const;
 
   private:
-    std::size_t boundary_triangle_count() const;
+    vertex_type from_physics_vertex(vertex_t const& v);
+
+  private:
+    topological_simulated_tetrahedral_mesh_t const* mesh_;
+    std::vector<index_type> index_map_;
+    std::vector<shared_vertex_surface_mesh_i::vertex_type> vertices_;
+    std::vector<shared_vertex_surface_mesh_i::triangle_type> triangles_;
 };
 
 } // namespace physics

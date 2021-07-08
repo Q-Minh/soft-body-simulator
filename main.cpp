@@ -1,9 +1,10 @@
-#include "io/load_scene.h"
-#include "rendering/renderer.h"
 #include "common/mesh.h"
-#include "physics/mesh.h"
+#include "io/load_scene.h"
+#include "physics/xpbd/mesh.h"
+#include "physics/xpbd/solver.h"
+#include "rendering/physics_timestep_throttler.h"
+#include "rendering/renderer.h"
 
-#include <chrono>
 #include <imgui/imgui.h>
 #include <iostream>
 
@@ -23,12 +24,35 @@ int main(int argc, char** argv)
     std::filesystem::path const fragment_shader_path{argv[3]};
 
     sbs::rendering::renderer_t renderer{};
-    //sbs::physics::xpbd::solver_t solver{};
+    sbs::physics::xpbd::solver_t solver{};
+
+    renderer.on_scene_loaded = [&](sbs::common::scene_t& scene) {
+        solver.setup(scene.nodes);
+        solver.timestep()   = 0.0167;
+        solver.substeps()   = 30u;
+        solver.iterations() = 30u;
+    };
+
+    auto const step = [&](sbs::rendering::physics_timestep_throttler_t& throttler,
+                          double frame_dt,
+                          sbs::common::scene_t& scene) {
+        throttler.timestep() = solver.timestep();
+
+        solver.step();
+
+        for (auto const& body : solver.simulated_bodies())
+        {
+            body->mark_vertices_dirty();
+        }
+    };
+    sbs::rendering::physics_timestep_throttler_t throttler{solver.timestep(), step};
+    renderer.on_new_physics_timestep = [&](double frame_dt, sbs::common::scene_t& scene) {
+        throttler(frame_dt, scene);
+    };
 
     auto const environment_node_factory = [](sbs::io::scene::scene_body_info const& sbi)
         -> std::shared_ptr<sbs::common::renderable_node_t> {
-        return std::make_shared<sbs::common::static_mesh>(
-            sbi.geometry);
+        return std::make_shared<sbs::common::static_mesh>(sbi.geometry);
     };
 
     auto const physics_node_factory = [](sbs::io::scene::physics_body_info const& pbi)
@@ -39,10 +63,12 @@ int main(int argc, char** argv)
         topological_params.triangle_to_tetrahedra  = true;
         topological_params.tetrahedron_to_triangle = true;
 
-        auto node =
-            std::make_shared<sbs::physics::renderable_topological_simulated_tetrahedral_mesh>(
-                pbi.geometry,
-                topological_params);
+        sbs::physics::xpbd::simulation_parameters_t simulation_params{};
+
+        auto node = std::make_shared<sbs::physics::xpbd::tetrahedral_mesh_t>(
+            pbi.geometry,
+            simulation_params,
+            topological_params);
 
         for (sbs::physics::vertex_t& vertex : node->vertices())
         {
@@ -51,7 +77,7 @@ int main(int argc, char** argv)
                 pbi.velocity.vy,
                 pbi.velocity.vz};
 
-            vertex.mass() = 1.;
+            vertex.mass() = 0.01;
         }
 
         for (sbs::physics::tetrahedron_t& tetrahedron : node->tetrahedra())
@@ -252,10 +278,11 @@ int main(int argc, char** argv)
         return result;
     };*/
 
-    /*renderer.on_new_imgui_frame = [&](sbs::common::scene_t& scene) {
+    renderer.on_new_imgui_frame = [&](sbs::common::scene_t& scene) {
         ImGui::Begin("Soft Body Simulator");
-
-        active_environment_node = scene.environment_objects[active_environment_body_idx];
+        std::string const fps_str = "FPS: " + std::to_string(throttler.fps());
+        ImGui::Text(fps_str.c_str());
+        /*active_environment_node = scene.environment_objects[active_environment_body_idx];
         active_physics_node     = scene.physics_objects[active_physics_body_idx];
 
         if (ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_None))
@@ -431,10 +458,10 @@ int main(int argc, char** argv)
 
                 ImGui::TreePop();
             }
-        }
+        }*/
 
         ImGui::End();
-    };*/
+    };
 
     bool const initialization_success = renderer.initialize();
     bool const shader_loading_success =

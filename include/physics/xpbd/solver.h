@@ -3,55 +3,102 @@
 
 #include "constraint.h"
 
+#include <Eigen/Core>
+#include <array>
+#include <map>
 #include <memory>
 #include <vector>
 
 namespace sbs {
+
+// forward declares
+namespace common {
+
+class renderable_node_t;
+class shared_vertex_surface_mesh_i;
+
+} // namespace common
+
 namespace physics {
 namespace xpbd {
 
-enum class constraint_type_t { green, distance };
-
-struct simulation_parameters_t
-{
-    double alpha                      = 0.1;
-    constraint_type_t constraint_type = constraint_type_t::green;
-
-    /**
-     * FEM parameters
-     */
-    double young_modulus = 1e6;
-    double poisson_ratio = 0.45;
-};
+// forward declare
+class tetrahedral_mesh_t;
 
 class solver_t
 {
   public:
-    void setup(
-        std::vector<std::shared_ptr<common::renderable_node_t>>* bodies,
-        std::vector<simulation_parameters_t> const& per_body_simulation_parameters);
+    solver_t() = default;
+    solver_t(double timestep, std::uint32_t iterations, std::uint32_t substeps);
+    solver_t(std::vector<std::shared_ptr<common::renderable_node_t>> const& bodies);
+    solver_t(
+        double timestep,
+        std::uint32_t iterations,
+        std::uint32_t substeps,
+        std::vector<std::shared_ptr<common::renderable_node_t>> const& bodies);
 
-    void step(double timestep, std::uint32_t iterations, std::uint32_t substeps);
-    void notify_topology_changed();
+    void setup(std::vector<std::shared_ptr<common::renderable_node_t>> const& bodies);
+    void reset();
+    void step();
 
-    simulation_parameters_t const& get_simulation_parameters_for_body(std::uint32_t index) const;
-    simulation_parameters_t& get_simulation_parameters_for_body(std::uint32_t index);
+    double const& timestep() const;
+    double& timestep();
+
+    std::uint32_t const& iterations() const;
+    std::uint32_t& iterations();
+
+    std::uint32_t const& substeps() const;
+    std::uint32_t& substeps();
+
+    std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& simulated_bodies() const;
 
   protected:
     void handle_collisions(std::vector<Eigen::Matrix3Xd> const& P);
 
-  private:
-    std::vector<std::shared_ptr<common::renderable_node_t>>* bodies_;
-    std::vector<simulation_parameters_t> per_body_simulation_parameters_;
+    void create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body);
+    void create_distance_constraints_for_body(xpbd::tetrahedral_mesh_t* body);
 
-    std::vector<std::unique_ptr<constraint_t>> constraints_;
-    std::vector<std::unique_ptr<constraint_t>> collision_constraints_;
-    // std::vector<std::uint32_t>
-    //    garbage_collected_constraints_; ///< We collect, in this list, indices of constraints that
-    //                                    ///< have been removed, because it is too expensive to
-    //                                    ///< remove them directly from the list of constraints
-    //                                    ///< or because we wish to preserve the ordering of the
-    //                                    ///< constraints
+  private:
+    using constraint_map_key_type = std::pair<xpbd::tetrahedral_mesh_t*, std::uint32_t>;
+
+    struct constraint_map_key_less
+    {
+        bool operator()(constraint_map_key_type const& key1, constraint_map_key_type const& key2)
+        {
+            std::pair<std::uintptr_t, std::uint32_t> const a1{
+                reinterpret_cast<std::uintptr_t>(key1.first),
+                key1.second};
+
+            std::pair<std::uintptr_t, std::uint32_t> const a2{
+                reinterpret_cast<std::uintptr_t>(key2.first),
+                key2.second};
+
+            return a1 < a2;
+        }
+    };
+
+    std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>>
+        physics_bodies_; ///< List of XPBD based physically simulated bodies
+    std::vector<std::shared_ptr<common::shared_vertex_surface_mesh_i>>
+        environment_bodies_; ///< List of non-simulated bodies participating in collision
+                             ///< detection/handling
+
+    std::vector<std::unique_ptr<constraint_t>> constraints_; ///< List of XPBD constraints
+    std::vector<std::unique_ptr<constraint_t>>
+        collision_constraints_; ///< List of XPBD collision constraints that is rebuilt every frame
+
+    std::map<
+        constraint_map_key_type,
+        std::uint32_t /* index of constraint */,
+        constraint_map_key_less>
+        tetrahedron_to_constraint_map_; ///< Mapping from body/tetrahedron to its corresponding
+                                        ///< constraint's index in the list of constraints
+
+    double dt_;                                    ///< Timestep duration of the simulation
+    std::uint32_t substeps_;                       ///< Number of substeps in one solver step
+    std::uint32_t iteration_count_;                ///< Number of iterations per substep
+    std::vector<std::vector<Eigen::Vector3d>> x0_; ///< Initial positions of one timestep
+    std::vector<double> lagrange_multipliers_;     ///< Lagrange multipliers of XPBD formulation
 };
 
 } // namespace xpbd

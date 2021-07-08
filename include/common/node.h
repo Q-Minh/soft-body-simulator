@@ -46,28 +46,15 @@ class renderable_node_t
     void set_as_environment_body();
     void set_as_physically_simulated_body();
 
-    std::vector<float> const& get_render_vertices() const;
-    std::vector<std::uint32_t> const& get_render_indices() const;
+    std::vector<float> const& get_cpu_vertex_buffer() const;
+    std::vector<std::uint32_t> const& get_cpu_index_buffer() const;
 
     virtual void prepare_vertices_for_rendering() = 0;
     virtual void prepare_indices_for_rendering()  = 0;
 
-    struct position_t
-    {
-        float x, y, z;
-    };
-    struct normal_t
-    {
-        float nx, ny, nz;
-    };
-    struct triangle_t
-    {
-        unsigned int v1, v2, v3;
-    };
-
-    position_t get_position(unsigned int v) const;
-    normal_t get_normal(unsigned int v) const;
-    triangle_t get_triangle(unsigned int t) const;
+  protected:
+    void transfer_vertices_for_rendering(std::vector<float>&& vertices);
+    void transfer_indices_for_rendering(std::vector<std::uint32_t>&& indices);
 
   private:
     std::string id_;
@@ -81,8 +68,8 @@ class renderable_node_t
 
     enum class body_type_t { environment, physical } body_type_;
 
-    std::vector<float> vertices_;        ///< (x,y,z,nx,ny,nz,r,g,b)
-    std::vector<std::uint32_t> indices_; ///< (v1, v2, v3)
+    std::vector<float> cpu_vertex_buffer_;        ///< (x,y,z,nx,ny,nz,r,g,b)
+    std::vector<std::uint32_t> cpu_index_buffer_; ///< (v1, v2, v3)
 
     unsigned int VBO_;
     unsigned int VAO_;

@@ -157,7 +157,7 @@ void renderer_t::render_objects(
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
 
-        auto const num_indices = object->get_render_indices().size();
+        auto const num_indices = object->get_cpu_index_buffer().size();
 
         /**
          * Draw the mesh
@@ -381,13 +381,12 @@ void renderer_t::transfer_vertices_to_gpu(
     int color_attribute_location,
     std::shared_ptr<common::renderable_node_t> const& object) const
 {
-    std::vector<float> cpu_buffer{};
     auto constexpr num_bytes_per_float = sizeof(float);
     auto constexpr size_of_one_vertex  = 3u * num_bytes_per_float /* x,y,z coordinates */ +
                                         3u * num_bytes_per_float /* nx,ny,nz normal components */ +
                                         3u * num_bytes_per_float /* r,g,b colors */;
 
-    std::vector<float> const& cpu_buffer = object->get_render_vertices();
+    std::vector<float> const& cpu_buffer = object->get_cpu_vertex_buffer();
 
     /**
      * Transfer vertex data to the GPU
@@ -439,7 +438,7 @@ void renderer_t::transfer_indices_to_gpu(
     unsigned int EBO,
     std::shared_ptr<common::renderable_node_t> const& object) const
 {
-    std::vector<std::uint32_t> const& indices = object->get_render_indices();
+    std::vector<std::uint32_t> const& indices = object->get_cpu_index_buffer();
     auto const num_indices                    = indices.size();
 
     /**

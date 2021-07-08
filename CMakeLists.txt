@@ -84,6 +84,7 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/include/common/primitive.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/common/scene.h"
 
+    "${CMAKE_CURRENT_LIST_DIR}/src/common/geometry.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/common/mesh.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/common/node.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/common/primitive.cpp"
@@ -104,6 +105,11 @@ PRIVATE
 
     "${CMAKE_CURRENT_LIST_DIR}/src/io/load_scene.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/io/ply.cpp"
+
+    # physics
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/mesh.h"
+
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/mesh.cpp"
 
     # physics/xpbd
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/collision_constraint.h"

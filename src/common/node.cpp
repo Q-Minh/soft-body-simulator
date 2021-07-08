@@ -123,44 +123,24 @@ void renderable_node_t::set_as_physically_simulated_body()
     body_type_ = body_type_t::physical;
 }
 
-std::vector<float> const& renderable_node_t::get_render_vertices() const
+std::vector<float> const& renderable_node_t::get_cpu_vertex_buffer() const
 {
-    return vertices_;
+    return cpu_vertex_buffer_;
 }
 
-std::vector<std::uint32_t> const& renderable_node_t::get_render_indices() const
+std::vector<std::uint32_t> const& renderable_node_t::get_cpu_index_buffer() const
 {
-    return indices_;
+    return cpu_index_buffer_;
 }
 
-renderable_node_t::position_t renderable_node_t::get_position(unsigned int v) const
+void renderable_node_t::transfer_vertices_for_rendering(std::vector<float>&& vertices)
 {
-    unsigned int const offset = 9u * v;
-    position_t p{};
-    p.x = vertices_[offset];
-    p.y = vertices_[offset + 1u];
-    p.z = vertices_[offset + 2u];
-    return p;
+    cpu_vertex_buffer_ = std::move(vertices);
 }
 
-renderable_node_t::normal_t renderable_node_t::get_normal(unsigned int v) const
+void renderable_node_t::transfer_indices_for_rendering(std::vector<std::uint32_t>&& indices)
 {
-    unsigned int const offset = 9u * v;
-    normal_t n{};
-    n.nx = vertices_[offset + 3u];
-    n.ny = vertices_[offset + 4u];
-    n.nz = vertices_[offset + 5u];
-    return n;
-}
-
-renderable_node_t::triangle_t renderable_node_t::get_triangle(unsigned int t) const
-{
-    unsigned int const offset = 3u * t;
-    triangle_t f{};
-    f.v1 = indices_[offset + 0u];
-    f.v2 = indices_[offset + 1u];
-    f.v3 = indices_[offset + 2u];
-    return f;
+    cpu_index_buffer_ = std::move(indices);
 }
 
 } // namespace common

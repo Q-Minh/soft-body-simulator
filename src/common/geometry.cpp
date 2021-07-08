@@ -1,4 +1,4 @@
-#include "geometry.h"
+#include "common/geometry.h"
 
 namespace sbs {
 namespace common {

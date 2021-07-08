@@ -1,5 +1,5 @@
-#ifndef SBS_IO_GEOMETRY_H
-#define SBS_IO_GEOMETRY_H
+#ifndef SBS_COMMON_GEOMETRY_H
+#define SBS_COMMON_GEOMETRY_H
 
 #include <vector>
 
@@ -29,4 +29,4 @@ struct geometry_t
 } // namespace common
 } // namespace sbs
 
-#endif // SBS_IO_GEOMETRY_H
+#endif // SBS_COMMON_GEOMETRY_H

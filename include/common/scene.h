@@ -4,7 +4,6 @@
 #include "node.h"
 
 #include <memory>
-#include <vector>
 
 namespace sbs {
 namespace common {

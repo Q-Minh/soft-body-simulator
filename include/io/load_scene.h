@@ -2,10 +2,10 @@
 #define SBS_IO_LOAD_SCENE_H
 
 #include "common/scene.h"
+#include "common/geometry.h"
 
 #include <filesystem>
 #include <functional>
-#include <optional>
 #include <string>
 
 namespace sbs {
@@ -23,7 +23,7 @@ struct physics_body_info : scene_body_info
     double mass_density;
     struct velocity_t
     {
-        double vx, vy, yz;
+        double vx, vy, vz;
     } velocity;
 };
 

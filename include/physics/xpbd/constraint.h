@@ -3,8 +3,8 @@
 
 #include "common/scene.h"
 
+#include <Eigen/Core>
 #include <cstdint>
-#include <utility>
 
 namespace sbs {
 namespace physics {

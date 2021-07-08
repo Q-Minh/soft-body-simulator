@@ -61,9 +61,9 @@ static void rescale(
         auto const y = dy_division_by_zero ? y0 : bymin + (bymax - bymin) * (y0 - ymin) / dy;
         auto const z = dz_division_by_zero ? z0 : bzmin + (bzmax - bzmin) * (z0 - zmin) / dz;
 
-        geometry.positions[i]      = x;
-        geometry.positions[i + 1u] = y;
-        geometry.positions[i + 2u] = z;
+        geometry.positions[i]      = static_cast<float>(x);
+        geometry.positions[i + 1u] = static_cast<float>(y);
+        geometry.positions[i + 2u] = static_cast<float>(z);
     }
 }
 
@@ -74,9 +74,9 @@ static void translate(common::geometry_t& geometry, double tx, double ty, double
         float const x              = geometry.positions[i];
         float const y              = geometry.positions[i + 1u];
         float const z              = geometry.positions[i + 2u];
-        geometry.positions[i]      = x + tx;
-        geometry.positions[i + 1u] = y + ty;
-        geometry.positions[i + 2u] = z + tz;
+        geometry.positions[i]      = x + static_cast<float>(tx);
+        geometry.positions[i + 1u] = y + static_cast<float>(ty);
+        geometry.positions[i + 2u] = z + static_cast<float>(tz);
     }
 }
 
@@ -274,8 +274,6 @@ common::scene_t load_scene(
         double const vx                 = velocity_spec["x"].get<double>();
         double const vy                 = velocity_spec["y"].get<double>();
         double const vz                 = velocity_spec["z"].get<double>();
-        bool const is_fixed =
-            physics_spec.contains("fixed") ? physics_spec["fixed"].get<bool>() : false;
 
         std::optional<common::geometry_t> geometry = io::read_ply(asset_path);
         if (!geometry.has_value())

@@ -239,9 +239,11 @@ std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& solver_t::simulate
 void solver_t::create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body)
 {
     simulation_parameters_t const& params = body->simulation_parameters();
-    for (tetrahedron_t const& tetrahedron : body->tetrahedra())
+    std::size_t const tetrahedron_count   = body->tetrahedra().size();
+    for (std::size_t ti = 0u; ti < tetrahedron_count; ++ti)
     {
-        auto constraint = std::make_unique<green_constraint_t>(
+        tetrahedron_t const& tetrahedron = body->tetrahedra().at(ti);
+        auto constraint                  = std::make_unique<green_constraint_t>(
             params.alpha,
             std::make_pair(body, tetrahedron.v1()),
             std::make_pair(body, tetrahedron.v2()),
@@ -250,6 +252,7 @@ void solver_t::create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body)
             params.young_modulus,
             params.poisson_ratio);
 
+        tetrahedron_to_constraint_map_[{body, ti}] = constraints_.size();
         constraints_.push_back(std::move(constraint));
     }
 }

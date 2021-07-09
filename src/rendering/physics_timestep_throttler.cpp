@@ -11,7 +11,7 @@ physics_timestep_throttler_t::physics_timestep_throttler_t(
         physics_timestep_throttler_t& /*throttler*/,
         double /*physics_dt*/,
         common::scene_t& /*scene*/)> step)
-    : tb_{0.}, timestep_(timestep), fps_{0u}, step_(step)
+    : tb_{0.}, timestep_(timestep), fps_{0u}, step_(step), are_physics_active_{false}
 {
 }
 
@@ -27,6 +27,9 @@ void physics_timestep_throttler_t::operator()(double frame_dt, common::scene_t& 
 
     double const num_timesteps_elapsed = std::floor(tb_ / timestep_);
     tb_ -= num_timesteps_elapsed * timestep_;
+
+    if (!are_physics_active_)
+        return;
 
     auto const begin = std::chrono::steady_clock::now();
 
@@ -50,6 +53,21 @@ double physics_timestep_throttler_t::timestep() const
 double& physics_timestep_throttler_t::timestep()
 {
     return timestep_;
+}
+
+bool physics_timestep_throttler_t::are_physics_active() const
+{
+    return are_physics_active_;
+}
+
+void physics_timestep_throttler_t::deactivate_physics()
+{
+    are_physics_active_ = false;
+}
+
+void physics_timestep_throttler_t::activate_physics()
+{
+    are_physics_active_ = true;
 }
 
 } // namespace rendering

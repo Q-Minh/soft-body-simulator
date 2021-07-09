@@ -15,17 +15,14 @@ class tetrahedral_mesh_t;
 class green_constraint_t : public constraint_t
 {
   public:
-    using scalar_type       = typename constraint_t::scalar_type;
-    using index_type        = std::uint32_t;
-    using body_ptr_type     = tetrahedral_mesh_t*;
-    using position_key_type = std::pair<body_ptr_type, index_type>;
+    using scalar_type   = typename constraint_t::scalar_type;
+    using index_type    = std::uint32_t;
+    using body_ptr_type = tetrahedral_mesh_t*;
 
     green_constraint_t(
         scalar_type const alpha,
-        position_key_type const& vb1,
-        position_key_type const& vb2,
-        position_key_type const& vb3,
-        position_key_type const& vb4,
+        body_ptr_type b,
+        index_type ti,
         scalar_type young_modulus,
         scalar_type poisson_ratio);
 
@@ -42,17 +39,8 @@ class green_constraint_t : public constraint_t
         Eigen::Vector3d const& p4) const;
 
   private:
-    body_ptr_type b1_;
-    index_type v1_;
-
-    body_ptr_type b2_;
-    index_type v2_;
-
-    body_ptr_type b3_;
-    index_type v3_;
-
-    body_ptr_type b4_;
-    index_type v4_;
+    body_ptr_type b_;
+    index_type ti_;
 
     Eigen::Matrix3d DmInv_;
     scalar_type V0_;

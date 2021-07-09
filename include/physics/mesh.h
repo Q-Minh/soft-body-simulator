@@ -49,6 +49,9 @@ class vertex_t
     color_type const& color() const;
     color_type& color();
 
+    bool fixed() const;
+    bool& fixed();
+
   private:
     position_type p_;
     velocity_type v_;

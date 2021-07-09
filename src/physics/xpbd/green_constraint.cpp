@@ -11,30 +11,18 @@ namespace xpbd {
 
 green_constraint_t::green_constraint_t(
     scalar_type const alpha,
-    position_key_type const& vb1,
-    position_key_type const& vb2,
-    position_key_type const& vb3,
-    position_key_type const& vb4,
+    body_ptr_type b,
+    index_type ti,
     scalar_type young_modulus,
     scalar_type poisson_ratio)
-    : constraint_t(alpha),
-      b1_(vb1.first),
-      v1_(vb1.second),
-      b2_(vb2.first),
-      v2_(vb2.second),
-      b3_(vb3.first),
-      v3_(vb3.second),
-      b4_(vb4.first),
-      v4_(vb4.second),
-      DmInv_(),
-      V0_(),
-      mu_(),
-      lambda_()
+    : constraint_t(alpha), b_(b), ti_(ti), DmInv_(), V0_(), mu_(), lambda_()
 {
-    physics::vertex_t const& v1 = b1_->vertices().at(v1_);
-    physics::vertex_t const& v2 = b2_->vertices().at(v2_);
-    physics::vertex_t const& v3 = b3_->vertices().at(v3_);
-    physics::vertex_t const& v4 = b4_->vertices().at(v4_);
+    physics::tetrahedron_t const& t = b_->tetrahedra().at(ti);
+
+    physics::vertex_t const& v1 = b_->vertices().at(t.v1());
+    physics::vertex_t const& v2 = b_->vertices().at(t.v2());
+    physics::vertex_t const& v3 = b_->vertices().at(t.v3());
+    physics::vertex_t const& v4 = b_->vertices().at(t.v4());
 
     Eigen::Vector3d const p1 = v1.position();
     Eigen::Vector3d const p2 = v2.position();
@@ -57,20 +45,22 @@ void green_constraint_t::project(
     scalar_type& lagrange_multiplier,
     scalar_type const dt) const
 {
-    physics::vertex_t& v1 = b1_->vertices().at(v1_);
-    physics::vertex_t& v2 = b2_->vertices().at(v2_);
-    physics::vertex_t& v3 = b3_->vertices().at(v3_);
-    physics::vertex_t& v4 = b4_->vertices().at(v4_);
+    tetrahedron_t const& t = b_->tetrahedra().at(ti_);
+
+    physics::vertex_t& v1 = b_->vertices().at(t.v1());
+    physics::vertex_t& v2 = b_->vertices().at(t.v2());
+    physics::vertex_t& v3 = b_->vertices().at(t.v3());
+    physics::vertex_t& v4 = b_->vertices().at(t.v4());
 
     Eigen::Vector3d const p1 = v1.position();
     Eigen::Vector3d const p2 = v2.position();
     Eigen::Vector3d const p3 = v3.position();
     Eigen::Vector3d const p4 = v4.position();
 
-    auto const w1 = 1. / v1.mass();
-    auto const w2 = 1. / v2.mass();
-    auto const w3 = 1. / v3.mass();
-    auto const w4 = 1. / v4.mass();
+    auto const w1 = v1.fixed() ? 0. : 1. / v1.mass();
+    auto const w2 = v2.fixed() ? 0. : 1. / v2.mass();
+    auto const w3 = v3.fixed() ? 0. : 1. / v3.mass();
+    auto const w4 = v4.fixed() ? 0. : 1. / v4.mass();
 
     auto const Vsigned        = signed_volume(p1, p2, p3, p4);
     bool const is_V_positive  = Vsigned >= 0.;
@@ -91,8 +81,6 @@ void green_constraint_t::project(
     // Irving, Geoffrey, Joseph Teran, and Ronald Fedkiw. "Invertible finite elements for robust
     // simulation of large deformation." Proceedings of the 2004 ACM SIGGRAPH/Eurographics symposium
     // on Computer animation. 2004.
-    // scalar_type psi{};
-    // Eigen::Matrix3d Piola;
     Eigen::JacobiSVD<Eigen::Matrix3d> UFhatV(F, Eigen::ComputeFullU | Eigen::ComputeFullV);
     Eigen::Vector3d const Fsigma = UFhatV.singularValues();
     Eigen::Matrix3d Fhat;

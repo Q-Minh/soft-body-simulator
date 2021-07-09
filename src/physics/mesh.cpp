@@ -10,13 +10,14 @@ namespace sbs {
 namespace physics {
 
 vertex_t::vertex_t()
+    : p_{0., 0., 0.},
+      v_{0., 0., 0.},
+      f_{0., 0., 0.},
+      m_{0.},
+      n_{0., 0., 0.},
+      c_{0.f, 0.f, 0.f},
+      fixed_{false}
 {
-    p_.setZero();
-    v_.setZero();
-    f_.setZero();
-    m_ = 0.;
-    n_.setZero();
-    c_.setZero();
 }
 
 vertex_t::position_type const& vertex_t::position() const
@@ -77,6 +78,16 @@ vertex_t::color_type const& vertex_t::color() const
 vertex_t::color_type& vertex_t::color()
 {
     return c_;
+}
+
+bool vertex_t::fixed() const
+{
+    return fixed_;
+}
+
+bool& vertex_t::fixed()
+{
+    return fixed_;
 }
 
 tetrahedron_t::tetrahedron_t(index_type v1, index_type v2, index_type v3, index_type v4)

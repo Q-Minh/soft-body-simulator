@@ -31,8 +31,8 @@ void distance_constraint_t::project(
     double const m1 = v1.mass();
     double const m2 = v2.mass();
 
-    double const w1 = 1. / m1;
-    double const w2 = 1. / m2;
+    double const w1 = v1.fixed() ? 0.0 : 1. / m1;
+    double const w2 = v2.fixed() ? 0.0 : 1. / m2;
 
     auto const n = (p1 - p2).normalized();
     auto const C = evaluate(p1, p2);

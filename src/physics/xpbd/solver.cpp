@@ -146,6 +146,9 @@ void solver_t::step()
                 body->vertices().begin(),
                 body->vertices().end(),
                 [dt, gravity](vertex_t& vertex) {
+                    if (vertex.fixed())
+                        return;
+
                     vertex.force() += gravity;
                     Eigen::Vector3d const acceleration = vertex.force().array() / vertex.mass();
                     vertex.velocity()                  = vertex.velocity() + dt * acceleration;
@@ -179,7 +182,8 @@ void solver_t::step()
             std::size_t const vertex_count = body->vertices().size();
             for (std::size_t vi = 0u; vi < vertex_count; ++vi)
             {
-                vertex_t& vertex         = body->vertices().at(vi);
+                vertex_t& vertex = body->vertices().at(vi);
+
                 Eigen::Vector3d const x0 = x0_[b][vi];
                 Eigen::Vector3d const& x = vertex.position();
 
@@ -237,10 +241,8 @@ void solver_t::create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body)
         tetrahedron_t const& tetrahedron = body->tetrahedra().at(ti);
         auto constraint                  = std::make_unique<green_constraint_t>(
             params.alpha,
-            std::make_pair(body, tetrahedron.v1()),
-            std::make_pair(body, tetrahedron.v2()),
-            std::make_pair(body, tetrahedron.v3()),
-            std::make_pair(body, tetrahedron.v4()),
+            body,
+            static_cast<physics::index_type>(ti),
             params.young_modulus,
             params.poisson_ratio);
 

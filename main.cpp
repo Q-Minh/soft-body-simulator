@@ -13,16 +13,20 @@ int main(int argc, char** argv)
 {
     std::filesystem::path const cwd = std::filesystem::current_path();
 
-    if (argc != 4)
+    if (argc != 6)
     {
-        std::cerr << "Usage: sbs-viewer.exe <scene specification json file> "
-                     "<path/to/vertex_shader.vs> <path/to/fragment_shader.fs>\n";
+        std::cerr
+            << "Usage: sbs-viewer.exe <scene specification json file> "
+               "<path/to/vertex_shader.vs> <path/to/fragment_shader.fs> "
+               "<path/to/wireframe_vertex_shader.vs> <path/to/wireframe_fragment_shader.fs>\n";
         return 1;
     }
 
     std::filesystem::path const scene_specification_path{argv[1]};
     std::filesystem::path const vertex_shader_path{argv[2]};
     std::filesystem::path const fragment_shader_path{argv[3]};
+    std::filesystem::path const wireframe_vertex_shader_path{argv[4]};
+    std::filesystem::path const wireframe_fragment_shader_path{argv[5]};
 
     sbs::rendering::renderer_t renderer{};
     sbs::physics::xpbd::solver_t solver{};
@@ -223,6 +227,18 @@ int main(int argc, char** argv)
                 selected_idx  = 0;
                 selected_node = scene.nodes[selected_idx];
             }
+            static bool should_render_wireframe = false;
+            if (ImGui::Checkbox("Wireframe", &should_render_wireframe))
+            {
+                if (should_render_wireframe)
+                {
+                    selected_node->mark_should_render_wireframe();
+                }
+                else
+                {
+                    selected_node->mark_should_render_triangles();
+                }
+            }
         }
 
         if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen))
@@ -374,7 +390,10 @@ int main(int argc, char** argv)
 
     bool const initialization_success = renderer.initialize();
     bool const shader_loading_success =
-        renderer.use_shaders(vertex_shader_path, fragment_shader_path);
+        renderer.use_shaders(vertex_shader_path, fragment_shader_path) &&
+        renderer.use_wireframe_shaders(
+            wireframe_vertex_shader_path,
+            wireframe_fragment_shader_path);
 
     if (initialization_success && shader_loading_success)
     {

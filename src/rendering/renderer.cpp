@@ -108,9 +108,6 @@ void renderer_t::mouse_button_callback(GLFWwindow* window, int button, int actio
 }
 
 void renderer_t::render_objects(
-    int position_attribute_location,
-    int normal_attribute_location,
-    int color_attribute_location,
     std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const
 {
     /**
@@ -120,6 +117,46 @@ void renderer_t::render_objects(
      */
     for (std::shared_ptr<common::renderable_node_t> const& object : objects)
     {
+        bool const should_render_wireframe = object->should_render_wireframe();
+
+        auto const position_attribute_location =
+            should_render_wireframe ?
+                glGetAttribLocation(
+                    wireframe_shader_.id(),
+                    shader_t::vertex_shader_position_attribute_name) :
+                glGetAttribLocation(shader_.id(), shader_t::vertex_shader_position_attribute_name);
+
+        auto const normal_attribute_location =
+            should_render_wireframe ?
+                glGetAttribLocation(
+                    wireframe_shader_.id(),
+                    shader_t::vertex_shader_normal_attribute_name) :
+                glGetAttribLocation(shader_.id(), shader_t::vertex_shader_normal_attribute_name);
+
+        auto const color_attribute_location =
+            should_render_wireframe ?
+                glGetAttribLocation(
+                    wireframe_shader_.id(),
+                    shader_t::vertex_shader_color_attribute_name) :
+                glGetAttribLocation(shader_.id(), shader_t::vertex_shader_color_attribute_name);
+
+        /**
+         * Setup lights and view/projection
+         */
+        shader_t const& shader = should_render_wireframe ? wireframe_shader_ : shader_;
+        shader.use();
+        update_shader_view_projection_uniforms(shader);
+        if (should_render_wireframe)
+        {
+            // wireframe shader does not need lighting uniforms as it performs flat shading
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        }
+        else
+        {
+            update_shader_lighting_uniforms(shader);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+
         unsigned int& VAO = object->VAO();
         unsigned int& VBO = object->VBO();
         unsigned int& EBO = object->EBO();
@@ -146,15 +183,6 @@ void renderer_t::render_objects(
             object->prepare_indices_for_rendering();
             transfer_indices_to_gpu(EBO, object);
             object->mark_indices_clean();
-        }
-
-        if (object->should_render_wireframe())
-        {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        }
-        else
-        {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
 
         auto const num_indices = object->get_cpu_index_buffer().size();
@@ -297,16 +325,17 @@ bool renderer_t::use_shaders(
     return shader_.should_use();
 }
 
+bool renderer_t::use_wireframe_shaders(
+    std::filesystem::path const& vertex_shader_path,
+    std::filesystem::path const& fragment_shader_path)
+{
+    wireframe_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
+    return shader_.should_use();
+}
+
 void renderer_t::launch()
 {
     glEnable(GL_DEPTH_TEST);
-
-    auto const position_attribute_location =
-        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_position_attribute_name);
-    auto const normal_attribute_location =
-        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_normal_attribute_name);
-    auto const color_attribute_location =
-        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_color_attribute_name);
 
     double last_frame_time = 0.f;
     while (!glfwWindowShouldClose(window_))
@@ -336,16 +365,7 @@ void renderer_t::launch()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        /**
-         * Setup lights and view/projection projections
-         */
-        update_shader_uniforms();
-
-        render_objects(
-            position_attribute_location,
-            normal_attribute_location,
-            color_attribute_location,
-            scene_.nodes);
+        render_objects(scene_.nodes);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -454,10 +474,8 @@ void renderer_t::transfer_indices_to_gpu(
         GL_DYNAMIC_DRAW);
 }
 
-void renderer_t::update_shader_uniforms() const
+void renderer_t::update_shader_view_projection_uniforms(shader_t const& shader) const
 {
-    shader_.use();
-
     int width  = 0;
     int height = 0;
     glfwGetWindowSize(window_, &width, &height);
@@ -465,53 +483,56 @@ void renderer_t::update_shader_uniforms() const
     glm::mat4 const projection = camera_.projection_gl(aspect_ratio);
     glm::mat4 const view       = camera_.view_gl();
 
-    shader_.set_mat4_uniform("projection", projection);
-    shader_.set_mat4_uniform("view", view);
+    shader.set_mat4_uniform("projection", projection);
+    shader.set_mat4_uniform("view", view);
+}
 
+void renderer_t::update_shader_lighting_uniforms(shader_t const& shader) const
+{
     auto const& directional_light = scene_.directional_light;
     auto const& point_light       = scene_.point_light;
 
-    shader_.set_vec3_uniform("ViewPosition", camera_.position());
+    shader.set_vec3_uniform("ViewPosition", camera_.position());
 
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.direction",
         glm::vec3{directional_light.dx, directional_light.dy, directional_light.dz});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.ambient",
         glm::vec3{
             directional_light.ambient.r,
             directional_light.ambient.g,
             directional_light.ambient.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.diffuse",
         glm::vec3{
             directional_light.diffuse.r,
             directional_light.diffuse.g,
             directional_light.diffuse.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.specular",
         glm::vec3{
             directional_light.specular.r,
             directional_light.specular.g,
             directional_light.specular.b});
-    shader_.set_float_uniform("DirectionalLight.exponent", directional_light.specular.exp);
+    shader.set_float_uniform("DirectionalLight.exponent", directional_light.specular.exp);
 
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.position",
         glm::vec3{point_light.x, point_light.y, point_light.z});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.ambient",
         glm::vec3{point_light.ambient.r, point_light.ambient.g, point_light.ambient.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.diffuse",
         glm::vec3{point_light.diffuse.r, point_light.diffuse.g, point_light.diffuse.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.specular",
         glm::vec3{point_light.specular.r, point_light.specular.g, point_light.specular.b});
-    shader_.set_float_uniform("PointLight.exponent", point_light.specular.exp);
-    shader_.set_float_uniform("PointLight.constant", point_light.attenuation.constant);
-    shader_.set_float_uniform("PointLight.linear", point_light.attenuation.linear);
-    shader_.set_float_uniform("PointLight.quadratic", point_light.attenuation.quadratic);
+    shader.set_float_uniform("PointLight.exponent", point_light.specular.exp);
+    shader.set_float_uniform("PointLight.constant", point_light.attenuation.constant);
+    shader.set_float_uniform("PointLight.linear", point_light.attenuation.linear);
+    shader.set_float_uniform("PointLight.quadratic", point_light.attenuation.quadratic);
 }
 
 } // namespace rendering

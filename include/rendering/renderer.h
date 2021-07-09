@@ -66,6 +66,10 @@ class renderer_t : public renderer_base_t
         std::filesystem::path const& vertex_shader_path,
         std::filesystem::path const& fragment_shader_path);
 
+    bool use_wireframe_shaders(
+        std::filesystem::path const& vertex_shader_path,
+        std::filesystem::path const& fragment_shader_path);
+
     void launch();
     void close();
 
@@ -99,11 +103,8 @@ class renderer_t : public renderer_base_t
     virtual void
     mouse_button_callback(GLFWwindow* window, int button, int action, int mods) override;
 
-    void render_objects(
-        int position_attribute_location,
-        int normal_attribute_location,
-        int color_attribute_location,
-        std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const;
+    void
+    render_objects(std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const;
 
     void transfer_vertices_to_gpu(
         unsigned int VBO,
@@ -116,7 +117,8 @@ class renderer_t : public renderer_base_t
         unsigned int EBO,
         std::shared_ptr<common::renderable_node_t> const& object) const;
 
-    void update_shader_uniforms() const;
+    void update_shader_view_projection_uniforms(shader_t const& shader) const;
+    void update_shader_lighting_uniforms(shader_t const& shader) const;
 
   private:
     void process_input(GLFWwindow* window, double dt);
@@ -127,6 +129,7 @@ class renderer_t : public renderer_base_t
 
     GLFWwindow* window_;
     shader_t shader_;
+    shader_t wireframe_shader_;
 
     bool should_render_wireframe_ = false;
 };

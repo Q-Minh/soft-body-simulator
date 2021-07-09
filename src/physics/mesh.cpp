@@ -1079,7 +1079,7 @@ void tetrahedral_mesh_surface_mesh_adapter_t::extract_boundary_surface()
             continue;
 
         index_type const surface_vi = tet_to_surface_index_map[vi].value();
-        index_map_[surface_vi]      = vi;
+        index_map_[surface_vi]      = static_cast<index_type>(vi);
     }
 }
 

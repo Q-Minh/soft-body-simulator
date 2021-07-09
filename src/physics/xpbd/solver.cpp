@@ -186,19 +186,11 @@ void solver_t::step()
 
             vertex.velocity() = (x - x0) / dt;
             vertex.position() = x;
+            vertex.force().setZero();
         }
     }
 
     // friction or other non-conservative forces here
-
-    // reset forces
-    for (auto const& body : physics_bodies_)
-    {
-        for (vertex_t& vertex : body->vertices())
-        {
-            vertex.force().setZero();
-        }
-    }
 }
 
 double const& solver_t::timestep() const
@@ -252,7 +244,8 @@ void solver_t::create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body)
             params.young_modulus,
             params.poisson_ratio);
 
-        tetrahedron_to_constraint_map_[{body, ti}] = constraints_.size();
+        constraint_map_key_type const key   = std::make_pair(body, static_cast<std::uint32_t>(ti));
+        tetrahedron_to_constraint_map_[key] = static_cast<std::uint32_t>(constraints_.size());
         constraints_.push_back(std::move(constraint));
     }
 }

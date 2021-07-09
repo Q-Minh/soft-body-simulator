@@ -63,7 +63,8 @@ class solver_t
 
     struct constraint_map_key_less
     {
-        bool operator()(constraint_map_key_type const& key1, constraint_map_key_type const& key2)
+        bool
+        operator()(constraint_map_key_type const& key1, constraint_map_key_type const& key2) const
         {
             std::pair<std::uintptr_t, std::uint32_t> const a1{
                 reinterpret_cast<std::uintptr_t>(key1.first),

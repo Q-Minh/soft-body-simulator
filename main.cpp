@@ -77,7 +77,7 @@ int main(int argc, char** argv)
                 pbi.velocity.vy,
                 pbi.velocity.vz};
 
-            vertex.mass() = 0.01;
+            vertex.mass() = pbi.mass_density;
         }
 
         for (sbs::physics::tetrahedron_t& tetrahedron : node->tetrahedra())

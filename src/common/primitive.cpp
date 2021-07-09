@@ -29,7 +29,7 @@ aabb_t::aabb_t(point_t const& center, vector3d_t const& extent) : center(center)
 
 bool operator==(line_segment_t const& l1, line_segment_t const& l2)
 {
-    return (l1.p == l2.p) && (l1.q == l2.q);
+    return l1.p.isApprox(l2.p) && l1.q.isApprox(l2.q);
 }
 
 bool operator!=(line_segment_t const& l1, line_segment_t const& l2)

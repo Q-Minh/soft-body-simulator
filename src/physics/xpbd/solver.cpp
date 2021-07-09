@@ -113,49 +113,49 @@ void solver_t::step()
     std::uint32_t const num_substeps = can_perform_substepping ? substeps_ : 1u;
     double const dt = can_perform_substepping ? dt_ / static_cast<double>(substeps_) : dt_;
 
-    // Hold previous positions x0.
-    // Using a vector of vector will result in two levels of indirection before accessing any
-    // position. The position vectors will be allocated on the heap at potentially different far
-    // locations. We can use a smarter allocation system where these vectors will be stored
-    // contiguously.
-    std::transform(
-        physics_bodies_.begin(),
-        physics_bodies_.end(),
-        x0_.begin(),
-        [](std::shared_ptr<tetrahedral_mesh_t> const& body) {
-            std::vector<Eigen::Vector3d> p0{};
-            p0.reserve(body->vertices().size());
-            std::transform(
-                body->vertices().begin(),
-                body->vertices().end(),
-                std::back_inserter(p0),
-                [](vertex_t const& v) { return v.position(); });
-            return p0;
-        });
-
-    // explicit integration step
-    Eigen::Vector3d const gravity{0., -9.81, 0.};
-    for (auto const& body : physics_bodies_)
-    {
-        std::for_each(
-            body->vertices().begin(),
-            body->vertices().end(),
-            [dt, gravity](vertex_t& vertex) {
-                vertex.force() += gravity;
-                Eigen::Vector3d const acceleration = vertex.force().array() / vertex.mass();
-                Eigen::Vector3d const velocity     = vertex.velocity() + dt * acceleration;
-                vertex.position() += dt * velocity;
-            });
-    }
-
-    // TODO: detect collisions
-    // ...
-
     // constraint projection
     std::size_t const J  = constraints_.size();
     std::size_t const Mc = collision_constraints_.size();
     for (std::uint32_t s = 0u; s < num_substeps; ++s)
     {
+        // Hold previous positions x0.
+        // Using a vector of vector will result in two levels of indirection before accessing any
+        // position. The position vectors will be allocated on the heap at potentially different far
+        // locations. We can use a smarter allocation system where these vectors will be stored
+        // contiguously.
+        std::transform(
+            physics_bodies_.begin(),
+            physics_bodies_.end(),
+            x0_.begin(),
+            [](std::shared_ptr<tetrahedral_mesh_t> const& body) {
+                std::vector<Eigen::Vector3d> p0{};
+                p0.reserve(body->vertices().size());
+                std::transform(
+                    body->vertices().begin(),
+                    body->vertices().end(),
+                    std::back_inserter(p0),
+                    [](vertex_t const& v) { return v.position(); });
+                return p0;
+            });
+
+        // explicit integration step
+        Eigen::Vector3d const gravity{0., -9.81, 0.};
+        for (auto const& body : physics_bodies_)
+        {
+            std::for_each(
+                body->vertices().begin(),
+                body->vertices().end(),
+                [dt, gravity](vertex_t& vertex) {
+                    vertex.force() += gravity;
+                    Eigen::Vector3d const acceleration = vertex.force().array() / vertex.mass();
+                    vertex.velocity()                  = vertex.velocity() + dt * acceleration;
+                    vertex.position() += dt * vertex.velocity();
+                });
+        }
+
+        // TODO: detect collisions
+        // ...
+
         std::fill(lagrange_multipliers_.begin(), lagrange_multipliers_.end(), 0.);
         for (std::uint32_t n = 0u; n < num_iterations; ++n)
         {
@@ -171,22 +171,22 @@ void solver_t::step()
                 constraint->project(physics_bodies_, infinite_stiffness_lagrange_multiplier, dt);
             }
         }
-    }
 
-    // update positions and velocities
-    for (std::size_t b = 0u; b < physics_bodies_.size(); ++b)
-    {
-        auto const& body               = physics_bodies_[b];
-        std::size_t const vertex_count = body->vertices().size();
-        for (std::size_t vi = 0u; vi < vertex_count; ++vi)
+        // update positions and velocities
+        for (std::size_t b = 0u; b < physics_bodies_.size(); ++b)
         {
-            vertex_t& vertex         = body->vertices().at(vi);
-            Eigen::Vector3d const x0 = x0_[b][vi];
-            Eigen::Vector3d const& x = vertex.position();
+            auto const& body               = physics_bodies_[b];
+            std::size_t const vertex_count = body->vertices().size();
+            for (std::size_t vi = 0u; vi < vertex_count; ++vi)
+            {
+                vertex_t& vertex         = body->vertices().at(vi);
+                Eigen::Vector3d const x0 = x0_[b][vi];
+                Eigen::Vector3d const& x = vertex.position();
 
-            vertex.velocity() = (x - x0) / dt;
-            vertex.position() = x;
-            vertex.force().setZero();
+                vertex.velocity() = (x - x0) / dt;
+                vertex.position() = x;
+                vertex.force().setZero();
+            }
         }
     }
 

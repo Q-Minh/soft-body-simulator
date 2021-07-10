@@ -228,16 +228,14 @@ int main(int argc, char** argv)
                 selected_node = scene.nodes[selected_idx];
             }
             static bool should_render_wireframe = false;
-            if (ImGui::Checkbox("Wireframe", &should_render_wireframe))
+            ImGui::Checkbox("Wireframe", &should_render_wireframe);
+            if (should_render_wireframe)
             {
-                if (should_render_wireframe)
-                {
-                    selected_node->mark_should_render_wireframe();
-                }
-                else
-                {
-                    selected_node->mark_should_render_triangles();
-                }
+                selected_node->mark_should_render_wireframe();
+            }
+            else
+            {
+                selected_node->mark_should_render_triangles();
             }
         }
 

@@ -420,7 +420,7 @@ class tetrahedral_mesh_surface_mesh_adapter_t : public common::shared_vertex_sur
     using vertex_type   = common::shared_vertex_surface_mesh_i::vertex_type;
     using triangle_type = common::shared_vertex_surface_mesh_i::triangle_type;
 
-    tetrahedral_mesh_surface_mesh_adapter_t(topological_simulated_tetrahedral_mesh_t const* mesh);
+    tetrahedral_mesh_surface_mesh_adapter_t(topological_simulated_tetrahedral_mesh_t* mesh);
 
     virtual std::size_t triangle_count() const override;
     virtual std::size_t vertex_count() const override;
@@ -453,12 +453,13 @@ class tetrahedral_mesh_surface_mesh_adapter_t : public common::shared_vertex_sur
     void extract_surface_normals();
 
     topological_simulated_tetrahedral_mesh_t const* tetrahedral_mesh() const;
+    topological_simulated_tetrahedral_mesh_t* tetrahedral_mesh();
 
   private:
     vertex_type from_physics_vertex(vertex_t const& v);
 
   private:
-    topological_simulated_tetrahedral_mesh_t const* mesh_;
+    topological_simulated_tetrahedral_mesh_t* mesh_;
     std::vector<index_type> index_map_;
     std::vector<shared_vertex_surface_mesh_i::vertex_type> vertices_;
     std::vector<shared_vertex_surface_mesh_i::triangle_type> triangles_;

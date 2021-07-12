@@ -1,5 +1,7 @@
 #include "rendering/renderer.h"
 
+#include "rendering/pick.h"
+
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>
 #include <imgui/imgui.h>
@@ -72,16 +74,31 @@ void renderer_t::mouse_move_callback(GLFWwindow* window, double xpos, double ypo
     last_x_pos = xpos;
     last_y_pos = ypos;
 
-    int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+    bool should_return{false};
 
+    bool const is_picking =
+        std::any_of(pickers.begin(), pickers.end(), [](picker_t const& picker) {
+            return picker.is_picking();
+        });
+    should_return |= is_picking;
+
+    if (is_picking && !ImGui::GetIO().WantCaptureMouse)
+    {
+        std::for_each(pickers.begin(), pickers.end(), [window, xpos, ypos](picker_t& picker) {
+            if (picker.is_usable())
+                picker.mouse_moved_event(window, xpos, ypos);
+        });
+    }
     if (on_mouse_moved && !ImGui::GetIO().WantCaptureMouse)
     {
-        if (on_mouse_moved(window, xpos, ypos))
-        {
-            return;
-        }
+        should_return |= on_mouse_moved(window, xpos, ypos);
+    }
+    if (should_return)
+    {
+        return;
     }
 
+    int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
     if (state == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse)
     {
         camera_.handle_mouse_movement(dx, dy);
@@ -98,12 +115,16 @@ void renderer_t::scroll_callback(GLFWwindow* window, double dx, double dy)
 
 void renderer_t::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    if (on_mouse_button_pressed)
+    if (!ImGui::GetIO().WantCaptureMouse)
     {
-        if (!ImGui::GetIO().WantCaptureMouse)
+        if (on_mouse_button_pressed)
         {
             on_mouse_button_pressed(window, button, action, mods);
         }
+        std::for_each(pickers.begin(), pickers.end(), [window, button, action, mods](picker_t& picker) {
+            if (picker.is_usable())
+                picker.mouse_button_pressed_event(window, button, action, mods);
+        });
     }
 }
 

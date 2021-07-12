@@ -12,9 +12,13 @@
 
 #include <filesystem>
 #include <functional>
+#include <list>
 
 namespace sbs {
 namespace rendering {
+
+// forward declare
+class picker_t;
 
 class renderer_base_t
 {
@@ -95,6 +99,11 @@ class renderer_t : public renderer_base_t
     std::function<bool(GLFWwindow* /*window*/, double /*mouse_x_pos*/, double /*mouse_y_pos*/)>
         on_mouse_moved;
     std::function<void(GLFWwindow*, int, int, int)> on_mouse_button_pressed;
+
+    /**
+     * @brief Add picking features to the renderer
+     */
+    std::list<picker_t> pickers;
 
   protected:
     virtual void framebuffer_size_callback(GLFWwindow* window, int width, int height) override;

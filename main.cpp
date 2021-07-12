@@ -31,11 +31,98 @@ int main(int argc, char** argv)
     sbs::rendering::renderer_t renderer{};
     sbs::physics::xpbd::solver_t solver{};
 
+    std::vector<std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i>>
+        physical_node_surfaces{};
+
+    double force_magnitude = 1000.;
+
     renderer.on_scene_loaded = [&](sbs::common::scene_t& scene) {
         solver.setup(scene.nodes);
         solver.timestep()   = 0.0167;
         solver.substeps()   = 30u;
         solver.iterations() = 30u;
+
+        physical_node_surfaces.clear();
+        for (auto const& node : scene.nodes)
+        {
+            if (!node->is_physically_simulated_body())
+                continue;
+
+            auto const tet_mesh =
+                std::dynamic_pointer_cast<sbs::physics::xpbd::tetrahedral_mesh_t>(node);
+
+            auto const phys_node =
+                std::make_shared<sbs::physics::tetrahedral_mesh_surface_mesh_adapter_t>(
+                    tet_mesh.get());
+            physical_node_surfaces.push_back(phys_node);
+        }
+
+        renderer.pickers.clear();
+
+        sbs::rendering::picker_t force_picker{&renderer, physical_node_surfaces};
+        force_picker.should_picking_start = [](int button, int action, int mods) {
+            return (
+                button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_SHIFT && action == GLFW_PRESS);
+        };
+        force_picker.should_picking_stop = [](bool left_mouse_button_pressed,
+                                              bool right_mouse_button_pressed,
+                                              bool middle_mouse_button_pressed,
+                                              bool alt_key_pressed,
+                                              bool ctrl_key_pressed,
+                                              bool shift_key_pressed) {
+            return !shift_key_pressed;
+        };
+        force_picker.should_pick =
+            [](std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i> node) {
+                return true;
+            };
+        force_picker
+            .on_picker_moved = [&force_magnitude](
+                                   Eigen::Vector3d const& d,
+                                   std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i> node,
+                                   std::uint32_t vi) {
+            auto const phys_node =
+                std::dynamic_pointer_cast<sbs::physics::tetrahedral_mesh_surface_mesh_adapter_t>(
+                    node);
+            auto const& tet_mesh_vertex_indices =
+                phys_node->surface_to_tetrahedral_mesh_index_map();
+            auto const tvi      = tet_mesh_vertex_indices[vi];
+            auto const tet_mesh = phys_node->tetrahedral_mesh();
+            tet_mesh->vertices().at(tvi).force() += d.normalized() * force_magnitude;
+        };
+
+        sbs::rendering::picker_t fix_picker{&renderer, physical_node_surfaces};
+        fix_picker.should_picking_start = [](int button, int action, int mods) {
+            return (
+                button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL &&
+                action == GLFW_PRESS);
+        };
+        fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
+                                            bool right_mouse_button_pressed,
+                                            bool middle_mouse_button_pressed,
+                                            bool alt_key_pressed,
+                                            bool ctrl_key_pressed,
+                                            bool shift_key_pressed) {
+            return !ctrl_key_pressed;
+        };
+        fix_picker.should_pick =
+            [](std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i> node) {
+                return true;
+            };
+        fix_picker.picked = [](std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i> node,
+                               std::uint32_t vi) {
+            auto const phys_node =
+                std::dynamic_pointer_cast<sbs::physics::tetrahedral_mesh_surface_mesh_adapter_t>(
+                    node);
+            auto const& tet_mesh_vertex_indices =
+                phys_node->surface_to_tetrahedral_mesh_index_map();
+            auto const tvi                       = tet_mesh_vertex_indices[vi];
+            auto const tet_mesh                  = phys_node->tetrahedral_mesh();
+            tet_mesh->vertices().at(tvi).fixed() = !tet_mesh->vertices().at(tvi).fixed();
+        };
+
+        renderer.pickers.push_back(force_picker);
+        renderer.pickers.push_back(fix_picker);
     };
 
     auto const step = [&](sbs::rendering::physics_timestep_throttler_t& throttler,
@@ -89,20 +176,20 @@ int main(int argc, char** argv)
         return node;
     };
 
-    auto initial_scene = sbs::io::load_scene(
+    auto scene = sbs::io::load_scene(
         scene_specification_path,
         environment_node_factory,
         physics_node_factory);
 
     /*auto const cutting_surface_node_it = std::find_if(
-        initial_scene.nodes.begin(),
-        initial_scene.nodes.end(),
+        scene.nodes.begin(),
+        scene.nodes.end(),
         [](std::shared_ptr<sbs::common::renderable_node_t> const object) {
             return object->id() == "cutter";
         });
 
     std::unique_ptr<sbs::physics::cutting::virtual_scalpel_h> virtual_scalpel{};
-    if (cutting_surface_node_it != initial_scene.nodes.end())
+    if (cutting_surface_node_it != scene.nodes.end())
     {
         std::shared_ptr<sbs::common::renderable_node_t> const cutting_surface_node =
             *cutting_surface_node_it;
@@ -114,85 +201,34 @@ int main(int argc, char** argv)
             sbs::common::line_segment_t{
                 sbs::common::point_t{p1.x, p1.y, p1.z},
                 sbs::common::point_t{p2.x, p2.y, p2.z}}, );
-    }
-
-    int active_environment_body_idx = 0;
-    int active_physics_body_idx     = 0;
-    std::shared_ptr<sbs::common::renderable_node_t> active_environment_node{};
-    std::shared_ptr<sbs::common::renderable_node_t> active_physics_node{};*/
+    }*/
 
     std::shared_ptr<sbs::common::renderable_node_t> selected_node{};
     renderer.on_mouse_button_pressed = [&](GLFWwindow* window, int button, int action, int mods) {
-        bool const is_picking =
-            (button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_SHIFT && action == GLFW_PRESS);
-
-        if (!is_picking)
-            return;
-
-        // only pick physics bodies
-        if (!selected_node->is_physically_simulated_body())
-            return;
-
-        sbs::common::scene_t const& scene = renderer.scene();
-
-        int viewport_gl[4];
-        glGetIntegerv(GL_VIEWPORT, viewport_gl);
-        Eigen::Vector4d const viewport{
-            static_cast<double>(viewport_gl[0]),
-            static_cast<double>(viewport_gl[1]),
-            static_cast<double>(viewport_gl[2]),
-            static_cast<double>(viewport_gl[3])};
-
-        float const aspect_ratio =
-            static_cast<float>(viewport(2)) / static_cast<float>(viewport(3));
-        Eigen::Matrix4d const projection = renderer.camera().projection_matrix(aspect_ratio);
-        Eigen::Matrix4d const view       = renderer.camera().view_matrix();
-
-        double x, y;
-        glfwGetCursorPos(window, &x, &y);
-
-        auto const ray = sbs::rendering::unproject_ray({x, y}, viewport, projection, view);
-
-        auto const tet_mesh =
-            std::dynamic_pointer_cast<sbs::physics::xpbd::tetrahedral_mesh_t>(selected_node);
-
-        // should only deal with xpbd::tetrahedral_mesh_t
-        if (!tet_mesh)
-            return;
-
-        sbs::physics::tetrahedral_mesh_surface_mesh_adapter_t surface{tet_mesh.get()};
-        auto const vi = sbs::rendering::pick_vertex(ray, surface);
-        if (vi.has_value())
-        {
-            std::cout << "picked: " << *vi << "\n";
-            auto const& tet_mesh_vertex_indices  = surface.surface_to_tetrahedral_mesh_index_map();
-            auto const tvi                       = tet_mesh_vertex_indices[*vi];
-            tet_mesh->vertices().at(tvi).fixed() = !tet_mesh->vertices().at(tvi).fixed();
-        }
+        
     };
 
-    /*double xprev = 0., yprev = 0., dx = 0., dy = 0.;
-    bool is_first_mouse_move_callback           = true;
-    bool should_handle_cutting_surface_rotation = false;
+    // double xprev = 0., yprev = 0., dx = 0., dy = 0.;
+    // bool is_first_mouse_move_callback           = true;
+    // bool should_handle_cutting_surface_rotation = false;
     renderer.on_mouse_moved = [&](GLFWwindow* window, double x, double y) -> bool {
-        bool result = false;
+        // bool result = false;
 
-        int left_ctrl_key_state     = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL);
-        int left_mouse_button_state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+        // int left_ctrl_key_state     = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL);
+        // int left_mouse_button_state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 
-        if (left_ctrl_key_state == GLFW_PRESS && left_mouse_button_state == GLFW_PRESS)
-        {
-            dx                                     = x - xprev;
-            dy                                     = yprev - y;
-            should_handle_cutting_surface_rotation = true;
-            result                                 = true;
-        }
+        // if (left_ctrl_key_state == GLFW_PRESS && left_mouse_button_state == GLFW_PRESS)
+        // {
+        //     dx                                     = x - xprev;
+        //     dy                                     = yprev - y;
+        //     should_handle_cutting_surface_rotation = true;
+        //     result                                 = true;
+        // }
 
-        xprev = x;
-        yprev = y;
-
-        return result;
-    };*/
+        // xprev = x;
+        // yprev = y;
+        return false;
+    };
 
     renderer.on_new_imgui_frame = [&](sbs::common::scene_t& scene) {
         ImGui::Begin("Soft Body Simulator");
@@ -248,6 +284,7 @@ int main(int argc, char** argv)
                 std::dynamic_pointer_cast<sbs::physics::xpbd::tetrahedral_mesh_t>(selected_node);
 
             ImGui::TreePush();
+            ImGui::InputDouble("Fext magnitude", &force_magnitude, 100., 1000., "%.0f");
             if (ImGui::CollapsingHeader("XPBD") && is_selected_node_a_physics_node)
             {
                 ImGui::Text("Constraint type");
@@ -301,17 +338,6 @@ int main(int argc, char** argv)
                     renderer.unload_current_scene();
                     renderer.load_scene(scene);
                 }
-
-                static bool are_physics_active = throttler.are_physics_active();
-                ImGui::Checkbox("Activate physics", &are_physics_active);
-                if (are_physics_active)
-                {
-                    throttler.activate_physics();
-                }
-                else
-                {
-                    throttler.deactivate_physics();
-                }
             }
             if (ImGui::CollapsingHeader("Mesh") && is_selected_node_a_physics_node)
             {
@@ -325,6 +351,16 @@ int main(int argc, char** argv)
                 ImGui::Text("Tetrahedra: %d", num_elements);
             }
             ImGui::TreePop();
+            static bool are_physics_active = throttler.are_physics_active();
+            ImGui::Checkbox("Activate physics", &are_physics_active);
+            if (are_physics_active)
+            {
+                throttler.activate_physics();
+            }
+            else
+            {
+                throttler.deactivate_physics();
+            }
             std::string const fps_str = "FPS: " + std::to_string(throttler.fps());
             ImGui::Text(fps_str.c_str());
         }
@@ -395,7 +431,7 @@ int main(int argc, char** argv)
 
     if (initialization_success && shader_loading_success)
     {
-        renderer.load_scene(initial_scene);
+        renderer.load_scene(scene);
         renderer.launch();
     }
     else

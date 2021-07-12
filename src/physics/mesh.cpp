@@ -995,7 +995,7 @@ void renderable_topological_simulated_tetrahedral_mesh_t::prepare_indices_for_re
 }
 
 tetrahedral_mesh_surface_mesh_adapter_t::tetrahedral_mesh_surface_mesh_adapter_t(
-    topological_simulated_tetrahedral_mesh_t const* mesh)
+    topological_simulated_tetrahedral_mesh_t* mesh)
     : mesh_(mesh), index_map_{}, vertices_{}, triangles_{}
 {
     extract_boundary_surface();
@@ -1131,6 +1131,12 @@ void tetrahedral_mesh_surface_mesh_adapter_t::extract_surface_normals()
 
 topological_simulated_tetrahedral_mesh_t const*
 tetrahedral_mesh_surface_mesh_adapter_t::tetrahedral_mesh() const
+{
+    return mesh_;
+}
+
+topological_simulated_tetrahedral_mesh_t*
+tetrahedral_mesh_surface_mesh_adapter_t::tetrahedral_mesh()
 {
     return mesh_;
 }

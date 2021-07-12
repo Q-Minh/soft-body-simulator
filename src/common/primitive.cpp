@@ -7,25 +7,93 @@ namespace common {
 
 line_segment_t::line_segment_t(point_t const& p, point_t const& q) : p(p), q(q) {}
 
-triangle_t::triangle_t(point_t const& a, point_t const& b, point_t const& c) : a(a), b(b), c(c) {}
+triangle_t::triangle_t(point_t const& a, point_t const& b, point_t const& c) : p_{a, b, c} {}
 
 normal_t triangle_t::normal() const
 {
-    Eigen::Vector3d const ab = b - a;
-    Eigen::Vector3d const ac = c - a;
+    Eigen::Vector3d const ab = b() - a();
+    Eigen::Vector3d const ac = c() - a();
     return ab.cross(ac).normalized();
 }
 
 double triangle_t::area() const
 {
-    return 0.5 * (b - a).cross(c - a).norm();
+    return 0.5 * (b() - a()).cross(c() - a()).norm();
+}
+
+std::array<point_t, 3u> const& triangle_t::nodes() const
+{
+    return p_;
+}
+
+std::array<point_t, 3u>& triangle_t::nodes()
+{
+    return p_;
+}
+
+point_t const& triangle_t::p1() const
+{
+    return p_[0];
+}
+
+point_t const& triangle_t::p2() const
+{
+    return p_[1];
+}
+
+point_t const& triangle_t::p3() const
+{
+    return p_[2];
+}
+
+point_t& triangle_t::p1()
+{
+    return p_[0];
+}
+
+point_t& triangle_t::p2()
+{
+    return p_[1];
+}
+
+point_t& triangle_t::p3()
+{
+    return p_[2];
+}
+
+point_t const& triangle_t::a() const
+{
+    return p1();
+}
+
+point_t const& triangle_t::b() const
+{
+    return p2();
+}
+
+point_t const& triangle_t::c() const
+{
+    return p3();
+}
+
+point_t& triangle_t::a()
+{
+    return p1();
+}
+
+point_t& triangle_t::b()
+{
+    return p2();
+}
+
+point_t& triangle_t::c()
+{
+    return p3();
 }
 
 ray_t::ray_t(point_t const& p, direction_t const& v) : p(p), v(v) {}
 
 sphere_t::sphere_t(point_t const& center, double radius) : center(center), radius(radius) {}
-
-aabb_t::aabb_t(point_t const& center, vector3d_t const& extent) : center(center), extent(extent) {}
 
 bool operator==(line_segment_t const& l1, line_segment_t const& l2)
 {
@@ -78,8 +146,8 @@ barycentric_coordinates(point_t const& A, point_t const& B, point_t const& C, po
 
 std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const& triangle)
 {
-    Eigen::Vector3d const ab = triangle.b - triangle.a;
-    Eigen::Vector3d const ac = triangle.c - triangle.a;
+    Eigen::Vector3d const ab = triangle.b() - triangle.a();
+    Eigen::Vector3d const ac = triangle.c() - triangle.a();
     Eigen::Vector3d const qp = segment.p - segment.q;
 
     Eigen::Vector3d const n = ab.cross(ac);
@@ -88,7 +156,7 @@ std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const
     if (d <= 0.)
         return {};
 
-    Eigen::Vector3d const ap = segment.p - triangle.a;
+    Eigen::Vector3d const ap = segment.p - triangle.a();
     double const t           = ap.dot(n);
     if (t < 0.)
         return {};
@@ -108,7 +176,7 @@ std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const
     v *= ood;
     w *= ood;
     double const u             = 1. - v - w;
-    point_t const intersection = u * triangle.a + v * triangle.b + w * triangle.c;
+    point_t const intersection = u * triangle.a() + v * triangle.b() + w * triangle.c();
     return intersection;
 }
 
@@ -116,8 +184,8 @@ std::optional<point_t> intersect(ray_t const& ray, triangle_t const& triangle)
 {
     Eigen::Vector3d const& p = ray.p;
     Eigen::Vector3d const& q = ray.p + 1. * ray.v;
-    Eigen::Vector3d const ab = triangle.b - triangle.a;
-    Eigen::Vector3d const ac = triangle.c - triangle.a;
+    Eigen::Vector3d const ab = triangle.b() - triangle.a();
+    Eigen::Vector3d const ac = triangle.c() - triangle.a();
     Eigen::Vector3d const qp = p - q;
 
     Eigen::Vector3d const n = ab.cross(ac);
@@ -126,7 +194,7 @@ std::optional<point_t> intersect(ray_t const& ray, triangle_t const& triangle)
     if (d <= 0.)
         return {};
 
-    Eigen::Vector3d const ap = p - triangle.a;
+    Eigen::Vector3d const ap = p - triangle.a();
     double const t           = ap.dot(n);
     if (t < 0.)
         return {};
@@ -145,8 +213,155 @@ std::optional<point_t> intersect(ray_t const& ray, triangle_t const& triangle)
     v *= ood;
     w *= ood;
     double const u             = 1. - v - w;
-    point_t const intersection = u * triangle.a + v * triangle.b + w * triangle.c;
+    point_t const intersection = u * triangle.a() + v * triangle.b() + w * triangle.c();
     return intersection;
+}
+
+tetrahedron_t::tetrahedron_t(
+    point_t const& p1,
+    point_t const& p2,
+    point_t const& p3,
+    point_t const& p4)
+    : p_{p1, p2, p3, p4}
+{
+}
+
+double tetrahedron_t::unsigned_volume() const
+{
+    return std::abs(signed_volume());
+}
+
+double tetrahedron_t::signed_volume() const
+{
+    vector3d_t const p21 = p2() - p1();
+    vector3d_t const p31 = p3() - p1();
+    vector3d_t const p41 = p4() - p1();
+    return p21.cross(p31).dot(p41);
+}
+
+std::array<triangle_t, 4u> tetrahedron_t::faces() const
+{
+    return std::array<triangle_t, 4u>{
+        triangle_t{p1(), p2(), p4()},
+        triangle_t{p2(), p3(), p4()},
+        triangle_t{p3(), p1(), p4()},
+        triangle_t{p1(), p3(), p2()}};
+}
+
+std::array<line_segment_t, 6u> tetrahedron_t::edges() const
+{
+    return std::array<line_segment_t, 6u>{
+        line_segment_t{p1(), p2()},
+        line_segment_t{p2(), p3()},
+        line_segment_t{p3(), p1()},
+        line_segment_t{p1(), p4()},
+        line_segment_t{p2(), p4()},
+        line_segment_t{p3(), p4()},
+    };
+}
+
+std::array<point_t, 4u> const& tetrahedron_t::nodes() const
+{
+    return p_;
+}
+
+std::array<point_t, 4u>& tetrahedron_t::nodes()
+{
+    return p_;
+}
+
+point_t const& tetrahedron_t::p1() const
+{
+    return p_[0];
+}
+
+point_t const& tetrahedron_t::p2() const
+{
+    return p_[1];
+}
+
+point_t const& tetrahedron_t::p3() const
+{
+    return p_[2];
+}
+
+point_t const& tetrahedron_t::p4() const
+{
+    return p_[3];
+}
+
+point_t& tetrahedron_t::p1()
+{
+    return p_[0];
+}
+
+point_t& tetrahedron_t::p2()
+{
+    return p_[1];
+}
+
+point_t& tetrahedron_t::p3()
+{
+    return p_[2];
+}
+
+point_t& tetrahedron_t::p4()
+{
+    return p_[3];
+}
+
+aabb_t::aabb_t(point_t const& min, point_t const& max) : min(min), max(max) {}
+
+bool aabb_t::contains(point_t const& p) const
+{
+    return (p.x() >= min.x() && p.x() <= max.x()) && (p.y() >= min.y() && p.y() <= max.y()) &&
+           (p.z() >= min.z() && p.z() <= max.z());
+}
+
+aabb_t aabb_t::from(tetrahedron_t const& t)
+{
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    point_t min{inf, inf, inf}, max{-inf, -inf, -inf};
+    for (auto const& p : t.nodes())
+    {
+        if (p.x() > max.x())
+            max.x() = p.x();
+        if (p.y() > max.y())
+            max.y() = p.y();
+        if (p.z() > max.z())
+            max.z() = p.z();
+
+        if (p.x() < min.x())
+            min.x() = p.x();
+        if (p.y() < min.y())
+            min.y() = p.y();
+        if (p.z() < min.z())
+            min.z() = p.z();
+    }
+    return aabb_t{min, max};
+}
+
+aabb_t aabb_t::from(triangle_t const& t)
+{
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    point_t min{inf, inf, inf}, max{-inf, -inf, -inf};
+    for (auto const& p : t.nodes())
+    {
+        if (p.x() > max.x())
+            max.x() = p.x();
+        if (p.y() > max.y())
+            max.y() = p.y();
+        if (p.z() > max.z())
+            max.z() = p.z();
+
+        if (p.x() < min.x())
+            min.x() = p.x();
+        if (p.y() < min.y())
+            min.y() = p.y();
+        if (p.z() < min.z())
+            min.z() = p.z();
+    }
+    return aabb_t{min, max};
 }
 
 } // namespace common

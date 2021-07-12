@@ -2,6 +2,7 @@
 #define SBS_COMMON_PRIMITIVE_H
 
 #include <Eigen/Core>
+#include <array>
 #include <optional>
 
 namespace sbs {
@@ -32,7 +33,52 @@ struct triangle_t
     normal_t normal() const;
     double area() const;
 
-    point_t a, b, c;
+    std::array<point_t, 3u> const& nodes() const;
+    std::array<point_t, 3u>& nodes();
+
+    point_t const& p1() const;
+    point_t const& p2() const;
+    point_t const& p3() const;
+
+    point_t& p1();
+    point_t& p2();
+    point_t& p3();
+
+    point_t const& a() const;
+    point_t const& b() const;
+    point_t const& c() const;
+
+    point_t& a();
+    point_t& b();
+    point_t& c();
+
+  private:
+    std::array<point_t, 3u> p_;
+};
+
+struct tetrahedron_t
+{
+    tetrahedron_t(point_t const& p1, point_t const& p2, point_t const& p3, point_t const& p4);
+
+    double unsigned_volume() const;
+    double signed_volume() const;
+    std::array<triangle_t, 4u> faces() const;
+    std::array<line_segment_t, 6u> edges() const;
+    std::array<point_t, 4u> const& nodes() const;
+    std::array<point_t, 4u>& nodes();
+
+    point_t const& p1() const;
+    point_t const& p2() const;
+    point_t const& p3() const;
+    point_t const& p4() const;
+
+    point_t& p1();
+    point_t& p2();
+    point_t& p3();
+    point_t& p4();
+
+  private:
+    std::array<point_t, 4u> p_;
 };
 
 struct ray_t
@@ -48,13 +94,13 @@ struct aabb_t;
 
 struct bounding_volume_t
 {
-    virtual bool contains(point_t const& point) const                              = 0;
-    virtual bool contains(triangle_t const& triangle) const                        = 0;
-    virtual std::optional<point_t> intersects(ray_t const& ray) const              = 0;
-    virtual std::optional<point_t> intersects(line_segment_t const& segment) const = 0;
-    virtual std::optional<point_t> intersects(triangle_t const& triangle) const    = 0;
-    virtual std::optional<point_t> intersects(sphere_t const& sphere) const        = 0;
-    virtual std::optional<point_t> intersects(aabb_t const& aabb) const            = 0;
+    // virtual bool contains(point_t const& point) const                              = 0;
+    // virtual bool contains(triangle_t const& triangle) const                        = 0;
+    // virtual std::optional<point_t> intersects(ray_t const& ray) const              = 0;
+    // virtual std::optional<point_t> intersects(line_segment_t const& segment) const = 0;
+    // virtual std::optional<point_t> intersects(triangle_t const& triangle) const    = 0;
+    // virtual std::optional<point_t> intersects(sphere_t const& sphere) const        = 0;
+    // virtual std::optional<point_t> intersects(aabb_t const& aabb) const            = 0;
 };
 
 struct sphere_t : public bounding_volume_t
@@ -67,10 +113,13 @@ struct sphere_t : public bounding_volume_t
 
 struct aabb_t : public bounding_volume_t
 {
-    aabb_t(point_t const& center, vector3d_t const& extent);
+    aabb_t(point_t const& min, point_t const& max);
 
-    point_t center;
-    vector3d_t extent;
+    bool contains(point_t const& p) const;
+    static aabb_t from(tetrahedron_t const& t);
+    static aabb_t from(triangle_t const& t);
+
+    point_t min, max;
 };
 
 std::tuple<double, double, double>

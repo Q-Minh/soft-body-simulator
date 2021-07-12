@@ -129,8 +129,12 @@ PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/xpbd/solver.cpp"
 
     # physics/collision
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/collision/brute_force_collision_detector.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/collision/collision_detector.h"
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/collision/intersections.h"
 
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/collision/brute_force_collision_detector.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/collision/collision_detector.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/collision/intersections.cpp"
 
     # physics/cutting

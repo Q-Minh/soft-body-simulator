@@ -1,7 +1,7 @@
 #ifndef SBS_PHYSICS_XPBD_MESH_H
 #define SBS_PHYSICS_XPBD_MESH_H
 
-#include "physics/mesh.h"
+#include "physics/topological_mesh.h"
 #include "physics/xpbd/simulation_parameters.h"
 
 namespace sbs {

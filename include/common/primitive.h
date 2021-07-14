@@ -33,6 +33,8 @@ struct triangle_t
     normal_t normal() const;
     double area() const;
 
+    std::array<line_segment_t, 3u> edges() const;
+
     std::array<point_t, 3u> const& nodes() const;
     std::array<point_t, 3u>& nodes();
 
@@ -107,6 +109,9 @@ struct sphere_t : public bounding_volume_t
 {
     sphere_t(point_t const& center, double radius);
 
+    static sphere_t from(tetrahedron_t const& t);
+    static sphere_t from(triangle_t const& t);
+
     point_t center;
     double radius;
 };
@@ -125,8 +130,13 @@ struct aabb_t : public bounding_volume_t
 std::tuple<double, double, double>
 barycentric_coordinates(point_t const& A, point_t const& B, point_t const& C, point_t const& p);
 
+bool intersects(tetrahedron_t const& t1, tetrahedron_t const& t2);
+bool intersects(triangle_t const& triangle, tetrahedron_t const& tetrahedron);
+bool intersects(point_t const& p, tetrahedron_t const& tetrahedron);
+
 std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const& triangle);
 std::optional<point_t> intersect(ray_t const& ray, triangle_t const& triangle);
+std::optional<point_t> intersect_twoway(line_segment_t const& segment, triangle_t const& triangle);
 
 } // namespace common
 } // namespace sbs

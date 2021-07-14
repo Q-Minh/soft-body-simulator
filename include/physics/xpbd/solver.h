@@ -20,6 +20,11 @@ class shared_vertex_surface_mesh_i;
 } // namespace common
 
 namespace physics {
+
+// forward declares
+template <class ElementType>
+class collision_detector_i;
+
 namespace xpbd {
 
 // forward declare
@@ -28,7 +33,7 @@ class tetrahedral_mesh_t;
 class solver_t
 {
   public:
-    solver_t() = default;
+    solver_t();
     solver_t(double timestep, std::uint32_t iterations, std::uint32_t substeps);
     solver_t(std::vector<std::shared_ptr<common::renderable_node_t>> const& bodies);
     solver_t(
@@ -53,7 +58,7 @@ class solver_t
     std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& simulated_bodies() const;
 
   protected:
-    void handle_collisions(std::vector<Eigen::Matrix3Xd> const& P);
+    void handle_collisions();
 
     void create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body);
     void create_distance_constraints_for_body(xpbd::tetrahedral_mesh_t* body);
@@ -100,6 +105,8 @@ class solver_t
     std::uint32_t iteration_count_;                ///< Number of iterations per substep
     std::vector<std::vector<Eigen::Vector3d>> x0_; ///< Initial positions of one timestep
     std::vector<double> lagrange_multipliers_;     ///< Lagrange multipliers of XPBD formulation
+    collision_detector_i<std::pair<xpbd::tetrahedral_mesh_t*, std::uint32_t>>*
+        collision_detection_system_; ///< Collision detection system 
 };
 
 } // namespace xpbd

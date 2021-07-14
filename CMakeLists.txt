@@ -108,8 +108,10 @@ PRIVATE
 
     # physics
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/mesh.h"
+    "${CMAKE_CURRENT_LIST_DIR}/include/physics/topological_mesh.h"
 
     "${CMAKE_CURRENT_LIST_DIR}/src/physics/mesh.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/physics/topological_mesh.cpp"
 
     # physics/xpbd
     "${CMAKE_CURRENT_LIST_DIR}/include/physics/xpbd/collision_constraint.h"

@@ -996,66 +996,105 @@ void renderable_topological_simulated_tetrahedral_mesh_t::prepare_indices_for_re
 
 tetrahedral_mesh_surface_mesh_adapter_t::tetrahedral_mesh_surface_mesh_adapter_t(
     topological_simulated_tetrahedral_mesh_t* mesh)
-    : mesh_(mesh), index_map_{}, vertices_{}, triangles_{}
+    : mesh_(mesh),
+      vertex_index_map_{},
+      tet_to_surface_vertex_index_map_{},
+      triangle_index_map_{},
+      vertex_normals_{}
 {
     extract_boundary_surface();
-    extract_surface_normals();
 }
 
 std::size_t tetrahedral_mesh_surface_mesh_adapter_t::triangle_count() const
 {
-    return triangles_.size();
+    return triangle_index_map_.size();
 }
 
 std::size_t tetrahedral_mesh_surface_mesh_adapter_t::vertex_count() const
 {
-    return vertices_.size();
+    return vertex_index_map_.size();
 }
 
 common::shared_vertex_surface_mesh_i::vertex_type
 tetrahedral_mesh_surface_mesh_adapter_t::vertex(std::size_t vi) const
 {
-    return vertices_[vi];
+    auto const tvi = vertex_index_map_[vi];
+    auto const& v  = mesh_->vertices().at(tvi);
+    shared_vertex_surface_mesh_i::vertex_type vertex{};
+    vertex.x  = v.position().x();
+    vertex.y  = v.position().y();
+    vertex.z  = v.position().z();
+    vertex.nx = vertex_normals_[vi].x();
+    vertex.ny = vertex_normals_[vi].y();
+    vertex.nz = vertex_normals_[vi].z();
+    vertex.r  = v.color().x();
+    vertex.g  = v.color().y();
+    vertex.b  = v.color().z();
+
+    return vertex;
 }
 
 common::shared_vertex_surface_mesh_i::triangle_type
 tetrahedral_mesh_surface_mesh_adapter_t::triangle(std::size_t fi) const
 {
-    return triangles_[fi];
+    auto const tfi = triangle_index_map_[fi];
+    auto const& f  = mesh_->triangles().at(tfi);
+    shared_vertex_surface_mesh_i::triangle_type triangle{};
+    triangle.v1 = tet_to_surface_vertex_index_map_[f.v1()].value();
+    triangle.v2 = tet_to_surface_vertex_index_map_[f.v2()].value();
+    triangle.v3 = tet_to_surface_vertex_index_map_[f.v3()].value();
+    return triangle;
 }
 
 std::vector<index_type> const&
 tetrahedral_mesh_surface_mesh_adapter_t::surface_to_tetrahedral_mesh_index_map() const
 {
-    return index_map_;
+    return vertex_index_map_;
 }
 
 index_type tetrahedral_mesh_surface_mesh_adapter_t::from_surface_vertex(std::size_t vi) const
 {
-    return index_map_[vi];
+    return vertex_index_map_[vi];
+}
+
+index_type tetrahedral_mesh_surface_mesh_adapter_t::from_surface_triangle(std::size_t fi) const
+{
+    return triangle_index_map_[fi];
 }
 
 void tetrahedral_mesh_surface_mesh_adapter_t::extract_boundary_surface()
 {
-    index_map_.clear();
-    vertices_.clear();
-    triangles_.clear();
+    vertex_index_map_.clear();
+    triangle_index_map_.clear();
+    tet_to_surface_vertex_index_map_.clear();
 
     std::size_t const tet_mesh_vertex_count = mesh_->vertices().size();
+    std::size_t const tet_mesh_face_count   = mesh_->triangles().size();
 
     // maps tetrahedral mesh vertices to surface mesh vertices
-    std::vector<std::optional<index_type>> tet_to_surface_index_map(tet_mesh_vertex_count);
+    tet_to_surface_vertex_index_map_.resize(tet_mesh_vertex_count);
 
     // pre-allocate vertex storage heuristically, and triangle storage exactly
-    std::vector<triangle_t const*> boundary_triangles = mesh_->boundary_triangles();
-    vertices_.reserve(boundary_triangles.size() / 3u);
-    triangles_.reserve(boundary_triangles.size());
+    std::vector<physics::triangle_t> const& triangles = mesh_->triangles();
+    vertex_index_map_.reserve(triangles.size() / 6u);
+    triangle_index_map_.reserve(triangles.size() / 6u);
 
-    for (auto const& boundary_triangle : boundary_triangles)
+    for (std::size_t fi = 0u; fi < triangles.size(); ++fi)
     {
-        auto const v1 = boundary_triangle->v1();
-        auto const v2 = boundary_triangle->v2();
-        auto const v3 = boundary_triangle->v3();
+        if (triangles[fi].is_interior_triangle())
+            continue;
+
+        triangle_index_map_.push_back(static_cast<index_type>(fi));
+
+        physics::triangle_t const& boundary_triangle = triangles[fi];
+        auto const v1                                = boundary_triangle.v1();
+        auto const v2                                = boundary_triangle.v2();
+        auto const v3                                = boundary_triangle.v3();
+
+        common::triangle_t const triangle_primitive{
+            mesh_->vertices().at(v1).position(),
+            mesh_->vertices().at(v2).position(),
+            mesh_->vertices().at(v3).position()};
 
         std::array<index_type, 3u> v{v1, v2, v3};
 
@@ -1063,70 +1102,49 @@ void tetrahedral_mesh_surface_mesh_adapter_t::extract_boundary_surface()
         {
             index_type const vi = v[j];
 
-            if (!tet_to_surface_index_map[vi].has_value())
+            if (!tet_to_surface_vertex_index_map_[vi].has_value())
             {
                 // update map
-                index_type const new_vertex_index = static_cast<index_type>(vertices_.size());
-                tet_to_surface_index_map[vi]      = new_vertex_index;
-
-                // create boundary vertex
-                vertex_t const& physics_vertex = mesh_->vertices().at(vi);
-                vertex_type vertex             = from_physics_vertex(physics_vertex);
-                vertices_.push_back(vertex);
+                index_type const new_vertex_index =
+                    static_cast<index_type>(vertex_index_map_.size());
+                tet_to_surface_vertex_index_map_[vi] = new_vertex_index;
+                vertex_index_map_.push_back(vi);
             }
         }
-
-        triangle_type triangle{};
-        triangle.v1 = tet_to_surface_index_map[v1].value();
-        triangle.v2 = tet_to_surface_index_map[v2].value();
-        triangle.v3 = tet_to_surface_index_map[v3].value();
-        triangles_.push_back(triangle);
     }
 
-    index_map_.resize(vertices_.size());
-    for (std::size_t vi = 0u; vi < tet_mesh_vertex_count; ++vi)
+    vertex_normals_.clear();
+    vertex_normals_.resize(vertex_index_map_.size(), Eigen::Vector3d{0., 0., 0.});
+
+    for (auto const& tfi : triangle_index_map_)
     {
-        if (!tet_to_surface_index_map[vi].has_value())
-            continue;
+        auto const tv1 = mesh_->triangles().at(tfi).v1();
+        auto const tv2 = mesh_->triangles().at(tfi).v2();
+        auto const tv3 = mesh_->triangles().at(tfi).v3();
 
-        index_type const surface_vi = tet_to_surface_index_map[vi].value();
-        index_map_[surface_vi]      = static_cast<index_type>(vi);
-    }
-}
-
-void tetrahedral_mesh_surface_mesh_adapter_t::extract_surface_normals()
-{
-    std::vector<common::normal_t> normals(vertices_.size(), common::normal_t{0., 0., 0.});
-
-    for (auto const& triangle : triangles_)
-    {
-        auto const v1 = triangle.v1;
-        auto const v2 = triangle.v2;
-        auto const v3 = triangle.v3;
+        auto const& p1 = mesh_->vertices().at(tv1).position();
+        auto const& p2 = mesh_->vertices().at(tv2).position();
+        auto const& p3 = mesh_->vertices().at(tv3).position();
 
         common::triangle_t triangle_primitive{
-            common::point_t{vertices_[v1].x, vertices_[v1].y, vertices_[v1].z},
-            common::point_t{vertices_[v2].x, vertices_[v2].y, vertices_[v2].z},
-            common::point_t{vertices_[v3].x, vertices_[v3].y, vertices_[v3].z}};
+            common::point_t{p1.x(), p1.y(), p1.z()},
+            common::point_t{p2.x(), p2.y(), p2.z()},
+            common::point_t{p3.x(), p3.y(), p3.z()}};
 
         auto const n = triangle_primitive.normal();
         auto const A = triangle_primitive.area();
 
-        std::array<index_type, 3u> const v{v1, v2, v3};
-        for (std::size_t j = 0u; j < v.size(); ++j)
+        std::array<index_type, 3u> const tv{tv1, tv2, tv3};
+        for (std::size_t j = 0u; j < tv.size(); ++j)
         {
-            normals[v[j]] += A * n;
+            index_type const tvi = tv[j];
+            index_type const vi  = tet_to_surface_vertex_index_map_[tvi].value();
+            vertex_normals_[vi] += A * n;
         }
     }
 
-    for (std::size_t vi = 0u; vi < vertices_.size(); ++vi)
-    {
-        vertex_type& vertex      = vertices_[vi];
-        common::normal_t const n = normals[vi].normalized();
-        vertex.nx                = n.x();
-        vertex.ny                = n.y();
-        vertex.nz                = n.z();
-    }
+    for (auto& n : vertex_normals_)
+        n.normalize();
 }
 
 topological_simulated_tetrahedral_mesh_t const*
@@ -1139,23 +1157,6 @@ topological_simulated_tetrahedral_mesh_t*
 tetrahedral_mesh_surface_mesh_adapter_t::tetrahedral_mesh()
 {
     return mesh_;
-}
-
-tetrahedral_mesh_surface_mesh_adapter_t::vertex_type
-tetrahedral_mesh_surface_mesh_adapter_t::from_physics_vertex(vertex_t const& v)
-{
-    physics::vertex_t const& physics_vertex = v;
-    vertex_type vertex{};
-    vertex.x  = physics_vertex.position().x();
-    vertex.y  = physics_vertex.position().y();
-    vertex.z  = physics_vertex.position().z();
-    vertex.nx = physics_vertex.normal().x();
-    vertex.ny = physics_vertex.normal().y();
-    vertex.nz = physics_vertex.normal().z();
-    vertex.r  = physics_vertex.color().x();
-    vertex.g  = physics_vertex.color().y();
-    vertex.b  = physics_vertex.color().z();
-    return vertex;
 }
 
 } // namespace physics

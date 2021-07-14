@@ -6,6 +6,7 @@
 #include <Eigen/Core>
 #include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace sbs {
@@ -436,7 +437,8 @@ class tetrahedral_mesh_surface_mesh_adapter_t : public common::shared_vertex_sur
     std::vector<index_type> const& surface_to_tetrahedral_mesh_index_map() const;
 
     /**
-     * @brief Returns the tetrahedral mesh's corresponding index of the surface mesh's index vi.
+     * @brief Returns the tetrahedral mesh's corresponding index of the surface mesh's vertex index
+     * vi.
      * @param vi The surface mesh's vertex index
      * @return The tetrahedral mesh's vertex index corresponding to the surface mesh's vertex index
      * vi
@@ -444,25 +446,32 @@ class tetrahedral_mesh_surface_mesh_adapter_t : public common::shared_vertex_sur
     index_type from_surface_vertex(std::size_t vi) const;
 
     /**
+     * @brief Returns the tetrahedral mesh's corresponding index of the surface mesh's triangle
+     * index fi.
+     * @param fi The surface mesh's triangle index
+     * @return The tetrahedral mesh's triangle index corresponding to the surface mesh's triangle
+     * index
+     */
+    index_type from_surface_triangle(std::size_t fi) const;
+
+    /**
      * @brief Recompute the tetrahedral mesh's boundary surface mesh
      */
     void extract_boundary_surface();
-    /**
-     * @brief Compute the boundary surface mesh's vertex normals
-     */
-    void extract_surface_normals();
 
     topological_simulated_tetrahedral_mesh_t const* tetrahedral_mesh() const;
     topological_simulated_tetrahedral_mesh_t* tetrahedral_mesh();
 
   private:
-    vertex_type from_physics_vertex(vertex_t const& v);
-
-  private:
     topological_simulated_tetrahedral_mesh_t* mesh_;
-    std::vector<index_type> index_map_;
-    std::vector<shared_vertex_surface_mesh_i::vertex_type> vertices_;
-    std::vector<shared_vertex_surface_mesh_i::triangle_type> triangles_;
+    std::vector<index_type>
+        vertex_index_map_; ///< Maps from surface vertex indices to tet vertex indices
+    std::vector<std::optional<index_type>>
+        tet_to_surface_vertex_index_map_; ///< Maps from tet vertex indices to surface vertex
+                                          ///< indices
+    std::vector<index_type>
+        triangle_index_map_; ///< Maps from surface face indices to tet triangle indices
+    std::vector<Eigen::Vector3d> vertex_normals_; ///< Vertex normals of boundary vertices
 };
 
 } // namespace physics

@@ -9,9 +9,6 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
-// forward declare
-class tetrahedral_mesh_t;
-
 class green_constraint_t : public constraint_t
 {
   public:

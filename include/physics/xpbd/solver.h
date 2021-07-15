@@ -1,6 +1,7 @@
 #ifndef SBS_PHYSICS_XPBD_SOLVER_H
 #define SBS_PHYSICS_XPBD_SOLVER_H
 
+#include "collision_constraint.h"
 #include "constraint.h"
 
 #include <Eigen/Core>
@@ -20,11 +21,6 @@ class shared_vertex_surface_mesh_i;
 } // namespace common
 
 namespace physics {
-
-// forward declares
-template <class ElementType>
-class collision_detector_i;
-
 namespace xpbd {
 
 // forward declare
@@ -54,6 +50,9 @@ class solver_t
 
     std::uint32_t const& substeps() const;
     std::uint32_t& substeps();
+
+    double const& collision_compliance() const;
+    double& collision_compliance();
 
     std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& simulated_bodies() const;
 
@@ -90,7 +89,7 @@ class solver_t
                              ///< detection/handling
 
     std::vector<std::unique_ptr<constraint_t>> constraints_; ///< List of XPBD constraints
-    std::vector<std::unique_ptr<constraint_t>>
+    std::vector<collision_constraint_t>
         collision_constraints_; ///< List of XPBD collision constraints that is rebuilt every frame
 
     std::map<
@@ -105,8 +104,7 @@ class solver_t
     std::uint32_t iteration_count_;                ///< Number of iterations per substep
     std::vector<std::vector<Eigen::Vector3d>> x0_; ///< Initial positions of one timestep
     std::vector<double> lagrange_multipliers_;     ///< Lagrange multipliers of XPBD formulation
-    collision_detector_i<std::pair<xpbd::tetrahedral_mesh_t*, std::uint32_t>>*
-        collision_detection_system_; ///< Collision detection system 
+    double collision_alpha_;                       ///< Collision constraint compliance
 };
 
 } // namespace xpbd

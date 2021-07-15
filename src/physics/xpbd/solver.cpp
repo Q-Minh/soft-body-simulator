@@ -7,8 +7,6 @@
 #include "physics/xpbd/green_constraint.h"
 #include "physics/xpbd/mesh.h"
 
-#include <numeric>
-
 namespace sbs {
 namespace physics {
 namespace xpbd {
@@ -126,9 +124,6 @@ void solver_t::step()
     std::uint32_t const num_substeps = can_perform_substepping ? substeps_ : 1u;
     double const dt = can_perform_substepping ? dt_ / static_cast<double>(substeps_) : dt_;
 
-    // constraint projection
-    std::size_t const J  = constraints_.size();
-    std::size_t const Mc = collision_constraints_.size();
     for (std::uint32_t s = 0u; s < num_substeps; ++s)
     {
         // Hold previous positions x0.
@@ -171,7 +166,12 @@ void solver_t::step()
 
         // TODO: detect collisions
         // ...
+        handle_collisions();
 
+        // constraint projection
+        std::size_t const J  = constraints_.size();
+        std::size_t const Mc = collision_constraints_.size();
+        lagrange_multipliers_.resize(J + Mc);
         std::fill(lagrange_multipliers_.begin(), lagrange_multipliers_.end(), 0.);
         for (std::uint32_t n = 0u; n < num_iterations; ++n)
         {
@@ -182,11 +182,11 @@ void solver_t::step()
             }
             for (std::size_t c = 0u; c < Mc; ++c)
             {
-                double infinite_stiffness_lagrange_multiplier   = 0.;
-                std::unique_ptr<constraint_t> const& constraint = collision_constraints_[c];
-                constraint->project(physics_bodies_, infinite_stiffness_lagrange_multiplier, dt);
+                collision_constraint_t const& constraint = collision_constraints_[c];
+                constraint.project(physics_bodies_, lagrange_multipliers_[J + c], dt);
             }
         }
+        collision_constraints_.clear();
 
         // update positions and velocities
         for (std::size_t b = 0u; b < physics_bodies_.size(); ++b)
@@ -205,9 +205,9 @@ void solver_t::step()
                 vertex.force().setZero();
             }
         }
-    }
 
-    // friction or other non-conservative forces here
+        // friction or other non-conservative forces here
+    }
 }
 
 double const& solver_t::timestep() const
@@ -238,6 +238,16 @@ std::uint32_t const& solver_t::substeps() const
 std::uint32_t& solver_t::substeps()
 {
     return substeps_;
+}
+
+double const& solver_t::collision_compliance() const
+{
+    return collision_alpha_;
+}
+
+double& solver_t::collision_compliance()
+{
+    return collision_alpha_;
 }
 
 std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& solver_t::simulated_bodies() const
@@ -281,49 +291,50 @@ void solver_t::create_distance_constraints_for_body(xpbd::tetrahedral_mesh_t* bo
 
 void solver_t::handle_collisions()
 {
+    brute_force_collision_detector_t<xpbd::tetrahedral_mesh_t> collision_detection_system{};
+
     for (auto const& env_body : environment_bodies_)
     {
-        for (std::size_t fi = 0u; fi < env_body->triangle_count(); ++fi)
-        {
-            auto const face = env_body->triangle(fi);
-
-            auto const v1 = env_body->vertex(face.v1);
-            auto const v2 = env_body->vertex(face.v2);
-            auto const v3 = env_body->vertex(face.v3);
-
-            common::triangle_t const triangle{
-                common::point_t{v1.x, v1.y, v1.z},
-                common::point_t{v2.x, v2.y, v2.z},
-                common::point_t{v3.x, v3.y, v3.z}};
-
-            auto const intersection_pairs = collision_detection_system_->intersect(triangle);
-
-            // generate collision constraints
-            for (auto const& [body_ptr, ti] : intersection_pairs)
-            {
-                auto const& tetrahedra          = body_ptr->tetrahedra();
-                auto const& vertices            = body_ptr->vertices();
-                physics::tetrahedron_t const& t = tetrahedra[ti];
-                common::tetrahedron_t const tetrahedron{
-                    vertices[t.v1()].position(),
-                    vertices[t.v2()].position(),
-                    vertices[t.v3()].position(),
-                    vertices[t.v4()].position()};
-
-                common::sphere_t const approx_bounding_sphere = common::sphere_t::from(tetrahedron);
-
-            }
-        }
+        collision_detection_system.add_environment_body(env_body.get());
     }
+
+    std::vector<bool> is_vertex_constrained_by_collision{};
     for (auto const& phys_body : physics_bodies_)
     {
-        auto const& vertices = phys_body->vertices();
-        for (std::size_t vi = 0u; vi < vertices.size(); ++vi)
-        {
-            common::point_t const& point  = vertices[vi].position();
-            auto const intersection_pairs = collision_detection_system_->intersect(point);
+        is_vertex_constrained_by_collision.clear();
+        is_vertex_constrained_by_collision.resize(phys_body->vertices().size(), false);
 
-            // generate collision constraints
+        auto const intersection_pairs = collision_detection_system.intersect(phys_body.get());
+        for (auto const& [ti, triangle] : intersection_pairs)
+        {
+            auto const& tetrahedron = phys_body->tetrahedra().at(ti);
+            std::array<index_type, 4u> const v{
+                tetrahedron.v1(),
+                tetrahedron.v2(),
+                tetrahedron.v3(),
+                tetrahedron.v4()};
+
+            auto const n = triangle.normal();
+            for (std::size_t j = 0u; j < v.size(); ++j)
+            {
+                // check if vertex is penetrating the triangle
+                index_type const vi               = v[j];
+                auto const& vertex                = phys_body->vertices().at(vi);
+                auto const& p                     = vertex.position();
+                common::vector3d_t const d        = p - triangle.a();
+                bool const is_vertex_over_surface = d.dot(n) >= 0.;
+
+                if (is_vertex_over_surface)
+                    continue;
+
+                if (is_vertex_constrained_by_collision[vi])
+                    continue;
+
+                collision_constraints_.push_back(
+                    collision_constraint_t{collision_alpha_, phys_body.get(), vi, triangle, n});
+
+                is_vertex_constrained_by_collision[vi] = true;
+            }
         }
     }
 }

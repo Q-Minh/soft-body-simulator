@@ -205,7 +205,7 @@ int main(int argc, char** argv)
 
     std::shared_ptr<sbs::common::renderable_node_t> selected_node{};
     renderer.on_mouse_button_pressed = [&](GLFWwindow* window, int button, int action, int mods) {
-        
+
     };
 
     // double xprev = 0., yprev = 0., dx = 0., dy = 0.;
@@ -285,6 +285,13 @@ int main(int argc, char** argv)
 
             ImGui::TreePush();
             ImGui::InputDouble("Fext magnitude", &force_magnitude, 100., 1000., "%.0f");
+            ImGui::InputDouble(
+                "Collision compliance",
+                &solver.collision_compliance(),
+                0.000001,
+                0.001,
+                "%.10f");
+
             if (ImGui::CollapsingHeader("XPBD") && is_selected_node_a_physics_node)
             {
                 ImGui::Text("Constraint type");

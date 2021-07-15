@@ -1,4 +1,4 @@
-#include "common/primitive.h"
+﻿#include "common/primitive.h"
 
 #include <Eigen/Geometry>
 
@@ -450,6 +450,74 @@ std::optional<point_t> intersect_twoway(line_segment_t const& segment, triangle_
 
     line_segment_t const flipped_segment{segment.q, segment.p};
     return intersect(flipped_segment, triangle);
+}
+
+/**
+ * @brief
+ * Implementation of closest point on triangle to a point P from Christer Ericson's Real-Time
+ * Collision Detection
+ * @param p Point off triangle
+ * @param t Triangle on which we wish to find the closest point to p
+ * @return The closest point q on triangle t to point p
+ */
+point_t closest_point(point_t const& p, triangle_t const& t)
+{
+    auto const& a = t.a();
+    auto const& b = t.b();
+    auto const& c = t.c();
+
+    // Check if P in vertex region outside A
+    common::vector3d_t const ab = b - a;
+    common::vector3d_t const ac = c - a;
+    common::vector3d_t const ap = p - a;
+    double const d1             = ab.dot(ap);
+    double const d2             = ac.dot(ap);
+    if (d1 <= 0.0 && d2 <= 0.0)
+        return a; // barycentric coordinates (1,0,0)
+
+    // Check if P in vertex region outside B
+    common::vector3d_t const bp = p - b;
+    double const d3             = ab.dot(bp);
+    double const d4             = ac.dot(bp);
+    if (d3 >= 0.0 && d4 <= d3)
+        return b; // barycentric coordinates (0,1,0)
+
+    // Check if P in edge region of AB, if so return projection of P onto AB
+    double const vc = d1 * d4 - d3 * d2;
+    if (vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0)
+    {
+        double const v = d1 / (d1 - d3);
+        return a + v * ab; // barycentric coordinates (1-v, v,0)
+    }
+
+    // Check if P in vertex region outside C
+    common::vector3d_t const cp = p - c;
+    double const d5             = ab.dot(cp);
+    double const d6             = ac.dot(cp);
+    if (d6 >= 0.0 && d5 <= d6)
+        return c; // barycentric coordinates (0,0,1)
+
+    // Check if P in edge region of AC, if so return projection of P onto AC
+    double const vb = d5 * d2 - d1 * d6;
+    if (vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0)
+    {
+        double const w = d2 / (d2 - d6);
+        return a + w * ac; // barycentric coordinates (1-w, 0, w)
+    }
+
+    // Check if P in edge region of BC, if so return projection of P onto BC
+    double const va = d3 * d6 - d5 * d4;
+    if (va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0)
+    {
+        double const w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return b + w * (c - b); // barycentric coordinates (0,1-w, w)
+    }
+
+    // P inside face region. Compute Q through its barycentric coordinates (u, v, w)
+    double const denom = 1.0 / (va + vb + vc);
+    double const v     = vb * denom;
+    double const w     = vc * denom;
+    return a + ab * v + ac * w; //=u*a+v*b+w*c,u=va* denom=1.0f−v−w
 }
 
 tetrahedron_t::tetrahedron_t(

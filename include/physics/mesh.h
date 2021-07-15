@@ -282,12 +282,12 @@ template <class Derived>
 class simulated_mesh_i
 {
   public:
-    std::vector<vertex_t> const& vertices() const { static_cast<Derived*>(this)->vertices(); }
-    std::vector<edge_t> const& edges() const { static_cast<Derived*>(this)->edges(); }
-    std::vector<triangle_t> const& triangles() const { static_cast<Derived*>(this)->triangles(); }
+    std::vector<vertex_t> const& vertices() const { static_cast<Derived&>(*this).vertices(); }
+    std::vector<edge_t> const& edges() const { static_cast<Derived&>(*this).edges(); }
+    std::vector<triangle_t> const& triangles() const { static_cast<Derived&>(*this).triangles(); }
     std::vector<tetrahedron_t> const& tetrahedra() const
     {
-        static_cast<Derived*>(this)->tetrahedra();
+        static_cast<Derived&>(*this).tetrahedra();
     }
 };
 

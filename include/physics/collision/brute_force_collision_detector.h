@@ -1,9 +1,13 @@
 #ifndef SBS_PHYSICS_COLLISION_BRUTE_FORCE_COLLISION_DETECTOR_H
 #define SBS_PHYSICS_COLLISION_BRUTE_FORCE_COLLISION_DETECTOR_H
 
-#include "physics/collision/collision_detector.h"
+//#include "physics/collision/collision_detector.h"
+
+#include "common/mesh.h"
+#include "common/primitive.h"
 #include "physics/mesh.h"
 
+#include <list>
 #include <numeric>
 #include <vector>
 
@@ -17,123 +21,85 @@ namespace physics {
  */
 template <class SimulatedMeshType>
 class brute_force_collision_detector_t
-    : public collision_detector_i<std::pair<SimulatedMeshType*, std::uint32_t>>
 {
   public:
-    using mesh_type      = SimulatedMeshType;
-    using base_mesh_type = physics::simulated_mesh_i<mesh_type>;
-    using element_type   = std::pair<mesh_type* /*body*/, std::uint32_t /*ti*/>;
+    using simulated_mesh_type    = SimulatedMeshType;
+    using surface_mesh_type      = common::shared_vertex_surface_mesh_i;
+    using intersection_pair_type = std::pair<std::uint32_t /*ti*/, common::triangle_t>;
 
-    brute_force_collision_detector_t() = default;
-
-    template <class BaseMeshTypePointerIt>
-    explicit brute_force_collision_detector_t(
-        BaseMeshTypePointerIt first,
-        BaseMeshTypePointerIt last);
-
-    void add_mesh(base_mesh_type* mesh);
-
-    virtual std::list<element_type> intersect(common::tetrahedron_t const& t) const override;
-    virtual std::list<element_type> intersect(common::triangle_t const& t) const override;
-    virtual element_type intersect(common::point_t const& p) const override;
+    void add_environment_body(surface_mesh_type const* mesh);
+    std::list<intersection_pair_type> intersect(simulated_mesh_type const* mesh) const;
 
   private:
-    template <class GeometricPrimitiveType>
-    std::list<element_type> intersect_base(GeometricPrimitiveType const& geometric_primitive) const;
+    std::list<intersection_pair_type>
+    intersect_single_triangle(simulated_mesh_type const* mesh, common::triangle_t const& t) const;
 
   private:
-    std::vector<base_mesh_type*> bodies_;
+    std::vector<surface_mesh_type const*> environment_bodies_;
 };
 
 template <class SimulatedMeshType>
-template <class BaseMeshTypePointerIt>
-inline brute_force_collision_detector_t<SimulatedMeshType>::brute_force_collision_detector_t(
-    BaseMeshTypePointerIt first,
-    BaseMeshTypePointerIt last)
-    : bodies_{first, last}
+inline void brute_force_collision_detector_t<SimulatedMeshType>::add_environment_body(
+    surface_mesh_type const* mesh)
 {
+    environment_bodies_.push_back(mesh);
 }
 
 template <class SimulatedMeshType>
-template <class GeometricPrimitiveType>
-inline std::list<brute_force_collision_detector_t<SimulatedMeshType>::element_type>
-brute_force_collision_detector_t<SimulatedMeshType>::intersect_base(
-    GeometricPrimitiveType const& geometric_primitive) const
+inline std::list<
+    typename brute_force_collision_detector_t<SimulatedMeshType>::intersection_pair_type>
+brute_force_collision_detector_t<SimulatedMeshType>::intersect(
+    simulated_mesh_type const* mesh) const
 {
-    std::vector<std::list<element_type>> intersections(bodies_.size(), std::list<element_type>{});
-
-    auto const compute_intersections_for_body = [geometric_primitive](base_mesh_type* body) {
-        std::list<element_type> intersected_elements{};
-
-        std::vector<tetrahedron_t> const& tetrahedra   = body->tetrahedra();
-        std::vector<physics::vertex_t> const& vertices = body->vertices();
-
-        for (std::size_t ti = 0u; i < tetrahedra.size(); ++ti)
+    std::list<intersection_pair_type> intersection_pairs{};
+    for (auto const& env_body : environment_bodies_)
+    {
+        for (std::size_t fi = 0u; fi < env_body->triangle_count(); ++fi)
         {
-            tetrahedron_t const& tetrahedron = tetrahedra[ti];
+            auto const f  = env_body->triangle(fi);
+            auto const v1 = env_body->vertex(f.v1);
+            auto const v2 = env_body->vertex(f.v2);
+            auto const v3 = env_body->vertex(f.v3);
 
-            index_type const v1 = tetrahedron.v1();
-            index_type const v2 = tetrahedron.v2();
-            index_type const v3 = tetrahedron.v3();
-            index_type const v4 = tetrahedron.v4();
+            common::point_t const p1{v1.x, v1.y, v1.z};
+            common::point_t const p2{v2.x, v2.y, v2.z};
+            common::point_t const p3{v3.x, v3.y, v3.z};
 
-            auto const& p1 = vertices[v1].position();
-            auto const& p2 = vertices[v2].position();
-            auto const& p3 = vertices[v3].position();
-            auto const& p4 = vertices[v4].position();
-
-            common::tetrahedron_t const tetrahedron_primitive{p1, p2, p3, p4};
-            if (common::intersects(geometric_primitive, tetrahedron_primitive))
-            {
-                intersected_elements.push_back({static_cast<mesh_type*>(body), ti});
-            }
+            common::triangle_t const triangle{p1, p2, p3};
+            std::list<intersection_pair_type> triangle_tet_intersections =
+                intersect_single_triangle(mesh, triangle);
+            intersection_pairs.splice(intersection_pairs.begin(), triangle_tet_intersections);
         }
-        return intersected_elements;
-    };
-
-    std::transform(
-        bodies_.begin(),
-        bodies_.end(),
-        intersections.begin(),
-        compute_intersections_for_body);
-
-    auto const reduce_op = [](std::list<element_type>&& accum, std::list<element_type>& next) {
-        accum.splice(accum.begin(), next);
-        return std::move(accum);
-    };
-    auto const all_intersection_pairs = std::reduce(
-        intersections.begin(),
-        intersections.end(),
-        std::list<element_type>{},
-        reduce_op);
-    return all_intersection_pairs;
+    }
+    return intersection_pairs;
 }
 
 template <class SimulatedMeshType>
-inline void brute_force_collision_detector_t<SimulatedMeshType>::add_mesh(base_mesh_type* mesh)
+inline std::list<
+    typename brute_force_collision_detector_t<SimulatedMeshType>::intersection_pair_type>
+brute_force_collision_detector_t<SimulatedMeshType>::intersect_single_triangle(
+    simulated_mesh_type const* mesh,
+    common::triangle_t const& triangle) const
 {
-    bodies_.push_back(mesh);
-}
+    std::list<intersection_pair_type> intersection_pairs{};
+    std::vector<physics::tetrahedron_t> const& tetrahedra = mesh->tetrahedra();
+    std::vector<physics::vertex_t> const& vertices        = mesh->vertices();
+    for (std::size_t ti = 0u; ti < tetrahedra.size(); ++ti)
+    {
+        physics::tetrahedron_t const& t = tetrahedra[ti];
 
-template <class SimulatedMeshType>
-inline std::list<brute_force_collision_detector_t<SimulatedMeshType>::element_type>
-brute_force_collision_detector_t<SimulatedMeshType>::intersect(common::tetrahedron_t const& t) const
-{
-    return intersect_base<common::tetrahedron_t>(t);
-}
+        auto const p1 = vertices[t.v1()].position();
+        auto const p2 = vertices[t.v2()].position();
+        auto const p3 = vertices[t.v3()].position();
+        auto const p4 = vertices[t.v4()].position();
 
-template <class SimulatedMeshType>
-inline std::list<brute_force_collision_detector_t<SimulatedMeshType>::element_type>
-brute_force_collision_detector_t<SimulatedMeshType>::intersect(common::triangle_t const& t) const
-{
-    return intersect_base<common::triangle_t>(t);
-}
-
-template <class SimulatedMeshType>
-inline brute_force_collision_detector_t<SimulatedMeshType>::element_type
-brute_force_collision_detector_t<SimulatedMeshType>::intersect(common::point_t const& p) const
-{
-    return intersect_base<common::point_t>(p).front();
+        common::tetrahedron_t const tetrahedron{p1, p2, p3, p4};
+        if (common::intersects(triangle, tetrahedron))
+        {
+            intersection_pairs.push_back({static_cast<index_type>(ti), triangle});
+        }
+    }
+    return intersection_pairs;
 }
 
 } // namespace physics

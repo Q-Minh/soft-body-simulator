@@ -1,11 +1,11 @@
-#include "physics/xpbd/solver.h"
+#include "sbs/physics/xpbd/solver.h"
 
-#include "physics/collision/brute_force_collision_detector.h"
-#include "physics/collision/intersections.h"
-#include "physics/xpbd/collision_constraint.h"
-#include "physics/xpbd/distance_constraint.h"
-#include "physics/xpbd/green_constraint.h"
-#include "physics/xpbd/mesh.h"
+#include "sbs/physics/collision/brute_force_collision_detector.h"
+#include "sbs/physics/collision/intersections.h"
+#include "sbs/physics/xpbd/collision_constraint.h"
+#include "sbs/physics/xpbd/distance_constraint.h"
+#include "sbs/physics/xpbd/green_constraint.h"
+#include "sbs/physics/xpbd/mesh.h"
 
 namespace sbs {
 namespace physics {

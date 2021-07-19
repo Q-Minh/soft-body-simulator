@@ -1,4 +1,4 @@
-﻿#include "common/primitive.h"
+﻿#include "sbs/common/primitive.h"
 
 #include <Eigen/Geometry>
 

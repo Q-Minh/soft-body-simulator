@@ -1,4 +1,4 @@
-//#include "rendering/trackball_rotation_adapter.h"
+//#include "sbs/rendering/trackball_rotation_adapter.h"
 //
 //#include <Eigen/Geometry>
 //

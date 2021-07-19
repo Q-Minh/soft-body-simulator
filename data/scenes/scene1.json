@@ -81,12 +81,17 @@
             "id": "cutter",
             "geometry": {
                 "type": "triangle mesh",
-                "path": "../meshes/line.ply"
+                "path": "../meshes/cube.ply"
             },
             "color": {
                 "r": 255,
                 "g": 0,
                 "b": 0
+            }, 
+            "translation": {
+                "x": 2.5,
+                "y": 0.0,
+                "z": -2.0
             }
         }
     ],

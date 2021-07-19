@@ -3,6 +3,9 @@
 include(CMakeFindDependencyMacro)
 
 find_dependency(Eigen3)
+find_dependency(nlohmann_json)
+find_dependency(glm)
+find_dependency(Threads)
 
 if (NOT TARGET sbs::sbs)
     include("${CMAKE_CURRENT_LIST_DIR}/sbsTargets.cmake")

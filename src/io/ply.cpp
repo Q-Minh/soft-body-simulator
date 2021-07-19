@@ -1,7 +1,7 @@
-#include "io/ply.h"
+#include "sbs/io/ply.h"
 
-#include "io/tokenize.h"
-#include "io/endianness.hpp"
+#include "sbs/io/tokenize.h"
+#include "sbs/io/endianness.hpp"
 
 #include <algorithm>
 #include <set>

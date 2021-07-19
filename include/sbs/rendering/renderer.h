@@ -6,7 +6,7 @@
 #include <GLFW/glfw3.h>
 // clang-format on
 
-#include "common/scene.h"
+#include "sbs/common/scene.h"
 #include "camera.h"
 #include "shader.h"
 

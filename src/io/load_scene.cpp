@@ -1,6 +1,6 @@
-#include "io/load_scene.h"
+#include "sbs/io/load_scene.h"
 
-#include "io/ply.h"
+#include "sbs/io/ply.h"
 
 #include <fstream>
 #include <nlohmann/json.hpp>

@@ -1,4 +1,4 @@
-#include "physics/collision/collision_detector.h"
+#include "sbs/physics/collision/collision_detector.h"
 
 namespace sbs {
 namespace physics {

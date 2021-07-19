@@ -1,7 +1,7 @@
-#include "physics/xpbd/collision_constraint.h"
+#include "sbs/physics/xpbd/collision_constraint.h"
 
-#include "common/primitive.h"
-#include "physics/xpbd/mesh.h"
+#include "sbs/common/primitive.h"
+#include "sbs/physics/xpbd/mesh.h"
 
 #include <Eigen/Geometry>
 

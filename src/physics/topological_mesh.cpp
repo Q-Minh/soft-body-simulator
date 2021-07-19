@@ -1,7 +1,7 @@
-#include "physics/topological_mesh.h"
+#include "sbs/physics/topological_mesh.h"
 
-#include "common/geometry.h"
-#include "common/primitive.h"
+#include "sbs/common/geometry.h"
+#include "sbs/common/primitive.h"
 
 #include <map>
 #include <numeric>

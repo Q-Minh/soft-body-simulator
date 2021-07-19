@@ -1,6 +1,6 @@
-#include "physics/xpbd/green_constraint.h"
+#include "sbs/physics/xpbd/green_constraint.h"
 
-#include "physics/xpbd/mesh.h"
+#include "sbs/physics/xpbd/mesh.h"
 
 #include <Eigen/LU>
 #include <Eigen/SVD>

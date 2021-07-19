@@ -1,10 +1,10 @@
-#include "common/mesh.h"
-#include "io/load_scene.h"
-#include "physics/xpbd/mesh.h"
-#include "physics/xpbd/solver.h"
-#include "rendering/physics_timestep_throttler.h"
-#include "rendering/pick.h"
-#include "rendering/renderer.h"
+#include "sbs/common/mesh.h"
+#include "sbs/io/load_scene.h"
+#include "sbs/physics/xpbd/mesh.h"
+#include "sbs/physics/xpbd/solver.h"
+#include "sbs/rendering/physics_timestep_throttler.h"
+#include "sbs/rendering/pick.h"
+#include "sbs/rendering/renderer.h"
 
 #include <imgui/imgui.h>
 #include <iostream>

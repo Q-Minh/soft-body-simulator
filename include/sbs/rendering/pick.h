@@ -1,7 +1,7 @@
 #ifndef SBS_RENDERING_PICK_H
 #define SBS_RENDERING_PICK_H
 
-#include "common/primitive.h"
+#include "sbs/common/primitive.h"
 
 #include <functional>
 #include <memory>

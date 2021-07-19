@@ -1,7 +1,7 @@
 //#ifndef SBS_RENDERING_TRACKBALL_ROTATION_ADAPTER_H
 //#define SBS_RENDERING_TRACKBALL_ROTATION_ADAPTER_H
 //
-//#include "common/mesh.h"
+//#include "sbs/common/mesh.h"
 //
 //#include <Eigen/Core>
 //

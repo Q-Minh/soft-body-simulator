@@ -1,4 +1,4 @@
-#include "common/node.h"
+#include "sbs/common/node.h"
 
 namespace sbs {
 namespace common {

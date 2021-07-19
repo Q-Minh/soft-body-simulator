@@ -1,4 +1,4 @@
-#include "physics/mesh.h"
+#include "sbs/physics/mesh.h"
 
 namespace sbs {
 namespace physics {

@@ -1,8 +1,8 @@
 #ifndef SBS_IO_LOAD_SCENE_H
 #define SBS_IO_LOAD_SCENE_H
 
-#include "common/scene.h"
-#include "common/geometry.h"
+#include "sbs/common/scene.h"
+#include "sbs/common/geometry.h"
 
 #include <filesystem>
 #include <functional>

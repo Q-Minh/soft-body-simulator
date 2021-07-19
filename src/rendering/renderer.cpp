@@ -1,6 +1,6 @@
-#include "rendering/renderer.h"
+#include "sbs/rendering/renderer.h"
 
-#include "rendering/pick.h"
+#include "sbs/rendering/pick.h"
 
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>

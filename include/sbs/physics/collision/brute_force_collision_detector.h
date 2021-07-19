@@ -1,11 +1,11 @@
 #ifndef SBS_PHYSICS_COLLISION_BRUTE_FORCE_COLLISION_DETECTOR_H
 #define SBS_PHYSICS_COLLISION_BRUTE_FORCE_COLLISION_DETECTOR_H
 
-//#include "physics/collision/collision_detector.h"
+//#include "sbs/physics/collision/collision_detector.h"
 
-#include "common/mesh.h"
-#include "common/primitive.h"
-#include "physics/mesh.h"
+#include "sbs/common/mesh.h"
+#include "sbs/common/primitive.h"
+#include "sbs/physics/mesh.h"
 
 #include <list>
 #include <numeric>

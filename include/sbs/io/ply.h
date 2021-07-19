@@ -6,7 +6,7 @@
  * @ingroup io
  */
 
-#include "common/geometry.h"
+#include "sbs/common/geometry.h"
 
 #include <array>
 #include <filesystem>

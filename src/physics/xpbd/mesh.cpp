@@ -1,4 +1,4 @@
-#include "physics/xpbd/mesh.h"
+#include "sbs/physics/xpbd/mesh.h"
 
 namespace sbs {
 namespace physics {

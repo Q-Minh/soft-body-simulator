@@ -1,4 +1,4 @@
-#include "rendering/camera.h"
+#include "sbs/rendering/camera.h"
 
 namespace sbs {
 namespace rendering {

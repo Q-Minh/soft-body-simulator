@@ -1,4 +1,4 @@
-#include "rendering/physics_timestep_throttler.h"
+#include "sbs/rendering/physics_timestep_throttler.h"
 
 #include <chrono>
 

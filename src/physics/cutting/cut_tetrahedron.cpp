@@ -1,6 +1,6 @@
-//#include "physics/cutting/cut_tetrahedron.h"
+//#include "sbs/physics/cutting/cut_tetrahedron.h"
 //
-//#include "common/primitive.h"
+//#include "sbs/common/primitive.h"
 //
 //#include <iostream>
 //

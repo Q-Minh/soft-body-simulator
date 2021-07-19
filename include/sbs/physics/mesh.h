@@ -1,7 +1,7 @@
 #ifndef SBS_PHYSICS_MESH_H
 #define SBS_PHYSICS_MESH_H
 
-#include "common/mesh.h"
+#include "sbs/common/mesh.h"
 
 #include <Eigen/Core>
 #include <array>

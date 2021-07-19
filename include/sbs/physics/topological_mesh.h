@@ -1,7 +1,7 @@
 #ifndef SBS_PHYSICS_TOPOLOGICAL_MESH_H
 #define SBS_PHYSICS_TOPOLOGICAL_MESH_H
 
-#include "physics/mesh.h"
+#include "sbs/physics/mesh.h"
 
 namespace sbs {
 namespace physics {

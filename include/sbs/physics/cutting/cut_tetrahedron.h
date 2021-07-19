@@ -1,8 +1,8 @@
 //#ifndef SBS_PHYSICS_CUTTING_CUT_TETRAHEDRON_H
 //#define SBS_PHYSICS_CUTTING_CUT_TETRAHEDRON_H
 //
-//#include "common/mesh.h"
-//#include "physics/collision/intersections.h"
+//#include "sbs/common/mesh.h"
+//#include "sbs/physics/collision/intersections.h"
 //
 //#include <Eigen/Core>
 //#include <array>

@@ -1,7 +1,7 @@
 #ifndef SBS_PHYSICS_COLLISION_COLLISION_DETECTOR_H
 #define SBS_PHYSICS_COLLISION_COLLISION_DETECTOR_H
 
-#include "common/primitive.h"
+#include "sbs/common/primitive.h"
 
 #include <list>
 

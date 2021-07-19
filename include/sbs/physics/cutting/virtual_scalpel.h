@@ -1,8 +1,8 @@
 //#ifndef SBS_PHYSICS_CUTTING_VIRTUAL_SCALPEL_H
 //#define SBS_PHYSICS_CUTTING_VIRTUAL_SCALPEL_H
 //
-//#include "common/mesh.h"
-//#include "common/primitive.h"
+//#include "sbs/common/mesh.h"
+//#include "sbs/common/primitive.h"
 //
 // namespace sbs {
 // namespace physics {

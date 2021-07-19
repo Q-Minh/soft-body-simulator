@@ -1,7 +1,7 @@
 #ifndef SBS_PHYSICS_XPBD_COLLISION_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_COLLISION_CONSTRAINT_H
 
-#include "physics/xpbd/constraint.h"
+#include "sbs/physics/xpbd/constraint.h"
 
 #include <Eigen/Core>
 

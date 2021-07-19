@@ -1,11 +1,10 @@
-#include "common/mesh.h"
+#include "sbs/common/mesh.h"
 
-#include "common/geometry.h"
-#include "common/primitive.h"
+#include "sbs/common/geometry.h"
+#include "sbs/common/primitive.h"
 
 #include <array>
 #include <numeric>
-#include "..\..\include\physics\xpbd\mesh.h"
 
 namespace sbs {
 namespace common {

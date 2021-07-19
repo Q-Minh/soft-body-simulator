@@ -1,7 +1,7 @@
 #ifndef SBS_GEOMETRY_GET_SIMPLE_BAR_MODEL_H
 #define SBS_GEOMETRY_GET_SIMPLE_BAR_MODEL_H
 
-#include "common/geometry.h"
+#include "sbs/common/geometry.h"
 
 namespace sbs {
 namespace geometry {

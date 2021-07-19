@@ -1,4 +1,4 @@
-#include "physics/xpbd/constraint.h"
+#include "sbs/physics/xpbd/constraint.h"
 
 namespace sbs {
 namespace physics {

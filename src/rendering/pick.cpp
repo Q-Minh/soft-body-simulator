@@ -1,7 +1,7 @@
-#include "rendering/pick.h"
+#include "sbs/rendering/pick.h"
 
-#include "common/mesh.h"
-#include "rendering/renderer.h"
+#include "sbs/common/mesh.h"
+#include "sbs/rendering/renderer.h"
 
 #include <Eigen/LU>
 #include <GLFW/glfw3.h>

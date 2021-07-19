@@ -23,8 +23,16 @@ FetchContent_Declare(
   GIT_TAG        master
 )
 FetchContent_MakeAvailable(glfw)
+set_target_properties(glfw
+PROPERTIES
+    DEBUG_POSTFIX "_d"
+)
 
 add_library(glad)
+set_target_properties(glad 
+PROPERTIES
+    DEBUG_POSTFIX "_d"
+)
 target_sources(glad 
 PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glad/src/glad.c"
@@ -43,7 +51,11 @@ find_package(glm 0.9.9 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
 add_library(imgui)
-set_target_properties(imgui PROPERTIES FOLDER imgui)
+set_target_properties(imgui 
+PROPERTIES 
+    FOLDER imgui
+    DEBUG_POSTFIX "_d"    
+)
 target_sources(imgui 
 PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/imgui/imconfig.h"
@@ -77,20 +89,23 @@ PUBLIC
 )
 target_compile_definitions(imgui 
 PUBLIC 
-IMGUI_IMPL_OPENGL_LOADER_GLAD=1
+    IMGUI_IMPL_OPENGL_LOADER_GLAD=1
 )
 
+# Should make the library shared in the future
 add_library(sbs STATIC)
 add_library(sbs::sbs ALIAS sbs)
-set_target_properties(sbs PROPERTIES FOLDER sbs)
-set_target_properties(sbs PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+set_target_properties(sbs 
+PROPERTIES 
+    FOLDER sbs
+    WINDOWS_EXPORT_ALL_SYMBOLS ON 
+    DEBUG_POSTFIX "_d"
+)
 target_compile_features(sbs PUBLIC cxx_std_17)
 target_link_libraries(sbs 
 PRIVATE
     nlohmann_json::nlohmann_json
 PUBLIC 
-    glad 
-    glfw 
     imgui 
     Eigen3::Eigen 
     glm::glm
@@ -198,6 +213,7 @@ install(
     EXPORT sbs_targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
@@ -210,6 +226,11 @@ install(
 install(
     DIRECTORY thirdparty/ 
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+    FILES $<$<CONFIG:Debug>:$<TARGET_PDB_FILE:sbs>> 
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 install(
@@ -236,23 +257,4 @@ install(
         ${CMAKE_CURRENT_BINARY_DIR}/sbsConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/sbsConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/sbs
-)
-
-export(
-    EXPORT sbs_targets
-    FILE ${CMAKE_CURRENT_BINARY_DIR}/sbsTargets.cmake
-    NAMESPACE sbs::
-)
-
-add_executable(sbs-viewer)
-set_target_properties(sbs-viewer PROPERTIES FOLDER sbs-viewer)
-target_compile_features(sbs-viewer PRIVATE cxx_std_17)
-target_sources(sbs-viewer 
-PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
-)
-
-target_link_libraries(sbs-viewer 
-PRIVATE 
-    sbs::sbs
 )

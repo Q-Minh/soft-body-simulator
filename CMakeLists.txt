@@ -229,11 +229,6 @@ install(
 )
 
 install(
-    FILES $<$<CONFIG:Debug>:$<TARGET_PDB_FILE:sbs>> 
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
-install(
     EXPORT sbs_targets
     FILE sbsTargets.cmake
     NAMESPACE sbs::

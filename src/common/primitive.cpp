@@ -452,6 +452,16 @@ std::optional<point_t> intersect_twoway(line_segment_t const& segment, triangle_
     return intersect(flipped_segment, triangle);
 }
 
+std::optional<point_t> intersect_twoway(ray_t const& ray, triangle_t const& triangle)
+{
+    auto const intersection = intersect(ray, triangle);
+    if (intersection.has_value())
+        return intersection;
+
+    triangle_t const flipped_triangle{triangle.a(), triangle.c(), triangle.b()};
+    return intersect(ray, flipped_triangle);
+}
+
 /**
  * @brief
  * Implementation of closest point on triangle to a point P from Christer Ericson's Real-Time

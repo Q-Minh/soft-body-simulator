@@ -148,30 +148,147 @@ shared_vertex_surface_mesh_i::triangle_type static_mesh::triangle(std::size_t f)
     return t;
 }
 
-dynamic_surface_mesh::dynamic_surface_mesh(geometry_t const& geometry) {}
+dynamic_surface_mesh::dynamic_surface_mesh(geometry_t const& geometry)
+{
+    auto const num_vertices = geometry.positions.size() / 3u;
+    vertices_.reserve(num_vertices);
 
-void dynamic_surface_mesh::prepare_vertices_for_rendering() {}
+    assert(geometry.colors.size() == geometry.positions.size());
 
-void dynamic_surface_mesh::prepare_indices_for_rendering() {}
+    auto const num_triangles = geometry.indices.size() / 3u;
+    triangles_.reserve(num_triangles);
+
+    for (std::size_t vi = 0u; vi < num_vertices; ++vi)
+    {
+        auto const idx = vi * 3u;
+
+        vertex_type v{};
+        v.x  = geometry.positions[idx + 0u];
+        v.y  = geometry.positions[idx + 1u];
+        v.z  = geometry.positions[idx + 2u];
+        v.nx = geometry.has_normals() ? geometry.normals[idx + 0u] : 0.f;
+        v.ny = geometry.has_normals() ? geometry.normals[idx + 1u] : 0.f;
+        v.nz = geometry.has_normals() ? geometry.normals[idx + 2u] : 0.f;
+        v.r  = static_cast<float>(geometry.colors[idx + 0u]) / 255.f;
+        v.g  = static_cast<float>(geometry.colors[idx + 1u]) / 255.f;
+        v.b  = static_cast<float>(geometry.colors[idx + 2u]) / 255.f;
+
+        vertices_.push_back(v);
+    }
+
+    for (std::size_t fi = 0u; fi < num_triangles; ++fi)
+    {
+        auto const idx = fi * 3u;
+        triangle_type f{};
+        f.v1 = geometry.indices[idx + 0u];
+        f.v2 = geometry.indices[idx + 1u];
+        f.v3 = geometry.indices[idx + 2u];
+
+        triangles_.push_back(f);
+    }
+
+    if (!geometry.has_normals())
+    {
+        for (auto const& triangle : triangles_)
+        {
+            auto& v1 = vertices_[triangle.v1];
+            auto& v2 = vertices_[triangle.v2];
+            auto& v3 = vertices_[triangle.v3];
+
+            Eigen::Vector3d const p1{v1.x, v1.y, v1.z};
+            Eigen::Vector3d const p2{v2.x, v2.y, v2.z};
+            Eigen::Vector3d const p3{v3.x, v3.y, v3.z};
+
+            common::triangle_t const triangle_primitive{p1, p2, p3};
+
+            auto const n = triangle_primitive.normal();
+            auto const A = triangle_primitive.area();
+
+            v1.nx += A * n.x();
+            v1.ny += A * n.y();
+            v1.nz += A * n.z();
+            v2.nx += A * n.x();
+            v2.ny += A * n.y();
+            v2.nz += A * n.z();
+            v3.nx += A * n.x();
+            v3.ny += A * n.y();
+            v3.nz += A * n.z();
+        }
+        std::for_each(vertices_.begin(), vertices_.end(), [](vertex_type& v) {
+            Eigen::Vector3d const n = Eigen::Vector3d{v.nx, v.ny, v.nz}.normalized();
+            v.nx                    = n.x();
+            v.ny                    = n.y();
+            v.nz                    = n.z();
+        });
+    }
+}
+
+void dynamic_surface_mesh::prepare_vertices_for_rendering()
+{
+    auto const vertex_count = vertices_.size();
+    std::vector<float> vertex_buffer{};
+    vertex_buffer.reserve(vertex_count * 9u);
+
+    for (auto const& v : vertices_)
+    {
+        vertex_buffer.push_back(static_cast<float>(v.x));
+        vertex_buffer.push_back(static_cast<float>(v.y));
+        vertex_buffer.push_back(static_cast<float>(v.z));
+        vertex_buffer.push_back(static_cast<float>(v.nx));
+        vertex_buffer.push_back(static_cast<float>(v.ny));
+        vertex_buffer.push_back(static_cast<float>(v.nz));
+        vertex_buffer.push_back(v.r);
+        vertex_buffer.push_back(v.g);
+        vertex_buffer.push_back(v.b);
+    }
+
+    transfer_vertices_for_rendering(std::move(vertex_buffer));
+}
+
+void dynamic_surface_mesh::prepare_indices_for_rendering()
+{
+    auto const index_count = triangles_.size() * 3u;
+    std::vector<std::uint32_t> index_buffer{};
+    index_buffer.reserve(index_count);
+
+    for (auto const& triangle : triangles_)
+    {
+        index_buffer.push_back(triangle.v1);
+        index_buffer.push_back(triangle.v2);
+        index_buffer.push_back(triangle.v3);
+    }
+
+    transfer_indices_for_rendering(std::move(index_buffer));
+}
 
 std::size_t dynamic_surface_mesh::triangle_count() const
 {
-    return std::size_t();
+    return triangles_.size();
 }
 
 std::size_t dynamic_surface_mesh::vertex_count() const
 {
-    return std::size_t();
+    return vertices_.size();
 }
 
 dynamic_surface_mesh::vertex_type dynamic_surface_mesh::vertex(std::size_t vi) const
 {
-    return vertex_type();
+    return vertices_[vi];
 }
 
 dynamic_surface_mesh::triangle_type dynamic_surface_mesh::triangle(std::size_t fi) const
 {
-    return triangle_type();
+    return triangles_[fi];
+}
+
+dynamic_surface_mesh::vertex_type& dynamic_surface_mesh::mutable_vertex(std::size_t vi)
+{
+    return vertices_[vi];
+}
+
+dynamic_surface_mesh::triangle_type& dynamic_surface_mesh::mutable_triangle(std::size_t fi)
+{
+    return triangles_[fi];
 }
 
 } // namespace common

@@ -150,7 +150,10 @@ void picker_t::mouse_moved_event(GLFWwindow* window, double x, double y)
                 rendering::unproject(Eigen::Vector3d{x, y, 0.}, viewport, projection, view);
             Eigen::Vector3d const d{p2.x() - p1.x(), p2.y() - p1.y(), p2.z() - p1.z()};
 
-            on_picker_moved(d, nodes_[i], picked_vertices_[i]);
+            double const dx = x - xprev_;
+            double const dy = y - yprev_;
+
+            on_picker_moved(dx, dy, d, nodes_[i], picked_vertices_[i]);
         }
     }
 
@@ -230,6 +233,9 @@ pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_i const& mesh)
     using return_type = std::optional<std::tuple<std::uint32_t, double, double, double>>;
 
     std::size_t const num_triangles = mesh.triangle_count();
+
+    std::vector<std::tuple<std::uint32_t, double, double, double>> intersected_triangles{};
+
     for (std::size_t f = 0u; f < num_triangles; ++f)
     {
         auto const t  = mesh.triangle(f);
@@ -242,17 +248,56 @@ pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_i const& mesh)
         auto const& c = common::point_t{v3.x, v3.y, v3.z};
 
         common::triangle_t const triangle{a, b, c};
-        auto const intersection = common::intersect(ray, triangle);
+        auto const intersection = common::intersect_twoway(ray, triangle);
 
         if (!intersection.has_value())
             continue;
 
         auto const [u, v, w] = common::barycentric_coordinates(a, b, c, intersection.value());
-        return std::make_tuple(static_cast<std::uint32_t>(f), u, v, w);
+
+        intersected_triangles.push_back(std::make_tuple(static_cast<std::uint32_t>(f), u, v, w));
     }
 
-    return {};
+    if (intersected_triangles.empty())
+        return {};
+
+    std::sort(
+        intersected_triangles.begin(),
+        intersected_triangles.end(),
+        [&ray, &mesh](auto const& intersection1, auto const& intersection2) {
+            auto const& [f1, u1, v1, w1] = intersection1;
+            auto const triangle1         = mesh.triangle(f1);
+            auto const vertex1_t1        = mesh.vertex(triangle1.v1);
+            auto const vertex2_t1        = mesh.vertex(triangle1.v2);
+            auto const vertex3_t1        = mesh.vertex(triangle1.v3);
+
+            common::triangle_t const triangle_primitive1{
+                Eigen::Vector3d{vertex1_t1.x, vertex1_t1.y, vertex1_t1.z},
+                Eigen::Vector3d{vertex2_t1.x, vertex2_t1.y, vertex2_t1.z},
+                Eigen::Vector3d{vertex3_t1.x, vertex3_t1.y, vertex3_t1.z}};
+
+            auto const& [f2, u2, v2, w2] = intersection2;
+            auto const triangle2         = mesh.triangle(f2);
+            auto const vertex1_t2        = mesh.vertex(triangle2.v1);
+            auto const vertex2_t2        = mesh.vertex(triangle2.v2);
+            auto const vertex3_t2        = mesh.vertex(triangle2.v3);
+
+            common::triangle_t const triangle_primitive2{
+                Eigen::Vector3d{vertex1_t2.x, vertex1_t2.y, vertex1_t2.z},
+                Eigen::Vector3d{vertex2_t2.x, vertex2_t2.y, vertex2_t2.z},
+                Eigen::Vector3d{vertex3_t2.x, vertex3_t2.y, vertex3_t2.z}};
+
+            common::point_t const p1 = u1 * triangle_primitive1.a() + v1 * triangle_primitive1.b() +
+                                       w1 * triangle_primitive1.c();
+            common::point_t const p2 = u2 * triangle_primitive2.a() + v2 * triangle_primitive2.b() +
+                                       w2 * triangle_primitive2.c();
+
+            return (p1 - ray.p).squaredNorm() < (p2 - ray.p).squaredNorm();
+        });
+
+    return intersected_triangles.front();
 }
+
 std::optional<std::uint32_t>
 pick_vertex(common::ray_t const& ray, common::shared_vertex_surface_mesh_i const& mesh)
 {

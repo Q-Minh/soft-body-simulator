@@ -137,6 +137,7 @@ bool intersects(point_t const& p, tetrahedron_t const& tetrahedron);
 std::optional<point_t> intersect(line_segment_t const& segment, triangle_t const& triangle);
 std::optional<point_t> intersect(ray_t const& ray, triangle_t const& triangle);
 std::optional<point_t> intersect_twoway(line_segment_t const& segment, triangle_t const& triangle);
+std::optional<point_t> intersect_twoway(ray_t const& ray, triangle_t const& triangle);
 
 point_t closest_point(point_t const& p, triangle_t const& t);
 

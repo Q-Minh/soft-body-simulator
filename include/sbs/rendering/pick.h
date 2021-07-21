@@ -58,6 +58,8 @@ class picker_t
     std::function<void(std::shared_ptr<common::shared_vertex_surface_mesh_i>, std::uint32_t)>
         unpicked;
     std::function<void(
+        double dx,
+        double dy,
         Eigen::Vector3d const& /*d*/,
         std::shared_ptr<common::shared_vertex_surface_mesh_i> /*node*/,
         std::uint32_t /*picked vertex*/)>

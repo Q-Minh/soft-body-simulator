@@ -47,7 +47,6 @@ class static_mesh : public renderable_node_t, public shared_vertex_surface_mesh_
 
 /**
  * @brief Shared vertex surface mesh that can have its vertices and indices modified and rendered.
- * TODO: Still not implemented
  */
 class dynamic_surface_mesh : public renderable_node_t, public shared_vertex_surface_mesh_i
 {
@@ -66,6 +65,9 @@ class dynamic_surface_mesh : public renderable_node_t, public shared_vertex_surf
 
     virtual vertex_type vertex(std::size_t vi) const override;
     virtual triangle_type triangle(std::size_t fi) const override;
+
+    vertex_type& mutable_vertex(std::size_t vi);
+    triangle_type& mutable_triangle(std::size_t fi);
 
   private:
     std::vector<vertex_type> vertices_;

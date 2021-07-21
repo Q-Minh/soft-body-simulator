@@ -462,6 +462,20 @@ std::optional<point_t> intersect_twoway(ray_t const& ray, triangle_t const& tria
     return intersect(ray, flipped_triangle);
 }
 
+std::optional<point_t> intersect(line_segment_t const& segment, plane_t const& plane)
+{
+    double const d           = plane.p.dot(plane.n);
+    Eigen::Vector3d const pq = segment.q - segment.p;
+    double const t           = (d - plane.n.dot(segment.p)) / (plane.n.dot(pq));
+
+    if (t >= 0.0 && t <= 1.0)
+    {
+        Eigen::Vector3d const intersection = segment.p + t * pq;
+        return intersection;
+    }
+    return {};
+}
+
 /**
  * @brief
  * Implementation of closest point on triangle to a point P from Christer Ericson's Real-Time

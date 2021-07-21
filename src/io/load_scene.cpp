@@ -247,6 +247,18 @@ common::scene_t load_scene(
         auto node    = environment_body_factory(sbi);
         node->set_id(sbi.id);
         node->set_as_environment_body();
+
+        bool const is_collideable = environment_object_spec.contains("collideable") &&
+                                    environment_object_spec["collideable"].get<bool>();
+        if (is_collideable)
+        {
+            node->set_as_collideable_body();
+        }
+        else
+        {
+            node->set_as_non_collideable_body();
+        }
+
         scene.nodes.push_back(node);
     }
     for (auto const& object_spec : objects_specification)
@@ -331,6 +343,19 @@ common::scene_t load_scene(
         auto node = physics_body_factory(pbi);
         node->set_id(pbi.id);
         node->set_as_physically_simulated_body();
+
+        bool const is_collideable =
+            object_spec.contains("collideable") && object_spec["collideable"].get<bool>();
+
+        if (is_collideable)
+        {
+            node->set_as_collideable_body();
+        }
+        else
+        {
+            node->set_as_non_collideable_body();
+        }
+
         scene.nodes.push_back(node);
     }
 

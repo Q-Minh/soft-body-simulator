@@ -76,10 +76,9 @@ void renderer_t::mouse_move_callback(GLFWwindow* window, double xpos, double ypo
 
     bool should_return{false};
 
-    bool const is_picking =
-        std::any_of(pickers.begin(), pickers.end(), [](picker_t const& picker) {
-            return picker.is_picking();
-        });
+    bool const is_picking = std::any_of(pickers.begin(), pickers.end(), [](picker_t const& picker) {
+        return picker.is_picking();
+    });
     should_return |= is_picking;
 
     if (is_picking && !ImGui::GetIO().WantCaptureMouse)
@@ -121,10 +120,13 @@ void renderer_t::mouse_button_callback(GLFWwindow* window, int button, int actio
         {
             on_mouse_button_pressed(window, button, action, mods);
         }
-        std::for_each(pickers.begin(), pickers.end(), [window, button, action, mods](picker_t& picker) {
-            if (picker.is_usable())
-                picker.mouse_button_pressed_event(window, button, action, mods);
-        });
+        std::for_each(
+            pickers.begin(),
+            pickers.end(),
+            [window, button, action, mods](picker_t& picker) {
+                if (picker.is_usable())
+                    picker.mouse_button_pressed_event(window, button, action, mods);
+            });
     }
 }
 
@@ -140,39 +142,23 @@ void renderer_t::render_objects(
     {
         bool const should_render_wireframe = object->should_render_wireframe();
 
-        auto const position_attribute_location =
-            should_render_wireframe ?
-                glGetAttribLocation(
-                    wireframe_shader_.id(),
-                    shader_t::vertex_shader_position_attribute_name) :
-                glGetAttribLocation(shader_.id(), shader_t::vertex_shader_position_attribute_name);
+        shader_t const& shader = should_render_wireframe ? wireframe_shader_ : mesh_shader_;
+        shader.use();
 
-        auto const normal_attribute_location =
-            should_render_wireframe ?
-                glGetAttribLocation(
-                    wireframe_shader_.id(),
-                    shader_t::vertex_shader_normal_attribute_name) :
-                glGetAttribLocation(shader_.id(), shader_t::vertex_shader_normal_attribute_name);
-
-        auto const color_attribute_location =
-            should_render_wireframe ?
-                glGetAttribLocation(
-                    wireframe_shader_.id(),
-                    shader_t::vertex_shader_color_attribute_name) :
-                glGetAttribLocation(shader_.id(), shader_t::vertex_shader_color_attribute_name);
+        auto const position_attribute_location = get_position_attribute_location(shader);
+        auto const normal_attribute_location   = get_normal_attribute_location(shader);
+        auto const color_attribute_location    = get_color_attribute_location(shader);
 
         /**
          * Setup lights and view/projection
          */
-        shader_t const& shader = should_render_wireframe ? wireframe_shader_ : shader_;
-        shader.use();
         update_shader_view_projection_uniforms(shader);
         if (should_render_wireframe)
         {
             // wireframe shader does not need lighting uniforms as it performs flat shading
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         }
-        else
+        else // should_render_triangles
         {
             update_shader_lighting_uniforms(shader);
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -221,6 +207,71 @@ void renderer_t::render_objects(
     }
 }
 
+void renderer_t::render_points()
+{
+    shader_t const& shader = point_shader_;
+    shader.use();
+
+    auto const position_attribute_location = get_position_attribute_location(shader);
+    auto const normal_attribute_location   = get_normal_attribute_location(shader);
+    auto const color_attribute_location    = get_color_attribute_location(shader);
+
+    /**
+     * Setup lights and view/projection
+     */
+    update_shader_view_projection_uniforms(shader);
+
+    glBindVertexArray(point_vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, point_vbo_);
+
+    auto constexpr num_bytes_per_float = sizeof(float);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        points_.size() * num_bytes_per_float,
+        points_.data(),
+        GL_DYNAMIC_DRAW);
+
+    auto const num_vertices           = points_.size() / 9u;
+    auto constexpr size_of_one_vertex = 3u * num_bytes_per_float /* x,y,z coordinates */ +
+                                        3u * num_bytes_per_float /* nx,ny,nz normal components */ +
+                                        3u * num_bytes_per_float /* r,g,b colors */;
+    auto constexpr stride_between_vertices = size_of_one_vertex;
+    auto constexpr vertex_position_offset  = 0u;
+    auto constexpr vertex_normal_offset    = vertex_position_offset + 3u * num_bytes_per_float;
+    auto constexpr vertex_color_offset     = vertex_normal_offset + 3u * num_bytes_per_float;
+
+    glVertexAttribPointer(
+        position_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_position_offset));
+    glEnableVertexAttribArray(position_attribute_location);
+
+    glVertexAttribPointer(
+        normal_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_normal_offset));
+    glEnableVertexAttribArray(normal_attribute_location);
+
+    glVertexAttribPointer(
+        color_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_color_offset));
+    glEnableVertexAttribArray(color_attribute_location);
+
+    glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(num_vertices));
+
+    should_render_points_ = false;
+}
+
 bool renderer_t::initialize()
 {
     glfwInit();
@@ -262,6 +313,9 @@ bool renderer_t::initialize()
     ImGui_ImplOpenGL3_Init("#version 330");
 
     window_ = window;
+
+    glGenVertexArrays(1, &point_vao_);
+    glGenBuffers(1, &point_vbo_);
 
     return true;
 }
@@ -338,12 +392,12 @@ renderer_t::add_object_to_scene(std::shared_ptr<common::renderable_node_t> const
     return static_cast<std::uint32_t>(object_idx);
 }
 
-bool renderer_t::use_shaders(
+bool renderer_t::use_mesh_shaders(
     std::filesystem::path const& vertex_shader_path,
     std::filesystem::path const& fragment_shader_path)
 {
-    shader_ = shader_t{vertex_shader_path, fragment_shader_path};
-    return shader_.should_use();
+    mesh_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
+    return mesh_shader_.should_use();
 }
 
 bool renderer_t::use_wireframe_shaders(
@@ -351,12 +405,22 @@ bool renderer_t::use_wireframe_shaders(
     std::filesystem::path const& fragment_shader_path)
 {
     wireframe_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
-    return shader_.should_use();
+    return wireframe_shader_.should_use();
+}
+
+bool renderer_t::use_point_shaders(
+    std::filesystem::path const& vertex_shader_path,
+    std::filesystem::path const& fragment_shader_path)
+{
+    point_shader_ = shader_t(vertex_shader_path, fragment_shader_path);
+    return point_shader_.should_use();
 }
 
 void renderer_t::launch()
 {
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_POINT_SMOOTH);
 
     double last_frame_time = 0.f;
     while (!glfwWindowShouldClose(window_))
@@ -388,6 +452,9 @@ void renderer_t::launch()
 
         render_objects(scene_.nodes);
 
+        if (should_render_points_)
+            render_points();
+
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -411,8 +478,23 @@ void renderer_t::close()
     };
     delete_object_from_opengl(scene_.nodes);
 
-    shader_.destroy();
+    mesh_shader_.destroy();
     glfwTerminate();
+}
+
+void renderer_t::add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point)
+{
+    std::copy(
+        xyz_nxnynz_rgb_point.begin(),
+        xyz_nxnynz_rgb_point.end(),
+        std::back_inserter(points_));
+    should_render_points_ = true;
+}
+
+void renderer_t::clear_points()
+{
+    points_.clear();
+    should_render_points_ = true;
 }
 
 void renderer_t::transfer_vertices_to_gpu(
@@ -554,6 +636,21 @@ void renderer_t::update_shader_lighting_uniforms(shader_t const& shader) const
     shader.set_float_uniform("PointLight.constant", point_light.attenuation.constant);
     shader.set_float_uniform("PointLight.linear", point_light.attenuation.linear);
     shader.set_float_uniform("PointLight.quadratic", point_light.attenuation.quadratic);
+}
+
+int renderer_t::get_position_attribute_location(shader_t const& shader) const
+{
+    return glGetAttribLocation(shader.id(), shader_t::vertex_shader_position_attribute_name);
+}
+
+int renderer_t::get_normal_attribute_location(shader_t const& shader) const
+{
+    return glGetAttribLocation(shader.id(), shader_t::vertex_shader_normal_attribute_name);
+}
+
+int renderer_t::get_color_attribute_location(shader_t const& shader) const
+{
+    return glGetAttribLocation(shader.id(), shader_t::vertex_shader_color_attribute_name);
 }
 
 } // namespace rendering

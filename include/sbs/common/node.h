@@ -46,6 +46,10 @@ class renderable_node_t
     void set_as_environment_body();
     void set_as_physically_simulated_body();
 
+    void set_as_collideable_body();
+    void set_as_non_collideable_body();
+    bool is_collideable_body() const;
+
     std::vector<float> const& get_cpu_vertex_buffer() const;
     std::vector<std::uint32_t> const& get_cpu_index_buffer() const;
 
@@ -65,6 +69,8 @@ class renderable_node_t
         bool should_transfer_indices  = true;
         bool should_render_wireframe  = false;
     } render_state_;
+
+    bool is_collideable_;
 
     enum class body_type_t { environment, physical } body_type_;
 

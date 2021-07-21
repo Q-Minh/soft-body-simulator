@@ -10,6 +10,7 @@
 #include "camera.h"
 #include "shader.h"
 
+#include <array>
 #include <filesystem>
 #include <functional>
 #include <list>
@@ -66,7 +67,7 @@ class renderer_t : public renderer_base_t
     void remove_object_from_scene(std::uint32_t object_idx);
     std::uint32_t add_object_to_scene(std::shared_ptr<common::renderable_node_t> const& node);
 
-    bool use_shaders(
+    bool use_mesh_shaders(
         std::filesystem::path const& vertex_shader_path,
         std::filesystem::path const& fragment_shader_path);
 
@@ -74,16 +75,23 @@ class renderer_t : public renderer_base_t
         std::filesystem::path const& vertex_shader_path,
         std::filesystem::path const& fragment_shader_path);
 
+    bool use_point_shaders(
+        std::filesystem::path const& vertex_shader_path,
+        std::filesystem::path const& fragment_shader_path);
+
     void launch();
     void close();
 
-    std::vector<std::string> get_error_messages() const { return shader_.error_messages(); }
+    std::vector<std::string> get_error_messages() const { return mesh_shader_.error_messages(); }
 
     std::uint32_t constexpr get_initial_window_width() const { return 800u; }
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
     camera_t const& camera() const { return camera_; }
     common::scene_t const& scene() const { return scene_; }
+
+    void add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point);
+    void clear_points();
 
     /**
      * Render loop hooks
@@ -115,6 +123,8 @@ class renderer_t : public renderer_base_t
     void
     render_objects(std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const;
 
+    void render_points();
+
     void transfer_vertices_to_gpu(
         unsigned int VBO,
         int position_attribute_location,
@@ -129,6 +139,10 @@ class renderer_t : public renderer_base_t
     void update_shader_view_projection_uniforms(shader_t const& shader) const;
     void update_shader_lighting_uniforms(shader_t const& shader) const;
 
+    int get_position_attribute_location(shader_t const& shader) const;
+    int get_normal_attribute_location(shader_t const& shader) const;
+    int get_color_attribute_location(shader_t const& shader) const;
+
   private:
     void process_input(GLFWwindow* window, double dt);
 
@@ -137,10 +151,16 @@ class renderer_t : public renderer_base_t
     camera_t camera_;
 
     GLFWwindow* window_;
-    shader_t shader_;
+    shader_t mesh_shader_;
     shader_t wireframe_shader_;
+    shader_t point_shader_;
 
     bool should_render_wireframe_ = false;
+
+    std::vector<float> points_;
+    bool should_render_points_;
+    unsigned int point_vbo_;
+    unsigned int point_vao_;
 };
 
 } // namespace rendering

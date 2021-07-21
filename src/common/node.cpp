@@ -123,6 +123,21 @@ void renderable_node_t::set_as_physically_simulated_body()
     body_type_ = body_type_t::physical;
 }
 
+void renderable_node_t::set_as_collideable_body()
+{
+    is_collideable_ = true;
+}
+
+void renderable_node_t::set_as_non_collideable_body()
+{
+    is_collideable_ = false;
+}
+
+bool renderable_node_t::is_collideable_body() const
+{
+    return is_collideable_;
+}
+
 std::vector<float> const& renderable_node_t::get_cpu_vertex_buffer() const
 {
     return cpu_vertex_buffer_;

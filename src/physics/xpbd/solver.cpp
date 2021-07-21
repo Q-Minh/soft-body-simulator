@@ -295,14 +295,16 @@ void solver_t::handle_collisions()
 
     for (auto const& env_body : environment_bodies_)
     {
+        if (!std::dynamic_pointer_cast<common::renderable_node_t>(env_body)->is_collideable_body())
+            continue;
+
         collision_detection_system.add_environment_body(env_body.get());
     }
 
-    std::vector<bool> is_vertex_constrained_by_collision{};
     for (auto const& phys_body : physics_bodies_)
     {
-        is_vertex_constrained_by_collision.clear();
-        is_vertex_constrained_by_collision.resize(phys_body->vertices().size(), false);
+        if (!std::dynamic_pointer_cast<common::renderable_node_t>(phys_body)->is_collideable_body())
+            continue;
 
         auto const intersection_pairs = collision_detection_system.intersect(phys_body.get());
         for (auto const& [ti, triangle] : intersection_pairs)
@@ -327,13 +329,8 @@ void solver_t::handle_collisions()
                 if (is_vertex_over_surface)
                     continue;
 
-                if (is_vertex_constrained_by_collision[vi])
-                    continue;
-
                 collision_constraints_.push_back(
                     collision_constraint_t{collision_alpha_, phys_body.get(), vi, triangle, n});
-
-                is_vertex_constrained_by_collision[vi] = true;
             }
         }
     }

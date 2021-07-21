@@ -91,6 +91,17 @@ struct ray_t
     direction_t v;
 };
 
+struct plane_t
+{
+    plane_t(point_t const& p, normal_t const& n);
+    plane_t(triangle_t const& t);
+
+    double signed_distance(point_t const& q) const;
+
+    point_t p;
+    normal_t n;
+};
+
 struct sphere_t;
 struct aabb_t;
 

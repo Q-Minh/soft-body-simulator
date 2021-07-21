@@ -677,5 +677,17 @@ aabb_t aabb_t::from(triangle_t const& t)
     return aabb_t{min, max};
 }
 
+plane_t::plane_t(point_t const& p, normal_t const& n) : p(p), n(n) {}
+
+plane_t::plane_t(triangle_t const& t) : p(t.a()), n()
+{
+    n = (t.b() - t.a()).cross(t.c() - t.a()).normalized();
+}
+
+double plane_t::signed_distance(point_t const& q) const
+{
+    return (q - p).dot(n);
+}
+
 } // namespace common
 } // namespace sbs

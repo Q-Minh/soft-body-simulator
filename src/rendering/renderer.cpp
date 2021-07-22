@@ -1,4 +1,6 @@
-#include "rendering/renderer.h"
+#include "sbs/rendering/renderer.h"
+
+#include "sbs/rendering/pick.h"
 
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>
@@ -72,16 +74,30 @@ void renderer_t::mouse_move_callback(GLFWwindow* window, double xpos, double ypo
     last_x_pos = xpos;
     last_y_pos = ypos;
 
-    int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+    bool should_return{false};
 
+    bool const is_picking = std::any_of(pickers.begin(), pickers.end(), [](picker_t const& picker) {
+        return picker.is_picking();
+    });
+    should_return |= is_picking;
+
+    if (is_picking && !ImGui::GetIO().WantCaptureMouse)
+    {
+        std::for_each(pickers.begin(), pickers.end(), [window, xpos, ypos](picker_t& picker) {
+            if (picker.is_usable())
+                picker.mouse_moved_event(window, xpos, ypos);
+        });
+    }
     if (on_mouse_moved && !ImGui::GetIO().WantCaptureMouse)
     {
-        if (on_mouse_moved(window, xpos, ypos))
-        {
-            return;
-        }
+        should_return |= on_mouse_moved(window, xpos, ypos);
+    }
+    if (should_return)
+    {
+        return;
     }
 
+    int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
     if (state == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse)
     {
         camera_.handle_mouse_movement(dx, dy);
@@ -98,13 +114,167 @@ void renderer_t::scroll_callback(GLFWwindow* window, double dx, double dy)
 
 void renderer_t::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    if (on_mouse_button_pressed)
+    if (!ImGui::GetIO().WantCaptureMouse)
     {
-        if (!ImGui::GetIO().WantCaptureMouse)
+        if (on_mouse_button_pressed)
         {
             on_mouse_button_pressed(window, button, action, mods);
         }
+        std::for_each(
+            pickers.begin(),
+            pickers.end(),
+            [window, button, action, mods](picker_t& picker) {
+                if (picker.is_usable())
+                    picker.mouse_button_pressed_event(window, button, action, mods);
+            });
     }
+}
+
+void renderer_t::render_objects(
+    std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const
+{
+    /**
+     * Render the scene. Transfers data to the GPU every frame, since
+     * we are primarily working with soft bodies. This is of course
+     * not optimal, but is great for prototyping.
+     */
+    for (std::shared_ptr<common::renderable_node_t> const& object : objects)
+    {
+        bool const should_render_wireframe = object->should_render_wireframe();
+
+        shader_t const& shader = should_render_wireframe ? wireframe_shader_ : mesh_shader_;
+        shader.use();
+
+        auto const position_attribute_location = get_position_attribute_location(shader);
+        auto const normal_attribute_location   = get_normal_attribute_location(shader);
+        auto const color_attribute_location    = get_color_attribute_location(shader);
+
+        /**
+         * Setup lights and view/projection
+         */
+        update_shader_view_projection_uniforms(shader);
+        if (should_render_wireframe)
+        {
+            // wireframe shader does not need lighting uniforms as it performs flat shading
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        }
+        else // should_render_triangles
+        {
+            update_shader_lighting_uniforms(shader);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+
+        unsigned int& VAO = object->VAO();
+        unsigned int& VBO = object->VBO();
+        unsigned int& EBO = object->EBO();
+
+        glBindVertexArray(VAO);
+
+        /**
+         * Only send data to the GPU if geometry has changed
+         */
+        if (object->should_transfer_vertices())
+        {
+            object->prepare_vertices_for_rendering();
+            transfer_vertices_to_gpu(
+                VBO,
+                position_attribute_location,
+                normal_attribute_location,
+                color_attribute_location,
+                object);
+            object->mark_vertices_clean();
+        }
+
+        if (object->should_transfer_indices())
+        {
+            object->prepare_indices_for_rendering();
+            transfer_indices_to_gpu(EBO, object);
+            object->mark_indices_clean();
+        }
+
+        auto const num_indices = object->get_cpu_index_buffer().size();
+
+        /**
+         * Draw the mesh
+         */
+        glDrawElements(GL_TRIANGLES, static_cast<int>(num_indices), GL_UNSIGNED_INT, 0);
+
+        if (on_node_rendered)
+        {
+            on_node_rendered(object);
+        }
+
+        /**
+         * Unbind buffers and vertex arrays
+         */
+        glBindBuffer(GL_ARRAY_BUFFER, 0u);
+        glBindVertexArray(0u);
+    }
+}
+
+void renderer_t::render_points()
+{
+    shader_t const& shader = point_shader_;
+    shader.use();
+
+    auto const position_attribute_location = get_position_attribute_location(shader);
+    auto const normal_attribute_location   = get_normal_attribute_location(shader);
+    auto const color_attribute_location    = get_color_attribute_location(shader);
+
+    /**
+     * Setup lights and view/projection
+     */
+    update_shader_view_projection_uniforms(shader);
+
+    glBindVertexArray(point_vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, point_vbo_);
+
+    auto constexpr num_bytes_per_float = sizeof(float);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        points_.size() * num_bytes_per_float,
+        points_.data(),
+        GL_DYNAMIC_DRAW);
+
+    auto const num_vertices           = points_.size() / 9u;
+    auto constexpr size_of_one_vertex = 3u * num_bytes_per_float /* x,y,z coordinates */ +
+                                        3u * num_bytes_per_float /* nx,ny,nz normal components */ +
+                                        3u * num_bytes_per_float /* r,g,b colors */;
+    auto constexpr stride_between_vertices = size_of_one_vertex;
+    auto constexpr vertex_position_offset  = 0u;
+    auto constexpr vertex_normal_offset    = vertex_position_offset + 3u * num_bytes_per_float;
+    auto constexpr vertex_color_offset     = vertex_normal_offset + 3u * num_bytes_per_float;
+
+    glVertexAttribPointer(
+        position_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_position_offset));
+    glEnableVertexAttribArray(position_attribute_location);
+
+    glVertexAttribPointer(
+        normal_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_normal_offset));
+    glEnableVertexAttribArray(normal_attribute_location);
+
+    glVertexAttribPointer(
+        color_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_color_offset));
+    glEnableVertexAttribArray(color_attribute_location);
+
+    glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(num_vertices));
+
+    should_render_points_ = false;
 }
 
 bool renderer_t::initialize()
@@ -149,6 +319,9 @@ bool renderer_t::initialize()
 
     window_ = window;
 
+    glGenVertexArrays(1, &point_vao_);
+    glGenBuffers(1, &point_vbo_);
+
     return true;
 }
 
@@ -157,38 +330,36 @@ void renderer_t::unload_current_scene()
     auto const delete_objects_from_opengl = [](auto const& objects) {
         for (auto const& object : objects)
         {
-            glDeleteVertexArrays(1, &(object->VAO));
-            glDeleteBuffers(1, &(object->VBO));
-            glDeleteBuffers(1, &(object->EBO));
+            glDeleteVertexArrays(1, &(object->VAO()));
+            glDeleteBuffers(1, &(object->VBO()));
+            glDeleteBuffers(1, &(object->EBO()));
         }
     };
 
-    delete_objects_from_opengl(scene_.environment_objects);
-    delete_objects_from_opengl(scene_.physics_objects);
+    delete_objects_from_opengl(scene_.nodes);
 }
 
 void renderer_t::load_scene(common::scene_t const& scene)
 {
     auto const create_objects_for_opengl = [](auto const& objects) {
-        for (auto const& object : objects)
+        for (std::shared_ptr<common::renderable_node_t> const& object : objects)
         {
-            unsigned int& VAO = object->VAO;
-            unsigned int& VBO = object->VBO;
-            unsigned int& EBO = object->EBO;
+            unsigned int& VAO = object->VAO();
+            unsigned int& VBO = object->VBO();
+            unsigned int& EBO = object->EBO();
 
             glGenVertexArrays(1, &VAO);
             glGenBuffers(1, &VBO);
             glGenBuffers(1, &EBO);
 
-            object->render_state.should_transfer_vertices = true;
-            object->render_state.should_transfer_indices  = true;
+            object->mark_vertices_dirty();
+            object->mark_indices_dirty();
         }
     };
 
     scene_ = scene;
 
-    create_objects_for_opengl(scene_.environment_objects);
-    create_objects_for_opengl(scene_.physics_objects);
+    create_objects_for_opengl(scene_.nodes);
 
     if (on_scene_loaded)
     {
@@ -196,52 +367,65 @@ void renderer_t::load_scene(common::scene_t const& scene)
     }
 }
 
-void renderer_t::remove_physics_object_from_scene(std::uint32_t object_idx)
+void renderer_t::remove_object_from_scene(std::uint32_t object_idx)
 {
-    auto const& object = scene_.physics_objects[object_idx];
-    glDeleteVertexArrays(1, &(object->VAO));
-    glDeleteBuffers(1, &(object->VBO));
-    glDeleteBuffers(1, &(object->EBO));
-    scene_.physics_objects.erase(scene_.physics_objects.begin() + object_idx);
+    auto const& object = scene_.nodes[object_idx];
+    glDeleteVertexArrays(1, &(object->VAO()));
+    glDeleteBuffers(1, &(object->VBO()));
+    glDeleteBuffers(1, &(object->EBO()));
+    scene_.nodes.erase(scene_.nodes.begin() + object_idx);
 }
 
-std::uint32_t renderer_t::add_physics_object_to_scene(std::shared_ptr<common::node_t> const& node)
+std::uint32_t
+renderer_t::add_object_to_scene(std::shared_ptr<common::renderable_node_t> const& node)
 {
-    auto const object_idx = scene_.physics_objects.size();
+    auto const object_idx = scene_.nodes.size();
 
-    unsigned int& VAO = node->VAO;
-    unsigned int& VBO = node->VBO;
-    unsigned int& EBO = node->EBO;
+    unsigned int& VAO = node->VAO();
+    unsigned int& VBO = node->VBO();
+    unsigned int& EBO = node->EBO();
 
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
 
-    node->render_state.should_transfer_vertices = true;
-    node->render_state.should_transfer_indices  = true;
-    scene_.physics_objects.push_back(node);
+    node->mark_vertices_dirty();
+    node->mark_indices_dirty();
+
+    scene_.nodes.push_back(node);
 
     return static_cast<std::uint32_t>(object_idx);
 }
 
-bool renderer_t::use_shaders(
+bool renderer_t::use_mesh_shaders(
     std::filesystem::path const& vertex_shader_path,
     std::filesystem::path const& fragment_shader_path)
 {
-    shader_ = shader_t{vertex_shader_path, fragment_shader_path};
-    return shader_.should_use();
+    mesh_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
+    return mesh_shader_.should_use();
+}
+
+bool renderer_t::use_wireframe_shaders(
+    std::filesystem::path const& vertex_shader_path,
+    std::filesystem::path const& fragment_shader_path)
+{
+    wireframe_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
+    return wireframe_shader_.should_use();
+}
+
+bool renderer_t::use_point_shaders(
+    std::filesystem::path const& vertex_shader_path,
+    std::filesystem::path const& fragment_shader_path)
+{
+    point_shader_ = shader_t(vertex_shader_path, fragment_shader_path);
+    return point_shader_.should_use();
 }
 
 void renderer_t::launch()
 {
     glEnable(GL_DEPTH_TEST);
-
-    auto const position_attribute_location =
-        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_position_attribute_name);
-    auto const normal_attribute_location =
-        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_normal_attribute_name);
-    auto const color_attribute_location =
-        glGetAttribLocation(shader_.id(), shader_t::vertex_shader_color_attribute_name);
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_POINT_SMOOTH);
 
     double last_frame_time = 0.f;
     while (!glfwWindowShouldClose(window_))
@@ -271,77 +455,15 @@ void renderer_t::launch()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        /**
-         * Setup lights and view/projection projections
-         */
-        update_shader_uniforms();
+        if (on_pre_render)
+        {
+            on_pre_render(scene_);
+        }
 
-        auto const render_objects = [this,
-                                     position_attribute_location,
-                                     normal_attribute_location,
-                                     color_attribute_location](auto const& objects) {
-            /**
-             * Render the scene. Transfers data to the GPU every frame, since
-             * we are primarily working with soft bodies. This is of course
-             * not optimal, but is great for prototyping.
-             */
-            for (auto& object : objects)
-            {
-                unsigned int& VAO = object->VAO;
-                unsigned int& VBO = object->VBO;
-                unsigned int& EBO = object->EBO;
+        render_objects(scene_.nodes);
 
-                glBindVertexArray(VAO);
-
-                /**
-                 * Only send data to the GPU if geometry has changed
-                 */
-                if (object->render_state.should_transfer_vertices)
-                {
-                    transfer_vertices_to_gpu(
-                        VBO,
-                        position_attribute_location,
-                        normal_attribute_location,
-                        color_attribute_location,
-                        object);
-
-                    object->render_state.should_transfer_vertices = false;
-                }
-
-                if (object->render_state.should_transfer_indices)
-                {
-                    transfer_indices_to_gpu(EBO, object);
-                    object->render_state.should_transfer_indices = false;
-                }
-
-                if (object->render_state.should_render_wireframe)
-                {
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                }
-                else
-                {
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-                }
-
-                auto const number_of_faces =
-                    static_cast<std::size_t>(object->render_model.triangles().cols());
-                auto const num_indices = 3u * number_of_faces;
-
-                /**
-                 * Draw the mesh
-                 */
-                glDrawElements(GL_TRIANGLES, static_cast<int>(num_indices), GL_UNSIGNED_INT, 0);
-
-                /**
-                 * Unbind buffers and vertex arrays
-                 */
-                glBindBuffer(GL_ARRAY_BUFFER, 0u);
-                glBindVertexArray(0u);
-            }
-        };
-
-        render_objects(scene_.environment_objects);
-        render_objects(scene_.physics_objects);
+        if (should_render_points_)
+            render_points();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -355,16 +477,34 @@ void renderer_t::close()
     auto const delete_object_from_opengl = [](auto const& objects) {
         for (auto const& object : objects)
         {
-            glDeleteVertexArrays(1, &(object->VAO));
-            glDeleteBuffers(1, &(object->VBO));
-            glDeleteBuffers(1, &(object->EBO));
+            auto& VAO = object->VAO();
+            auto& VBO = object->VBO();
+            auto& EBO = object->EBO();
+
+            glDeleteVertexArrays(1, &VAO);
+            glDeleteBuffers(1, &VBO);
+            glDeleteBuffers(1, &EBO);
         }
     };
-    delete_object_from_opengl(scene_.environment_objects);
-    delete_object_from_opengl(scene_.physics_objects);
+    delete_object_from_opengl(scene_.nodes);
 
-    shader_.destroy();
+    mesh_shader_.destroy();
     glfwTerminate();
+}
+
+void renderer_t::add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point)
+{
+    std::copy(
+        xyz_nxnynz_rgb_point.begin(),
+        xyz_nxnynz_rgb_point.end(),
+        std::back_inserter(points_));
+    should_render_points_ = true;
+}
+
+void renderer_t::clear_points()
+{
+    points_.clear();
+    should_render_points_ = true;
 }
 
 void renderer_t::transfer_vertices_to_gpu(
@@ -372,40 +512,14 @@ void renderer_t::transfer_vertices_to_gpu(
     int position_attribute_location,
     int normal_attribute_location,
     int color_attribute_location,
-    std::shared_ptr<common::node_t> const& object) const
+    std::shared_ptr<common::renderable_node_t> const& object) const
 {
-    std::vector<float> cpu_buffer{};
     auto constexpr num_bytes_per_float = sizeof(float);
     auto constexpr size_of_one_vertex  = 3u * num_bytes_per_float /* x,y,z coordinates */ +
                                         3u * num_bytes_per_float /* nx,ny,nz normal components */ +
                                         3u * num_bytes_per_float /* r,g,b colors */;
 
-    auto const number_of_vertices =
-        static_cast<std::size_t>(object->render_model.vertices().cols());
-    cpu_buffer.reserve(number_of_vertices * size_of_one_vertex);
-    for (std::size_t i = 0u; i < number_of_vertices; ++i)
-    {
-        float const x = static_cast<float>(object->render_model.vertices()(0u, i));
-        float const y = static_cast<float>(object->render_model.vertices()(1u, i));
-        float const z = static_cast<float>(object->render_model.vertices()(2u, i));
-        cpu_buffer.push_back(x);
-        cpu_buffer.push_back(y);
-        cpu_buffer.push_back(z);
-
-        float const nx = static_cast<float>(object->render_model.normals()(0u, i));
-        float const ny = static_cast<float>(object->render_model.normals()(1u, i));
-        float const nz = static_cast<float>(object->render_model.normals()(2u, i));
-        cpu_buffer.push_back(nx);
-        cpu_buffer.push_back(ny);
-        cpu_buffer.push_back(nz);
-
-        float const r = static_cast<float>(object->render_model.colors()(0u, i));
-        float const g = static_cast<float>(object->render_model.colors()(1u, i));
-        float const b = static_cast<float>(object->render_model.colors()(2u, i));
-        cpu_buffer.push_back(r);
-        cpu_buffer.push_back(g);
-        cpu_buffer.push_back(b);
-    }
+    std::vector<float> const& cpu_buffer = object->get_cpu_vertex_buffer();
 
     /**
      * Transfer vertex data to the GPU
@@ -422,7 +536,7 @@ void renderer_t::transfer_vertices_to_gpu(
      */
     auto constexpr stride_between_vertices = size_of_one_vertex;
     auto constexpr vertex_position_offset  = 0u;
-    auto constexpr vertex_normal_offset    = 3u * num_bytes_per_float;
+    auto constexpr vertex_normal_offset    = vertex_position_offset + 3u * num_bytes_per_float;
     auto constexpr vertex_color_offset     = vertex_normal_offset + 3u * num_bytes_per_float;
 
     glVertexAttribPointer(
@@ -455,19 +569,10 @@ void renderer_t::transfer_vertices_to_gpu(
 
 void renderer_t::transfer_indices_to_gpu(
     unsigned int EBO,
-    std::shared_ptr<common::node_t> const& object) const
+    std::shared_ptr<common::renderable_node_t> const& object) const
 {
-    auto const number_of_faces = static_cast<std::size_t>(object->render_model.triangles().cols());
-    auto const num_indices     = 3u * number_of_faces;
-
-    std::vector<std::uint32_t> indices{};
-    indices.reserve(num_indices);
-    for (std::size_t f = 0u; f < number_of_faces; ++f)
-    {
-        indices.push_back(object->render_model.triangles()(0u, f));
-        indices.push_back(object->render_model.triangles()(1u, f));
-        indices.push_back(object->render_model.triangles()(2u, f));
-    }
+    std::vector<std::uint32_t> const& indices = object->get_cpu_index_buffer();
+    auto const num_indices                    = indices.size();
 
     /**
      * Transfer triangle data to the GPU
@@ -482,10 +587,8 @@ void renderer_t::transfer_indices_to_gpu(
         GL_DYNAMIC_DRAW);
 }
 
-void renderer_t::update_shader_uniforms() const
+void renderer_t::update_shader_view_projection_uniforms(shader_t const& shader) const
 {
-    shader_.use();
-
     int width  = 0;
     int height = 0;
     glfwGetWindowSize(window_, &width, &height);
@@ -493,53 +596,71 @@ void renderer_t::update_shader_uniforms() const
     glm::mat4 const projection = camera_.projection_gl(aspect_ratio);
     glm::mat4 const view       = camera_.view_gl();
 
-    shader_.set_mat4_uniform("projection", projection);
-    shader_.set_mat4_uniform("view", view);
+    shader.set_mat4_uniform("projection", projection);
+    shader.set_mat4_uniform("view", view);
+}
 
+void renderer_t::update_shader_lighting_uniforms(shader_t const& shader) const
+{
     auto const& directional_light = scene_.directional_light;
     auto const& point_light       = scene_.point_light;
 
-    shader_.set_vec3_uniform("ViewPosition", camera_.position());
+    shader.set_vec3_uniform("ViewPosition", camera_.position());
 
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.direction",
         glm::vec3{directional_light.dx, directional_light.dy, directional_light.dz});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.ambient",
         glm::vec3{
             directional_light.ambient.r,
             directional_light.ambient.g,
             directional_light.ambient.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.diffuse",
         glm::vec3{
             directional_light.diffuse.r,
             directional_light.diffuse.g,
             directional_light.diffuse.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "DirectionalLight.specular",
         glm::vec3{
             directional_light.specular.r,
             directional_light.specular.g,
             directional_light.specular.b});
-    shader_.set_float_uniform("DirectionalLight.exponent", directional_light.specular.exp);
+    shader.set_float_uniform("DirectionalLight.exponent", directional_light.specular.exp);
 
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.position",
         glm::vec3{point_light.x, point_light.y, point_light.z});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.ambient",
         glm::vec3{point_light.ambient.r, point_light.ambient.g, point_light.ambient.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.diffuse",
         glm::vec3{point_light.diffuse.r, point_light.diffuse.g, point_light.diffuse.b});
-    shader_.set_vec3_uniform(
+    shader.set_vec3_uniform(
         "PointLight.specular",
         glm::vec3{point_light.specular.r, point_light.specular.g, point_light.specular.b});
-    shader_.set_float_uniform("PointLight.exponent", point_light.specular.exp);
-    shader_.set_float_uniform("PointLight.constant", point_light.attenuation.constant);
-    shader_.set_float_uniform("PointLight.linear", point_light.attenuation.linear);
-    shader_.set_float_uniform("PointLight.quadratic", point_light.attenuation.quadratic);
+    shader.set_float_uniform("PointLight.exponent", point_light.specular.exp);
+    shader.set_float_uniform("PointLight.constant", point_light.attenuation.constant);
+    shader.set_float_uniform("PointLight.linear", point_light.attenuation.linear);
+    shader.set_float_uniform("PointLight.quadratic", point_light.attenuation.quadratic);
+}
+
+int renderer_t::get_position_attribute_location(shader_t const& shader) const
+{
+    return glGetAttribLocation(shader.id(), shader_t::vertex_shader_position_attribute_name);
+}
+
+int renderer_t::get_normal_attribute_location(shader_t const& shader) const
+{
+    return glGetAttribLocation(shader.id(), shader_t::vertex_shader_normal_attribute_name);
+}
+
+int renderer_t::get_color_attribute_location(shader_t const& shader) const
+{
+    return glGetAttribLocation(shader.id(), shader_t::vertex_shader_color_attribute_name);
 }
 
 } // namespace rendering

@@ -1,4 +1,4 @@
-#include "geometry/get_simple_bar_model.h"
+#include "sbs/geometry/get_simple_bar_model.h"
 
 namespace sbs {
 namespace geometry {

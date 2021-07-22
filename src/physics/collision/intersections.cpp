@@ -1,4 +1,4 @@
-#include "physics/collision/intersections.h"
+#include "sbs/physics/collision/intersections.h"
 
 #include <Eigen/Geometry>
 

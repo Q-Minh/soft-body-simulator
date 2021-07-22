@@ -100,6 +100,8 @@ class renderer_t : public renderer_base_t
     std::function<void(common::scene_t&)> on_new_imgui_frame;
     std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene*/)>
         on_new_physics_timestep;
+    std::function<void(std::shared_ptr<common::renderable_node_t>)> on_node_rendered;
+    std::function<void(common::scene_t&)> on_pre_render;
 
     /**
      * User input hooks

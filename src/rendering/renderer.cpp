@@ -199,6 +199,11 @@ void renderer_t::render_objects(
          */
         glDrawElements(GL_TRIANGLES, static_cast<int>(num_indices), GL_UNSIGNED_INT, 0);
 
+        if (on_node_rendered)
+        {
+            on_node_rendered(object);
+        }
+
         /**
          * Unbind buffers and vertex arrays
          */
@@ -449,6 +454,11 @@ void renderer_t::launch()
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if (on_pre_render)
+        {
+            on_pre_render(scene_);
+        }
 
         render_objects(scene_.nodes);
 

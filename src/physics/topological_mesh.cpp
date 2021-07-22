@@ -485,6 +485,30 @@ renderable_topological_simulated_tetrahedral_mesh_t::
 
 void renderable_topological_simulated_tetrahedral_mesh_t::prepare_vertices_for_rendering()
 {
+    if (should_render_triangles())
+    {
+        prepare_vertices_for_surface_rendering();
+    }
+    if (should_render_wireframe())
+    {
+        prepare_vertices_for_wireframe_rendering();
+    }
+}
+
+void renderable_topological_simulated_tetrahedral_mesh_t::prepare_indices_for_rendering()
+{
+    if (should_render_triangles())
+    {
+        prepare_indices_for_surface_rendering();
+    }
+    if (should_render_wireframe())
+    {
+        prepare_indices_for_wireframe_rendering();
+    }
+}
+
+void renderable_topological_simulated_tetrahedral_mesh_t::prepare_vertices_for_surface_rendering()
+{
     std::size_t constexpr num_vertices_per_triangle = 3u;
     std::size_t constexpr num_attributes_per_vertex = 9u;
     std::size_t const num_boundary_triangles        = boundary_triangle_count();
@@ -531,7 +555,7 @@ void renderable_topological_simulated_tetrahedral_mesh_t::prepare_vertices_for_r
     transfer_vertices_for_rendering(std::move(vertex_buffer));
 }
 
-void renderable_topological_simulated_tetrahedral_mesh_t::prepare_indices_for_rendering()
+void renderable_topological_simulated_tetrahedral_mesh_t::prepare_indices_for_surface_rendering()
 {
     // Can't extract boundary surface if triangle-to-tetrahedra adjacency information
     // does not exist
@@ -541,6 +565,47 @@ void renderable_topological_simulated_tetrahedral_mesh_t::prepare_indices_for_re
     std::size_t const vertex_count = boundary_triangle_count() * 3u;
     std::vector<std::uint32_t> index_buffer(vertex_count);
     std::iota(index_buffer.begin(), index_buffer.end(), 0u);
+
+    transfer_indices_for_rendering(std::move(index_buffer));
+}
+
+void renderable_topological_simulated_tetrahedral_mesh_t::prepare_vertices_for_wireframe_rendering()
+{
+    std::size_t constexpr num_attributes_per_vertex = 9u;
+    std::size_t const vertex_count                  = vertices().size();
+    std::vector<float> vertex_buffer{};
+    vertex_buffer.reserve(vertex_count * num_attributes_per_vertex);
+
+    for (auto const& vertex : vertices())
+    {
+        vertex_buffer.push_back(static_cast<float>(vertex.position().x()));
+        vertex_buffer.push_back(static_cast<float>(vertex.position().y()));
+        vertex_buffer.push_back(static_cast<float>(vertex.position().z()));
+        vertex_buffer.push_back(static_cast<float>(vertex.normal().x()));
+        vertex_buffer.push_back(static_cast<float>(vertex.normal().y()));
+        vertex_buffer.push_back(static_cast<float>(vertex.normal().z()));
+        vertex_buffer.push_back(vertex.color().x());
+        vertex_buffer.push_back(vertex.color().y());
+        vertex_buffer.push_back(vertex.color().z());
+    }
+
+    transfer_vertices_for_rendering(std::move(vertex_buffer));
+}
+
+void renderable_topological_simulated_tetrahedral_mesh_t::prepare_indices_for_wireframe_rendering()
+{
+    std::size_t constexpr num_indices_per_triangle = 3u;
+    std::size_t const index_count                  = triangles().size() * num_indices_per_triangle;
+
+    std::vector<std::uint32_t> index_buffer{};
+    index_buffer.reserve(index_count);
+
+    for (auto const& triangle : triangles())
+    {
+        index_buffer.push_back(triangle.v1());
+        index_buffer.push_back(triangle.v2());
+        index_buffer.push_back(triangle.v3());
+    }
 
     transfer_indices_for_rendering(std::move(index_buffer));
 }

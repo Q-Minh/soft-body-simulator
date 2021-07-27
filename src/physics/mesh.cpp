@@ -142,6 +142,11 @@ index_type& tetrahedron_t::v4()
     return v_[3];
 }
 
+std::array<index_type, 4u> const& tetrahedron_t::vertices() const
+{
+    return v_;
+}
+
 scalar_type const& tetrahedron_t::mass_density() const
 {
     return rho_;
@@ -214,6 +219,11 @@ index_type& edge_t::v1()
 index_type& edge_t::v2()
 {
     return v_[1];
+}
+
+std::array<index_type, 2u> const& edge_t::vertices() const
+{
+    return v_;
 }
 
 std::vector<index_type> const& edge_t::adjacent_tetrahedron_indices() const
@@ -305,6 +315,11 @@ index_type& triangle_t::v2()
 index_type& triangle_t::v3()
 {
     return v_[2];
+}
+
+std::array<index_type, 3u> const& triangle_t::vertices() const
+{
+    return v_;
 }
 
 std::array<edge_t, 3u> triangle_t::edges_copy() const

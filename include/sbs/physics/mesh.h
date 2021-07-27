@@ -77,6 +77,8 @@ class edge_t
     index_type& v1();
     index_type& v2();
 
+    std::array<index_type, 2u> const& vertices() const;
+
     std::vector<index_type>& adjacent_tetrahedron_indices();
     std::vector<index_type> const& adjacent_tetrahedron_indices() const;
 
@@ -129,6 +131,8 @@ class triangle_t
     index_type& v1();
     index_type& v2();
     index_type& v3();
+
+    std::array<index_type, 3u> const& vertices() const;
 
     /**
      * @brief
@@ -196,6 +200,8 @@ class tetrahedron_t
     index_type& v2();
     index_type& v3();
     index_type& v4();
+
+    std::array<index_type, 4u> const& vertices() const;
 
     scalar_type const& mass_density() const;
     scalar_type& mass_density();

@@ -102,6 +102,21 @@ tetrahedron_t::tetrahedron_t(tetrahedron_t const& other)
     }
 }
 
+tetrahedron_t& tetrahedron_t::operator=(tetrahedron_t const& other)
+{
+    v_   = other.v_;
+    rho_ = other.rho_;
+    if (static_cast<bool>(other.edges_))
+    {
+        edges_ = std::make_unique<std::array<index_type, 6u>>(*other.edges_);
+    }
+    if (static_cast<bool>(other.faces_))
+    {
+        faces_ = std::make_unique<std::array<index_type, 4u>>(*other.faces_);
+    }
+    return *this;
+}
+
 index_type const& tetrahedron_t::v1() const
 {
     return v_[0];
@@ -285,6 +300,17 @@ triangle_t::triangle_t(triangle_t const& other)
     {
         edges_ = std::make_unique<std::array<index_type, 3u>>(*other.edges_);
     }
+}
+
+triangle_t& triangle_t::operator=(triangle_t const& other)
+{
+    v_             = other.v_;
+    adjacent_tets_ = other.adjacent_tets_;
+    if (static_cast<bool>(other.edges_))
+    {
+        edges_ = std::make_unique<std::array<index_type, 3u>>(*other.edges_);
+    }
+    return *this;
 }
 
 index_type const& triangle_t::v1() const

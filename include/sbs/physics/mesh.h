@@ -123,6 +123,7 @@ class triangle_t
     triangle_t(index_type v1, index_type v2, index_type v3);
     triangle_t(triangle_t const&);
     triangle_t(triangle_t&&) = default;
+    triangle_t& operator     =(triangle_t const& other);
 
     index_type const& v1() const;
     index_type const& v2() const;
@@ -190,6 +191,7 @@ class tetrahedron_t
     tetrahedron_t(index_type v1, index_type v2, index_type v3, index_type v4);
     tetrahedron_t(tetrahedron_t const& other);
     tetrahedron_t(tetrahedron_t&&) = default;
+    tetrahedron_t& operator        =(tetrahedron_t const& other);
 
     index_type const& v1() const;
     index_type const& v2() const;

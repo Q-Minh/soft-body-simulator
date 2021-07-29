@@ -13,22 +13,14 @@ green_constraint_t::green_constraint_t(
     scalar_type const alpha,
     body_ptr_type b,
     index_type ti,
+    Eigen::Vector3d const& p1,
+    Eigen::Vector3d const& p2,
+    Eigen::Vector3d const& p3,
+    Eigen::Vector3d const& p4,
     scalar_type young_modulus,
     scalar_type poisson_ratio)
     : constraint_t(alpha), b_(b), ti_(ti), DmInv_(), V0_(), mu_(), lambda_()
 {
-    physics::tetrahedron_t const& t = b_->tetrahedra().at(ti);
-
-    physics::vertex_t const& v1 = b_->vertices().at(t.v1());
-    physics::vertex_t const& v2 = b_->vertices().at(t.v2());
-    physics::vertex_t const& v3 = b_->vertices().at(t.v3());
-    physics::vertex_t const& v4 = b_->vertices().at(t.v4());
-
-    Eigen::Vector3d const p1 = v1.position();
-    Eigen::Vector3d const p2 = v2.position();
-    Eigen::Vector3d const p3 = v3.position();
-    Eigen::Vector3d const p4 = v4.position();
-
     Eigen::Matrix3d Dm;
     Dm.col(0) = (p1 - p4).transpose();
     Dm.col(1) = (p2 - p4).transpose();

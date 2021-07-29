@@ -8,13 +8,15 @@ namespace xpbd {
 
 distance_constraint_t::distance_constraint_t(
     scalar_type const alpha,
-    position_key_type const& vb1,
-    position_key_type const& vb2)
-    : constraint_t(alpha), b1_(vb1.first), v1_(vb1.second), b2_(vb2.first), v2_(vb2.second), d_()
+    body_ptr_type b1,
+    body_ptr_type b2,
+    index_type v1,
+    index_type v2,
+    Eigen::Vector3d const& p1,
+    Eigen::Vector3d const& p2)
+    : constraint_t(alpha), b1_(b1), v1_(v1), b2_(b2), v2_(v2), d_()
 {
-    Eigen::Vector3d const p1 = b1_->vertices().at(v1_).position();
-    Eigen::Vector3d const p2 = b2_->vertices().at(v2_).position();
-    d_                       = (p2 - p1).norm();
+    d_ = (p2 - p1).norm();
 }
 
 void distance_constraint_t::project(

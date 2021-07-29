@@ -83,6 +83,8 @@ class solver_t
     std::vector<std::unique_ptr<constraint_t>>& constraints();
     constraint_map_type const& tetrahedron_to_constraint_map() const;
     constraint_map_type& tetrahedron_to_constraint_map();
+    constraint_map_type const& edge_to_constraint_map() const;
+    constraint_map_type& edge_to_constraint_map();
 
   protected:
     void handle_collisions();
@@ -104,6 +106,9 @@ class solver_t
     constraint_map_type
         tetrahedron_to_constraint_map_; ///< Mapping from body/tetrahedron to its corresponding
                                         ///< constraint's index in the list of constraints
+
+    constraint_map_type edge_to_constraint_map_; ///< Mapping from body/edge to its corresponding
+                                                 ///< constraint's index in the list of constraints
 
     double dt_;                                    ///< Timestep duration of the simulation
     std::uint32_t substeps_;                       ///< Number of substeps in one solver step

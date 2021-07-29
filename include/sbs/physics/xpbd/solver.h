@@ -29,6 +29,30 @@ class tetrahedral_mesh_t;
 class solver_t
 {
   public:
+    using constraint_map_key_type = std::pair<xpbd::tetrahedral_mesh_t*, std::uint32_t>;
+
+    struct constraint_map_key_less
+    {
+        bool
+        operator()(constraint_map_key_type const& key1, constraint_map_key_type const& key2) const
+        {
+            std::pair<std::uintptr_t, std::uint32_t> const a1{
+                reinterpret_cast<std::uintptr_t>(key1.first),
+                key1.second};
+
+            std::pair<std::uintptr_t, std::uint32_t> const a2{
+                reinterpret_cast<std::uintptr_t>(key2.first),
+                key2.second};
+
+            return a1 < a2;
+        }
+    };
+
+    using constraint_map_type = std::map<
+        constraint_map_key_type,
+        std::uint32_t /* index of constraint */,
+        constraint_map_key_less>;
+
     solver_t();
     solver_t(double timestep, std::uint32_t iterations, std::uint32_t substeps);
     solver_t(std::vector<std::shared_ptr<common::renderable_node_t>> const& bodies);
@@ -55,6 +79,10 @@ class solver_t
     double& collision_compliance();
 
     std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& simulated_bodies() const;
+    std::vector<std::unique_ptr<constraint_t>> const& constraints() const;
+    std::vector<std::unique_ptr<constraint_t>>& constraints();
+    constraint_map_type const& tetrahedron_to_constraint_map() const;
+    constraint_map_type& tetrahedron_to_constraint_map();
 
   protected:
     void handle_collisions();
@@ -63,25 +91,6 @@ class solver_t
     void create_distance_constraints_for_body(xpbd::tetrahedral_mesh_t* body);
 
   private:
-    using constraint_map_key_type = std::pair<xpbd::tetrahedral_mesh_t*, std::uint32_t>;
-
-    struct constraint_map_key_less
-    {
-        bool
-        operator()(constraint_map_key_type const& key1, constraint_map_key_type const& key2) const
-        {
-            std::pair<std::uintptr_t, std::uint32_t> const a1{
-                reinterpret_cast<std::uintptr_t>(key1.first),
-                key1.second};
-
-            std::pair<std::uintptr_t, std::uint32_t> const a2{
-                reinterpret_cast<std::uintptr_t>(key2.first),
-                key2.second};
-
-            return a1 < a2;
-        }
-    };
-
     std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>>
         physics_bodies_; ///< List of XPBD based physically simulated bodies
     std::vector<std::shared_ptr<common::shared_vertex_surface_mesh_i>>
@@ -92,10 +101,7 @@ class solver_t
     std::vector<collision_constraint_t>
         collision_constraints_; ///< List of XPBD collision constraints that is rebuilt every frame
 
-    std::map<
-        constraint_map_key_type,
-        std::uint32_t /* index of constraint */,
-        constraint_map_key_less>
+    constraint_map_type
         tetrahedron_to_constraint_map_; ///< Mapping from body/tetrahedron to its corresponding
                                         ///< constraint's index in the list of constraints
 

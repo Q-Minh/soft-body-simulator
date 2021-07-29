@@ -178,6 +178,10 @@ void solver_t::step()
             for (std::size_t j = 0u; j < J; ++j)
             {
                 std::unique_ptr<constraint_t> const& constraint = constraints_[j];
+
+                if (!constraint->is_active())
+                    continue;
+
                 constraint->project(physics_bodies_, lagrange_multipliers_[j], dt);
             }
             for (std::size_t c = 0u; c < Mc; ++c)
@@ -253,6 +257,26 @@ double& solver_t::collision_compliance()
 std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& solver_t::simulated_bodies() const
 {
     return physics_bodies_;
+}
+
+std::vector<std::unique_ptr<constraint_t>> const& solver_t::constraints() const
+{
+    return constraints_;
+}
+
+std::vector<std::unique_ptr<constraint_t>>& solver_t::constraints()
+{
+    return constraints_;
+}
+
+solver_t::constraint_map_type const& solver_t::tetrahedron_to_constraint_map() const
+{
+    return tetrahedron_to_constraint_map_;
+}
+
+solver_t::constraint_map_type& solver_t::tetrahedron_to_constraint_map()
+{
+    return tetrahedron_to_constraint_map_;
 }
 
 void solver_t::create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body)

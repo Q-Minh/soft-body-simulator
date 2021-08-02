@@ -71,6 +71,7 @@ void renderable_node_t::mark_indices_dirty()
 void renderable_node_t::mark_should_render_wireframe()
 {
     render_state_.should_render_wireframe = true;
+    render_state_.should_render_triangles = false;
 }
 
 void renderable_node_t::mark_vertices_clean()
@@ -85,6 +86,7 @@ void renderable_node_t::mark_indices_clean()
 
 void renderable_node_t::mark_should_render_triangles()
 {
+    render_state_.should_render_triangles = true;
     render_state_.should_render_wireframe = false;
 }
 
@@ -96,6 +98,11 @@ bool renderable_node_t::should_transfer_vertices() const
 bool renderable_node_t::should_transfer_indices() const
 {
     return render_state_.should_transfer_indices;
+}
+
+bool renderable_node_t::should_render_triangles() const
+{
+    return render_state_.should_render_triangles;
 }
 
 bool renderable_node_t::should_render_wireframe() const

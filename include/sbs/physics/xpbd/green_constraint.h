@@ -20,6 +20,10 @@ class green_constraint_t : public constraint_t
         scalar_type const alpha,
         body_ptr_type b,
         index_type ti,
+        Eigen::Vector3d const& p1,
+        Eigen::Vector3d const& p2,
+        Eigen::Vector3d const& p3,
+        Eigen::Vector3d const& p4,
         scalar_type young_modulus,
         scalar_type poisson_ratio);
 

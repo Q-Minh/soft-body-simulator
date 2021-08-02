@@ -38,6 +38,7 @@ class renderable_node_t
 
     bool should_transfer_vertices() const;
     bool should_transfer_indices() const;
+    bool should_render_triangles() const;
     bool should_render_wireframe() const;
 
     bool is_environment_body() const;
@@ -67,6 +68,7 @@ class renderable_node_t
     {
         bool should_transfer_vertices = true;
         bool should_transfer_indices  = true;
+        bool should_render_triangles  = true;
         bool should_render_wireframe  = false;
     } render_state_;
 

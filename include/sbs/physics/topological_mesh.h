@@ -39,7 +39,8 @@ class topological_simulated_tetrahedral_mesh_t
     std::vector<tetrahedron_t>& tetrahedra();
 
     build_topology_parameters_t const& topology_parameters() const;
-    void build_topology(build_topology_parameters_t const& params);
+    build_topology_parameters_t& topology_parameters();
+    void build_topology();
 
     std::vector<triangle_t const*> boundary_triangles() const;
 
@@ -139,13 +140,20 @@ class renderable_topological_simulated_tetrahedral_mesh_t
       public common::renderable_node_t
 {
   public:
+    renderable_topological_simulated_tetrahedral_mesh_t() = default;
+
     renderable_topological_simulated_tetrahedral_mesh_t(
         common::geometry_t const& geometry,
         build_topology_parameters_t const& params = build_topology_parameters_t{});
 
-    // TODO: Support wireframe rendering
     virtual void prepare_vertices_for_rendering() override;
     virtual void prepare_indices_for_rendering() override;
+
+  private:
+    void prepare_vertices_for_surface_rendering();
+    void prepare_indices_for_surface_rendering();
+    void prepare_vertices_for_wireframe_rendering();
+    void prepare_indices_for_wireframe_rendering();
 };
 
 /**

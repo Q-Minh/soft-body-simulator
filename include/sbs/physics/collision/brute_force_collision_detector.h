@@ -88,10 +88,10 @@ brute_force_collision_detector_t<SimulatedMeshType>::intersect_single_triangle(
     {
         physics::tetrahedron_t const& t = tetrahedra[ti];
 
-        auto const p1 = vertices[t.v1()].position();
-        auto const p2 = vertices[t.v2()].position();
-        auto const p3 = vertices[t.v3()].position();
-        auto const p4 = vertices[t.v4()].position();
+        auto const& p1 = vertices[t.v1()].position();
+        auto const& p2 = vertices[t.v2()].position();
+        auto const& p3 = vertices[t.v3()].position();
+        auto const& p4 = vertices[t.v4()].position();
 
         common::tetrahedron_t const tetrahedron{p1, p2, p3, p4};
         if (common::intersects(triangle, tetrahedron))

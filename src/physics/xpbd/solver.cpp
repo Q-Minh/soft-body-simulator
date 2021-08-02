@@ -19,7 +19,8 @@ solver_t::solver_t()
       tetrahedron_to_constraint_map_{},
       dt_{0.0167},
       substeps_{1u},
-      iteration_count_{10u}
+      iteration_count_{10u},
+      collision_alpha_{0.}
 {
 }
 
@@ -31,7 +32,8 @@ solver_t::solver_t(double timestep, std::uint32_t substeps, std::uint32_t iterat
       tetrahedron_to_constraint_map_{},
       dt_{timestep},
       substeps_{substeps},
-      iteration_count_{iterations}
+      iteration_count_{iterations},
+      collision_alpha_{0.}
 {
 }
 
@@ -43,7 +45,8 @@ solver_t::solver_t(std::vector<std::shared_ptr<common::renderable_node_t>> const
       tetrahedron_to_constraint_map_{},
       dt_{0.0167},
       substeps_{30u},
-      iteration_count_{30u}
+      iteration_count_{30u},
+      collision_alpha_{0.}
 {
     setup(bodies);
 }
@@ -178,6 +181,10 @@ void solver_t::step()
             for (std::size_t j = 0u; j < J; ++j)
             {
                 std::unique_ptr<constraint_t> const& constraint = constraints_[j];
+
+                if (!constraint->is_active())
+                    continue;
+
                 constraint->project(physics_bodies_, lagrange_multipliers_[j], dt);
             }
             for (std::size_t c = 0u; c < Mc; ++c)
@@ -255,17 +262,53 @@ std::vector<std::shared_ptr<xpbd::tetrahedral_mesh_t>> const& solver_t::simulate
     return physics_bodies_;
 }
 
+std::vector<std::unique_ptr<constraint_t>> const& solver_t::constraints() const
+{
+    return constraints_;
+}
+
+std::vector<std::unique_ptr<constraint_t>>& solver_t::constraints()
+{
+    return constraints_;
+}
+
+solver_t::constraint_map_type const& solver_t::tetrahedron_to_constraint_map() const
+{
+    return tetrahedron_to_constraint_map_;
+}
+
+solver_t::constraint_map_type& solver_t::tetrahedron_to_constraint_map()
+{
+    return tetrahedron_to_constraint_map_;
+}
+
+solver_t::constraint_map_type const& solver_t::edge_to_constraint_map() const
+{
+    return edge_to_constraint_map_;
+}
+
+solver_t::constraint_map_type& solver_t::edge_to_constraint_map()
+{
+    return edge_to_constraint_map_;
+}
+
 void solver_t::create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body)
 {
     simulation_parameters_t const& params = body->simulation_parameters();
     std::size_t const tetrahedron_count   = body->tetrahedra().size();
+    auto const& vertices                  = body->vertices();
+    auto const& tetrahedra                = body->tetrahedra();
     for (std::size_t ti = 0u; ti < tetrahedron_count; ++ti)
     {
-        tetrahedron_t const& tetrahedron = body->tetrahedra().at(ti);
+        tetrahedron_t const& tetrahedron = tetrahedra[ti];
         auto constraint                  = std::make_unique<green_constraint_t>(
             params.alpha,
             body,
             static_cast<physics::index_type>(ti),
+            vertices[tetrahedron.v1()].position(),
+            vertices[tetrahedron.v2()].position(),
+            vertices[tetrahedron.v3()].position(),
+            vertices[tetrahedron.v4()].position(),
             params.young_modulus,
             params.poisson_ratio);
 
@@ -278,13 +321,23 @@ void solver_t::create_green_constraints_for_body(xpbd::tetrahedral_mesh_t* body)
 void solver_t::create_distance_constraints_for_body(xpbd::tetrahedral_mesh_t* body)
 {
     simulation_parameters_t const& params = body->simulation_parameters();
-    for (edge_t const& edge : body->edges())
+    auto const& vertices                  = body->vertices();
+    for (std::size_t ei = 0u; ei < body->edges().size(); ++ei)
     {
-        auto constraint = std::make_unique<distance_constraint_t>(
+        edge_t const& edge = body->edges().at(ei);
+        auto const& p1     = vertices[edge.v1()].position();
+        auto const& p2     = vertices[edge.v2()].position();
+        auto constraint    = std::make_unique<distance_constraint_t>(
             1. / params.hooke_coefficient,
-            std::make_pair(body, edge.v1()),
-            std::make_pair(body, edge.v2()));
+            body,
+            body,
+            edge.v1(),
+            edge.v2(),
+            p1,
+            p2);
 
+        constraint_map_key_type const key = std::make_pair(body, static_cast<std::uint32_t>(ei));
+        edge_to_constraint_map_[key]      = static_cast<std::uint32_t>(constraints_.size());
         constraints_.push_back(std::move(constraint));
     }
 }

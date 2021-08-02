@@ -11,6 +11,8 @@ namespace xpbd {
 class tetrahedral_mesh_t : public physics::renderable_topological_simulated_tetrahedral_mesh_t
 {
   public:
+    tetrahedral_mesh_t() = default;
+
     tetrahedral_mesh_t(
         common::geometry_t const& geometry,
         simulation_parameters_t const& simulation_params,

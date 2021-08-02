@@ -77,6 +77,8 @@ class edge_t
     index_type& v1();
     index_type& v2();
 
+    std::array<index_type, 2u> const& vertices() const;
+
     std::vector<index_type>& adjacent_tetrahedron_indices();
     std::vector<index_type> const& adjacent_tetrahedron_indices() const;
 
@@ -121,6 +123,7 @@ class triangle_t
     triangle_t(index_type v1, index_type v2, index_type v3);
     triangle_t(triangle_t const&);
     triangle_t(triangle_t&&) = default;
+    triangle_t& operator     =(triangle_t const& other);
 
     index_type const& v1() const;
     index_type const& v2() const;
@@ -129,6 +132,8 @@ class triangle_t
     index_type& v1();
     index_type& v2();
     index_type& v3();
+
+    std::array<index_type, 3u> const& vertices() const;
 
     /**
      * @brief
@@ -186,6 +191,7 @@ class tetrahedron_t
     tetrahedron_t(index_type v1, index_type v2, index_type v3, index_type v4);
     tetrahedron_t(tetrahedron_t const& other);
     tetrahedron_t(tetrahedron_t&&) = default;
+    tetrahedron_t& operator        =(tetrahedron_t const& other);
 
     index_type const& v1() const;
     index_type const& v2() const;
@@ -196,6 +202,8 @@ class tetrahedron_t
     index_type& v2();
     index_type& v3();
     index_type& v4();
+
+    std::array<index_type, 4u> const& vertices() const;
 
     scalar_type const& mass_density() const;
     scalar_type& mass_density();
@@ -282,6 +290,8 @@ template <class Derived>
 class simulated_mesh_i
 {
   public:
+    simulated_mesh_i() = default;
+
     std::vector<vertex_t> const& vertices() const { static_cast<Derived&>(*this).vertices(); }
     std::vector<edge_t> const& edges() const { static_cast<Derived&>(*this).edges(); }
     std::vector<triangle_t> const& triangles() const { static_cast<Derived&>(*this).triangles(); }

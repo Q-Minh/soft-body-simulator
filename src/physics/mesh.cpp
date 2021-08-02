@@ -102,6 +102,21 @@ tetrahedron_t::tetrahedron_t(tetrahedron_t const& other)
     }
 }
 
+tetrahedron_t& tetrahedron_t::operator=(tetrahedron_t const& other)
+{
+    v_   = other.v_;
+    rho_ = other.rho_;
+    if (static_cast<bool>(other.edges_))
+    {
+        edges_ = std::make_unique<std::array<index_type, 6u>>(*other.edges_);
+    }
+    if (static_cast<bool>(other.faces_))
+    {
+        faces_ = std::make_unique<std::array<index_type, 4u>>(*other.faces_);
+    }
+    return *this;
+}
+
 index_type const& tetrahedron_t::v1() const
 {
     return v_[0];
@@ -140,6 +155,11 @@ index_type& tetrahedron_t::v3()
 index_type& tetrahedron_t::v4()
 {
     return v_[3];
+}
+
+std::array<index_type, 4u> const& tetrahedron_t::vertices() const
+{
+    return v_;
 }
 
 scalar_type const& tetrahedron_t::mass_density() const
@@ -216,6 +236,11 @@ index_type& edge_t::v2()
     return v_[1];
 }
 
+std::array<index_type, 2u> const& edge_t::vertices() const
+{
+    return v_;
+}
+
 std::vector<index_type> const& edge_t::adjacent_tetrahedron_indices() const
 {
     return adjacent_tets_;
@@ -277,6 +302,17 @@ triangle_t::triangle_t(triangle_t const& other)
     }
 }
 
+triangle_t& triangle_t::operator=(triangle_t const& other)
+{
+    v_             = other.v_;
+    adjacent_tets_ = other.adjacent_tets_;
+    if (static_cast<bool>(other.edges_))
+    {
+        edges_ = std::make_unique<std::array<index_type, 3u>>(*other.edges_);
+    }
+    return *this;
+}
+
 index_type const& triangle_t::v1() const
 {
     return v_[0];
@@ -305,6 +341,11 @@ index_type& triangle_t::v2()
 index_type& triangle_t::v3()
 {
     return v_[2];
+}
+
+std::array<index_type, 3u> const& triangle_t::vertices() const
+{
+    return v_;
 }
 
 std::array<edge_t, 3u> triangle_t::edges_copy() const

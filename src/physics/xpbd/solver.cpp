@@ -109,6 +109,7 @@ void solver_t::reset()
     constraints_.clear();
     collision_constraints_.clear();
     tetrahedron_to_constraint_map_.clear();
+    edge_to_constraint_map_.clear();
     x0_.clear();
     lagrange_multipliers_.clear();
 }

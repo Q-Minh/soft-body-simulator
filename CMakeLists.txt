@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(sbs VERSION 0.0.1 LANGUAGES CXX)
+project(sbs VERSION 0.0.1)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -13,7 +13,7 @@ if (NOT EXISTS "thirdparty/imgui")
 endif()
 
 if (_imgui_clone_failure)
-    message(FATAL_ERROR "Failed to download imgui")
+    message(STATUS "Failed to download imgui")
 endif()
 
 include(FetchContent)
@@ -92,6 +92,17 @@ PUBLIC
     IMGUI_IMPL_OPENGL_LOADER_GLAD=1
 )
 
+FetchContent_Declare(
+  _discregrid
+  GIT_REPOSITORY https://github.com/Q-Minh/Discregrid
+  GIT_TAG        master
+)
+FetchContent_MakeAvailable(_discregrid)
+set_target_properties(Discregrid
+PROPERTIES
+    DEBUG_POSTFIX "_d"
+)
+
 # Should make the library shared in the future
 add_library(sbs STATIC)
 add_library(sbs::sbs ALIAS sbs)
@@ -110,9 +121,12 @@ PUBLIC
     Eigen3::Eigen 
     glm::glm
     Threads::Threads
+    Discregrid
 )
 target_sources(sbs 
 PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/aliases.h"
+
     # common
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/geometry.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/mesh.h"
@@ -143,11 +157,27 @@ PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/io/ply.cpp"
 
     # physics
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/gauss_seidel_solver.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mesh.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/topological_mesh.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/particle.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/simulation.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/solver.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/tetrahedral_body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/timestep.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/tetrahedral_mesh_boundary.h"
 
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/gauss_seidel_solver.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mesh.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/topological_mesh.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/particle.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/simulation.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/solver.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/tetrahedral_body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/timestep.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/tetrahedral_mesh_boundary.cpp"
 
     # physics/xpbd
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/collision_constraint.h"
@@ -167,13 +197,25 @@ PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/solver.cpp"
 
     # physics/collision
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/aabb_bvh_model.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/boundary.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_collision_detector.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/cd_system.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_detector.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_model.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/contact.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/intersections.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/primitive.h"
 
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/aabb_bvh_model.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/boundary.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_collision_detector.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/cd_system.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_detector.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_model.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/contact.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/intersections.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/primitive.cpp"
 
     # physics/cutting
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/cutting/cut_tetrahedron.h"
@@ -209,7 +251,7 @@ PUBLIC
 include(GNUInstallDirs)
 
 install(
-    TARGETS sbs glad imgui glfw
+    TARGETS sbs glad imgui glfw Discregrid
     EXPORT sbs_targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

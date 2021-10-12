@@ -1,8 +1,405 @@
+#include <algorithm>
 #include <cassert>
-#include <sbs/physics/mesh.h>
+#include <iterator>
+#include <sbs/physics/topology.h>
 
 namespace sbs {
 namespace physics {
+
+/**
+ * Vertex implementation
+ */
+
+vertex_t::vertex_t(index_type vi)
+    : vi_(vi), incident_edges_{}, incident_triangles_{}, incident_tets_{}
+{
+}
+
+index_type vertex_t::vi() const
+{
+    return vi_;
+}
+
+std::vector<index_type> const& vertex_t::incident_edge_indices() const
+{
+    return incident_edges_;
+}
+
+std::vector<index_type> const& vertex_t::incident_triangle_indices() const
+{
+    return incident_triangles_;
+}
+
+std::vector<index_type> const& vertex_t::incident_tetrahedron_indices() const
+{
+    return incident_tets_;
+}
+
+std::vector<index_type>& vertex_t::incident_edge_indices()
+{
+    return incident_edges_;
+}
+
+std::vector<index_type>& vertex_t::incident_triangle_indices()
+{
+    return incident_triangles_;
+}
+
+std::vector<index_type>& vertex_t::incident_tetrahedron_indices()
+{
+    return incident_tets_;
+}
+
+bool vertex_t::operator==(vertex_t const& other) const
+{
+    return vi_ == other.vi_;
+}
+
+bool vertex_t::operator!=(vertex_t const& other) const
+{
+    return vi_ != other.vi_;
+}
+
+bool vertex_t::operator<(vertex_t const& other) const
+{
+    return vi_ < other.vi_;
+}
+
+/**
+ * Edge implementation
+ */
+
+edge_t::edge_t(index_type v1, index_type v2) : v_{v1, v2}, incident_triangles_{}, incident_tets_{}
+{
+}
+
+edge_t::edge_t(vertex_t const& v1, vertex_t const& v2)
+    : v_{v1.vi(), v2.vi()}, incident_triangles_{}, incident_tets_{}
+{
+}
+
+std::array<index_type, 2u> const& edge_t::vertex_indices() const
+{
+    return v_;
+}
+
+index_type edge_t::v1() const
+{
+    return v_[0];
+}
+
+index_type edge_t::v2() const
+{
+    return v_[1];
+}
+
+std::vector<index_type> const& edge_t::incident_triangle_indices() const
+{
+    return incident_triangles_;
+}
+
+std::vector<index_type> const& edge_t::incident_tetrahedron_indices() const
+{
+    return incident_tets_;
+}
+
+std::vector<index_type>& edge_t::incident_triangle_indices()
+{
+    return incident_triangles_;
+}
+
+std::vector<index_type>& edge_t::incident_tetrahedron_indices()
+{
+    return incident_tets_;
+}
+
+std::uint8_t edge_t::id_of_vertex(index_type vi) const
+{
+    return static_cast<std::uint8_t>(
+        std::distance(v_.begin(), std::find(v_.begin(), v_.end(), vi)));
+}
+
+bool edge_t::is_reverse_of(edge_t const& other) const
+{
+    return v1() == other.v2() && v2() == other.v1();
+}
+
+bool edge_t::operator==(edge_t const& other) const
+{
+    std::array<index_type, 2u> v      = v_;
+    std::array<index_type, 2u> vother = other.v_;
+
+    std::sort(v.begin(), v.end());
+    std::sort(vother.begin(), vother.end());
+
+    return v == vother;
+}
+
+bool edge_t::operator<(edge_t const& other) const
+{
+    std::array<index_type, 2u> v      = v_;
+    std::array<index_type, 2u> vother = other.v_;
+
+    std::sort(v.begin(), v.end());
+    std::sort(vother.begin(), vother.end());
+
+    return v < vother;
+}
+
+/**
+ * Triangle implementation
+ */
+
+triangle_t::triangle_t(index_type v1, index_type v2, index_type v3)
+    : v_{v1, v2, v3}, edges_{}, incident_tets_{}
+{
+}
+
+triangle_t::triangle_t(vertex_t const& v1, vertex_t const& v2, vertex_t const& v3)
+    : v_{v1.vi(), v2.vi(), v3.vi()}, edges_{}, incident_tets_{}
+{
+}
+
+std::array<index_type, 3u> const& triangle_t::vertex_indices() const
+{
+    return v_;
+}
+
+index_type triangle_t::v1() const
+{
+    return v_[0];
+}
+
+index_type triangle_t::v2() const
+{
+    return v_[1];
+}
+
+index_type triangle_t::v3() const
+{
+    return v_[2];
+}
+
+std::array<edge_t, 3u> triangle_t::edges_copy() const
+{
+    return std::array<edge_t, 3u>{edge_t{v1(), v2()}, edge_t{v2(), v3()}, edge_t{v3(), v1()}};
+}
+
+std::array<index_type, 3u> const& triangle_t::edge_indices() const
+{
+    return edges_;
+}
+
+std::vector<index_type> const& triangle_t::incident_tetrahedron_indices() const
+{
+    return incident_tets_;
+}
+
+std::array<index_type, 3u>& triangle_t::edge_indices()
+{
+    return edges_;
+}
+
+std::vector<index_type>& triangle_t::incident_tetrahedron_indices()
+{
+    return incident_tets_;
+}
+
+std::uint8_t triangle_t::id_of_vertex(index_type vi) const
+{
+    return static_cast<std::uint8_t>(
+        std::distance(v_.begin(), std::find(v_.begin(), v_.end(), vi)));
+}
+
+std::uint8_t triangle_t::id_of_edge(index_type ei) const
+{
+    return static_cast<std::uint8_t>(
+        std::distance(edges_.begin(), std::find(edges_.begin(), edges_.end(), ei)));
+}
+
+bool triangle_t::is_reverse_of(triangle_t const& other) const
+{
+    std::array<index_type, 3u> v      = v_;
+    std::array<index_type, 3u> vother = other.v_;
+
+    auto const v_min      = std::min_element(v.begin(), v.end());
+    auto const vother_min = std::min_element(vother.begin(), vother.end());
+
+    std::rotate(v.begin(), v_min, v.end());
+    std::rotate(vother.begin(), vother_min, vother.end());
+
+    return v != vother;
+}
+
+bool triangle_t::operator==(triangle_t const& other) const
+{
+    std::array<index_type, 3u> v      = v_;
+    std::array<index_type, 3u> vother = other.v_;
+
+    std::sort(v.begin(), v.end());
+    std::sort(vother.begin(), vother.end());
+
+    return v == vother;
+}
+
+bool triangle_t::operator<(triangle_t const& other) const
+{
+    std::array<index_type, 3u> v      = v_;
+    std::array<index_type, 3u> vother = other.v_;
+
+    std::sort(v.begin(), v.end());
+    std::sort(vother.begin(), vother.end());
+
+    return v < vother;
+}
+
+/**
+ * Tetrahedron implementation
+ */
+
+tetrahedron_t::tetrahedron_t(index_type v1, index_type v2, index_type v3, index_type v4)
+    : v_{v1, v2, v3, v4}, edges_{}, faces_{}
+{
+}
+
+tetrahedron_t::tetrahedron_t(
+    vertex_t const& v1,
+    vertex_t const& v2,
+    vertex_t const& v3,
+    vertex_t const& v4)
+    : v_{v1.vi(), v2.vi(), v3.vi(), v4.vi()}, edges_{}, faces_{}
+{
+}
+
+std::array<index_type, 4u> const& tetrahedron_t::vertex_indices() const
+{
+    return v_;
+}
+
+std::array<index_type, 4u>& tetrahedron_t::vertex_indices()
+{
+    return v_;
+}
+
+index_type tetrahedron_t::v1() const
+{
+    return v_[0];
+}
+
+index_type tetrahedron_t::v2() const
+{
+    return v_[1];
+}
+
+index_type tetrahedron_t::v3() const
+{
+    return v_[2];
+}
+
+index_type tetrahedron_t::v4() const
+{
+    return v_[3];
+}
+
+index_type& tetrahedron_t::v1()
+{
+    return v_[0];
+}
+
+index_type& tetrahedron_t::v2()
+{
+    return v_[1];
+}
+
+index_type& tetrahedron_t::v3()
+{
+    return v_[2];
+}
+
+index_type& tetrahedron_t::v4()
+{
+    return v_[3];
+}
+
+std::array<edge_t, 6u> tetrahedron_t::edges_copy() const
+{
+    return std::array<edge_t, 6u>{
+        edge_t{v1(), v2()},
+        edge_t{v2(), v3()},
+        edge_t{v3(), v1()},
+        edge_t{v1(), v4()},
+        edge_t{v2(), v4()},
+        edge_t{v3(), v4()}};
+}
+
+std::array<triangle_t, 4u> tetrahedron_t::faces_copy() const
+{
+    return std::array<triangle_t, 4u>{
+        triangle_t{v1(), v2(), v4()},
+        triangle_t{v2(), v3(), v4()},
+        triangle_t{v3(), v1(), v4()},
+        triangle_t{v1(), v3(), v2()}};
+}
+
+std::array<index_type, 6u> const& tetrahedron_t::edge_indices() const
+{
+    return edges_;
+}
+
+std::array<index_type, 4u> const& tetrahedron_t::face_indices() const
+{
+    return faces_;
+}
+
+std::array<index_type, 6u>& tetrahedron_t::edge_indices()
+{
+    return edges_;
+}
+
+std::array<index_type, 4u>& tetrahedron_t::face_indices()
+{
+    return faces_;
+}
+
+std::uint8_t tetrahedron_t::id_of_vertex(index_type vi) const
+{
+    return static_cast<std::uint8_t>(
+        std::distance(v_.begin(), std::find(v_.begin(), v_.end(), vi)));
+}
+
+std::uint8_t tetrahedron_t::id_of_edge(index_type ei) const
+{
+    return static_cast<std::uint8_t>(
+        std::distance(edges_.begin(), std::find(edges_.begin(), edges_.end(), ei)));
+}
+
+std::uint8_t tetrahedron_t::id_of_face(index_type fi) const
+{
+    return static_cast<std::uint8_t>(
+        std::distance(faces_.begin(), std::find(faces_.begin(), faces_.end(), fi)));
+}
+
+bool tetrahedron_t::operator==(tetrahedron_t const& other) const
+{
+    std::array<index_type, 4u> v      = v_;
+    std::array<index_type, 4u> otherv = other.v_;
+
+    std::sort(v.begin(), v.end());
+    std::sort(otherv.begin(), otherv.end());
+
+    return v == otherv;
+}
+
+bool tetrahedron_t::operator<(tetrahedron_t const& other) const
+{
+    std::array<index_type, 4u> v      = v_;
+    std::array<index_type, 4u> otherv = other.v_;
+
+    std::sort(v.begin(), v.end());
+    std::sort(otherv.begin(), otherv.end());
+
+    return v < otherv;
+}
 
 /**
  * Vertex set implementation

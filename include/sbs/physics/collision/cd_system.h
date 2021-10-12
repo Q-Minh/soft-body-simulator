@@ -1,5 +1,5 @@
-#ifndef SBS_PHYSICS_COLLISION_BROAD_PHASE_CD_SYSTEM_H
-#define SBS_PHYSICS_COLLISION_BROAD_PHASE_CD_SYSTEM_H
+#ifndef SBS_PHYSICS_COLLISION_CD_SYSTEM_H
+#define SBS_PHYSICS_COLLISION_CD_SYSTEM_H
 
 #include <memory>
 #include <sbs/physics/collision/contact.h>
@@ -50,4 +50,4 @@ class cd_system_t
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_COLLISION_BROAD_PHASE_CD_SYSTEM_H
+#endif // SBS_PHYSICS_COLLISION_CD_SYSTEM_H

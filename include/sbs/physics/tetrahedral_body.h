@@ -1,15 +1,20 @@
 #ifndef SBS_PHYSICS_TETRAHEDRAL_BODY_H
 #define SBS_PHYSICS_TETRAHEDRAL_BODY_H
 
+#include <sbs/aliases.h>
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/bvh_model.h>
-#include <sbs/physics/mesh.h>
+#include <sbs/physics/topology.h>
+#include <sbs/physics/particle.h>
 #include <sbs/physics/tetrahedral_mesh_boundary.h>
 
 namespace sbs {
 namespace common {
+
 struct geometry_t;
+
 } // namespace common
+
 namespace physics {
 
 class tetrahedral_body_t : public body_t

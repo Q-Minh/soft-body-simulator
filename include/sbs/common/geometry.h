@@ -24,6 +24,8 @@ struct geometry_t
     bool has_uvs() const;
     bool is_triangle_mesh() const;
     bool is_tetrahedral_mesh() const;
+
+    void set_color(std::uint8_t r, std::uint8_t g, std::uint8_t b);
 };
 
 } // namespace common

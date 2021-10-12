@@ -1,8 +1,8 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <numeric>
-#include <sbs/physics/mesh.h>
 #include <sbs/physics/tetrahedral_mesh_boundary.h>
+#include <sbs/physics/topology.h>
 
 namespace sbs {
 namespace physics {

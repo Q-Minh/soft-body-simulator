@@ -14,6 +14,16 @@ collision_model_t::volume_type& collision_model_t::volume()
     return englobing_volume_;
 }
 
+index_type collision_model_t::id() const
+{
+    return id_;
+}
+
+index_type& collision_model_t::id()
+{
+    return id_;
+}
+
 } // namespace collision
 } // namespace physics
 } // namespace sbs

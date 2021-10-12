@@ -1,5 +1,5 @@
-#ifndef SBS_PHYSICS_TOPOLOGICAL_MESH_H
-#define SBS_PHYSICS_TOPOLOGICAL_MESH_H
+#ifndef SBS_PHYSICS_TETRAHEDRAL_MESH_BOUNDARY_H
+#define SBS_PHYSICS_TETRAHEDRAL_MESH_BOUNDARY_H
 
 #include <optional>
 #include <sbs/aliases.h>
@@ -96,4 +96,4 @@ class tetrahedral_mesh_boundary_t : public common::shared_vertex_surface_mesh_i
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_TOPOLOGICAL_MESH_H
+#endif // SBS_PHYSICS_TETRAHEDRAL_MESH_BOUNDARY_H

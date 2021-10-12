@@ -47,6 +47,7 @@ class collision_model_t
 
   private:
     volume_type englobing_volume_;
+    index_type id_;
 };
 
 } // namespace collision

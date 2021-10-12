@@ -1,7 +1,6 @@
-#ifndef SBS_PHYSICS_MESH_H
-#define SBS_PHYSICS_MESH_H
+#ifndef SBS_PHYSICS_TOPOLOGY_H
+#define SBS_PHYSICS_TOPOLOGY_H
 
-#include <Eigen/Core>
 #include <array>
 #include <map>
 #include <sbs/aliases.h>
@@ -40,7 +39,7 @@ class vertex_t
 class edge_t
 {
   public:
-    edge_t() = default;
+    edge_t()                    = default;
     edge_t(index_type v1, index_type v2);
     edge_t(vertex_t const& v1, vertex_t const& v2);
     std::array<index_type, 2u> const& vertex_indices() const;
@@ -50,6 +49,7 @@ class edge_t
     std::vector<index_type> const& incident_tetrahedron_indices() const;
     std::vector<index_type>& incident_triangle_indices();
     std::vector<index_type>& incident_tetrahedron_indices();
+    std::uint8_t id_of_vertex(index_type vi) const;
     bool is_reverse_of(edge_t const& other) const;
     bool operator==(edge_t const&) const;
     bool operator<(edge_t const&) const;
@@ -275,4 +275,4 @@ class tetrahedron_set_t : public triangle_set_t
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_MESH_H
+#endif // SBS_PHYSICS_TOPOLOGY_H

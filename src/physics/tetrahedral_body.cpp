@@ -26,7 +26,7 @@ tetrahedral_body_t::tetrahedral_body_t(common::geometry_t const& geometry)
 
     for (std::size_t i = 0u; i < geometry.indices.size(); i += 4u)
     {
-        tetrahedron_t const& tetrahedron{
+        sbs::physics::tetrahedron_t const tetrahedron{
             static_cast<index_type>(geometry.indices[i]),
             static_cast<index_type>(geometry.indices[i + 1u]),
             static_cast<index_type>(geometry.indices[i + 2u]),
@@ -45,9 +45,9 @@ tetrahedral_body_t::tetrahedral_body_t(common::geometry_t const& geometry)
         scalar_type const y = static_cast<scalar_type>(geometry.positions[idx + 1u]);
         scalar_type const z = static_cast<scalar_type>(geometry.positions[idx + 2u]);
 
-        float const r = geometry.colors[idx];
-        float const g = geometry.colors[idx + 1u];
-        float const b = geometry.colors[idx + 2u];
+        float const r = static_cast<float>(geometry.colors[idx] / 255.f);
+        float const g = static_cast<float>(geometry.colors[idx + 1u] / 255.f);
+        float const b = static_cast<float>(geometry.colors[idx + 2u] / 255.f);
 
         visual_model_.vertex(i).position = Eigen::Vector3d{x, y, z};
         visual_model_.vertex(i).color    = Eigen::Vector3f{r, g, b};

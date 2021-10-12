@@ -2,6 +2,7 @@
 #define SBS_PHYSICS_SIMULATION_H
 
 #include <sbs/aliases.h>
+#include <sbs/physics/body.h>
 #include <sbs/physics/collision/cd_system.h>
 #include <sbs/physics/constraint.h>
 #include <sbs/physics/particle.h>
@@ -10,9 +11,6 @@
 
 namespace sbs {
 namespace physics {
-
-// Forward declares
-class body_t;
 
 class simulation_t
 {

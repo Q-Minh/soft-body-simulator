@@ -27,14 +27,15 @@ $ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 $ cmake --build build --target install --config Release
 ```
 
-## Building and running
+To install Debug binaries/artifacts, replace all "Release" arguments with "Debug".
+
+## Building and installing
 
 ```
 $ cd path/to/sbs
 $ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-$ cmake --build build --target sbs-viewer --config Release
-# on unix systems
-$ ./build/sbs-viewer.exe <path/to/scene> <path/to/vertex_shader> <path/to/fragment_shader>
-# on windows
-$ ./build/Release/sbs-viewer.exe <path/to/scene> <path/to/vertex_shader> <path/to/fragment_shader>
+$ cmake --build build --target sbs --config Release
+$ cmake --build build --target install --config Release
 ```
+
+Again, replace "Release" by "Debug" for debug builds and installs.

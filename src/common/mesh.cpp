@@ -125,15 +125,15 @@ shared_vertex_surface_mesh_i::vertex_type static_mesh::vertex(std::size_t vi) co
     auto const& vertex_buffer = get_cpu_vertex_buffer();
     vertex_type v{};
     auto const idx = vi * 9u;
-    v.x            = static_cast<double>(vertex_buffer[idx + 0u]);
-    v.y            = static_cast<double>(vertex_buffer[idx + 1u]);
-    v.z            = static_cast<double>(vertex_buffer[idx + 2u]);
-    v.nx           = static_cast<double>(vertex_buffer[idx + 3u]);
-    v.ny           = static_cast<double>(vertex_buffer[idx + 4u]);
-    v.nz           = static_cast<double>(vertex_buffer[idx + 5u]);
-    v.r            = vertex_buffer[idx + 6u];
-    v.g            = vertex_buffer[idx + 7u];
-    v.b            = vertex_buffer[idx + 8u];
+    v.position.x() = static_cast<double>(vertex_buffer[idx + 0u]);
+    v.position.y() = static_cast<double>(vertex_buffer[idx + 1u]);
+    v.position.z() = static_cast<double>(vertex_buffer[idx + 2u]);
+    v.normal.x()   = static_cast<double>(vertex_buffer[idx + 3u]);
+    v.normal.y()   = static_cast<double>(vertex_buffer[idx + 4u]);
+    v.normal.z()   = static_cast<double>(vertex_buffer[idx + 5u]);
+    v.color.x()    = vertex_buffer[idx + 6u];
+    v.color.y()    = vertex_buffer[idx + 7u];
+    v.color.z()    = vertex_buffer[idx + 8u];
     return v;
 }
 
@@ -142,9 +142,9 @@ shared_vertex_surface_mesh_i::triangle_type static_mesh::triangle(std::size_t f)
     auto const& index_buffer = get_cpu_index_buffer();
     triangle_type t{};
     auto const idx = f * 3u;
-    t.v1           = index_buffer[idx + 0u];
-    t.v2           = index_buffer[idx + 1u];
-    t.v3           = index_buffer[idx + 2u];
+    t.vertices[0u] = index_buffer[idx + 0u];
+    t.vertices[1u] = index_buffer[idx + 1u];
+    t.vertices[2u] = index_buffer[idx + 2u];
     return t;
 }
 
@@ -163,15 +163,15 @@ dynamic_surface_mesh::dynamic_surface_mesh(geometry_t const& geometry)
         auto const idx = vi * 3u;
 
         vertex_type v{};
-        v.x  = geometry.positions[idx + 0u];
-        v.y  = geometry.positions[idx + 1u];
-        v.z  = geometry.positions[idx + 2u];
-        v.nx = geometry.has_normals() ? geometry.normals[idx + 0u] : 0.f;
-        v.ny = geometry.has_normals() ? geometry.normals[idx + 1u] : 0.f;
-        v.nz = geometry.has_normals() ? geometry.normals[idx + 2u] : 0.f;
-        v.r  = static_cast<float>(geometry.colors[idx + 0u]) / 255.f;
-        v.g  = static_cast<float>(geometry.colors[idx + 1u]) / 255.f;
-        v.b  = static_cast<float>(geometry.colors[idx + 2u]) / 255.f;
+        v.position.x() = geometry.positions[idx + 0u];
+        v.position.y() = geometry.positions[idx + 1u];
+        v.position.z() = geometry.positions[idx + 2u];
+        v.normal.x()   = geometry.has_normals() ? geometry.normals[idx + 0u] : 0.f;
+        v.normal.y()   = geometry.has_normals() ? geometry.normals[idx + 1u] : 0.f;
+        v.normal.z()   = geometry.has_normals() ? geometry.normals[idx + 2u] : 0.f;
+        v.color.x()    = static_cast<float>(geometry.colors[idx + 0u]) / 255.f;
+        v.color.y()    = static_cast<float>(geometry.colors[idx + 1u]) / 255.f;
+        v.color.z()    = static_cast<float>(geometry.colors[idx + 2u]) / 255.f;
 
         vertices_.push_back(v);
     }
@@ -180,9 +180,9 @@ dynamic_surface_mesh::dynamic_surface_mesh(geometry_t const& geometry)
     {
         auto const idx = fi * 3u;
         triangle_type f{};
-        f.v1 = geometry.indices[idx + 0u];
-        f.v2 = geometry.indices[idx + 1u];
-        f.v3 = geometry.indices[idx + 2u];
+        f.vertices[0u] = geometry.indices[idx + 0u];
+        f.vertices[1u] = geometry.indices[idx + 1u];
+        f.vertices[2u] = geometry.indices[idx + 2u];
 
         triangles_.push_back(f);
     }
@@ -191,34 +191,35 @@ dynamic_surface_mesh::dynamic_surface_mesh(geometry_t const& geometry)
     {
         for (auto const& triangle : triangles_)
         {
-            auto& v1 = vertices_[triangle.v1];
-            auto& v2 = vertices_[triangle.v2];
-            auto& v3 = vertices_[triangle.v3];
+            auto& v1 = vertices_[triangle.vertices[0u]];
+            auto& v2 = vertices_[triangle.vertices[1u]];
+            auto& v3 = vertices_[triangle.vertices[2u]];
 
-            Eigen::Vector3d const p1{v1.x, v1.y, v1.z};
-            Eigen::Vector3d const p2{v2.x, v2.y, v2.z};
-            Eigen::Vector3d const p3{v3.x, v3.y, v3.z};
+            Eigen::Vector3d const p1{v1.position};
+            Eigen::Vector3d const p2{v2.position};
+            Eigen::Vector3d const p3{v3.position};
 
             common::triangle_t const triangle_primitive{p1, p2, p3};
 
             auto const n = triangle_primitive.normal();
             auto const A = triangle_primitive.area();
 
-            v1.nx += A * n.x();
-            v1.ny += A * n.y();
-            v1.nz += A * n.z();
-            v2.nx += A * n.x();
-            v2.ny += A * n.y();
-            v2.nz += A * n.z();
-            v3.nx += A * n.x();
-            v3.ny += A * n.y();
-            v3.nz += A * n.z();
+            v1.normal.x() += A * n.x();
+            v1.normal.y() += A * n.y();
+            v1.normal.z() += A * n.z();
+            v2.normal.x() += A * n.x();
+            v2.normal.y() += A * n.y();
+            v2.normal.z() += A * n.z();
+            v3.normal.x() += A * n.x();
+            v3.normal.y() += A * n.y();
+            v3.normal.z() += A * n.z();
         }
         std::for_each(vertices_.begin(), vertices_.end(), [](vertex_type& v) {
-            Eigen::Vector3d const n = Eigen::Vector3d{v.nx, v.ny, v.nz}.normalized();
-            v.nx                    = n.x();
-            v.ny                    = n.y();
-            v.nz                    = n.z();
+            Eigen::Vector3d const n =
+                Eigen::Vector3d{v.normal.x(), v.normal.y(), v.normal.z()}.normalized();
+            v.normal.x() = n.x();
+            v.normal.y() = n.y();
+            v.normal.z() = n.z();
         });
     }
 }
@@ -231,15 +232,15 @@ void dynamic_surface_mesh::prepare_vertices_for_rendering()
 
     for (auto const& v : vertices_)
     {
-        vertex_buffer.push_back(static_cast<float>(v.x));
-        vertex_buffer.push_back(static_cast<float>(v.y));
-        vertex_buffer.push_back(static_cast<float>(v.z));
-        vertex_buffer.push_back(static_cast<float>(v.nx));
-        vertex_buffer.push_back(static_cast<float>(v.ny));
-        vertex_buffer.push_back(static_cast<float>(v.nz));
-        vertex_buffer.push_back(v.r);
-        vertex_buffer.push_back(v.g);
-        vertex_buffer.push_back(v.b);
+        vertex_buffer.push_back(static_cast<float>(v.position.x()));
+        vertex_buffer.push_back(static_cast<float>(v.position.y()));
+        vertex_buffer.push_back(static_cast<float>(v.position.z()));
+        vertex_buffer.push_back(static_cast<float>(v.normal.x()));
+        vertex_buffer.push_back(static_cast<float>(v.normal.y()));
+        vertex_buffer.push_back(static_cast<float>(v.normal.z()));
+        vertex_buffer.push_back(v.color.x());
+        vertex_buffer.push_back(v.color.y());
+        vertex_buffer.push_back(v.color.z());
     }
 
     transfer_vertices_for_rendering(std::move(vertex_buffer));
@@ -253,9 +254,9 @@ void dynamic_surface_mesh::prepare_indices_for_rendering()
 
     for (auto const& triangle : triangles_)
     {
-        index_buffer.push_back(triangle.v1);
-        index_buffer.push_back(triangle.v2);
-        index_buffer.push_back(triangle.v3);
+        index_buffer.push_back(triangle.vertices[0u]);
+        index_buffer.push_back(triangle.vertices[1u]);
+        index_buffer.push_back(triangle.vertices[2u]);
     }
 
     transfer_indices_for_rendering(std::move(index_buffer));

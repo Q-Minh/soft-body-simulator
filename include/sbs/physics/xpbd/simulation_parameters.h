@@ -1,27 +1,30 @@
 #ifndef SBS_PHYSICS_XPBD_SIMULATION_PARAMETERS_H
 #define SBS_PHYSICS_XPBD_SIMULATION_PARAMETERS_H
 
+#include <sbs/aliases.h>
+
 namespace sbs {
 namespace physics {
 namespace xpbd {
 
-enum class constraint_type_t { green, distance };
-
 struct simulation_parameters_t
 {
-    double alpha                      = 0.1;
-    constraint_type_t constraint_type = constraint_type_t::green;
+    scalar_type compliance = 1e-4;
+    scalar_type damping    = 0.;
 
     /**
      * FEM parameters
      */
-    double young_modulus = 1e6;
-    double poisson_ratio = 0.45;
+    scalar_type young_modulus = 1e6;
+    scalar_type poisson_ratio = 0.45;
 
     /*
      * Spring parameters
      */
-    double hooke_coefficient = 1.;
+    scalar_type hooke_coefficient = 1.;
+
+    scalar_type collision_compliance = 1e-6;
+    scalar_type collision_damping    = 0.;
 };
 
 } // namespace xpbd

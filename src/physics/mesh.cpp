@@ -1,496 +1,888 @@
-#include "sbs/physics/mesh.h"
+#include <cassert>
+#include <sbs/physics/mesh.h>
 
 namespace sbs {
 namespace physics {
 
-vertex_t::vertex_t()
-    : p_{0., 0., 0.},
-      v_{0., 0., 0.},
-      f_{0., 0., 0.},
-      m_{0.},
-      n_{0., 0., 0.},
-      c_{0.f, 0.f, 0.f},
-      fixed_{false}
+/**
+ * Vertex set implementation
+ */
+
+vertex_t const& vertex_set_t::vertex(std::size_t vi) const
 {
+    return vertices_[vi];
 }
 
-vertex_t::position_type const& vertex_t::position() const
+vertex_t& vertex_set_t::vertex(std::size_t vi)
 {
-    return p_;
+    return vertices_[vi];
 }
 
-vertex_t::position_type& vertex_t::position()
+bool vertex_set_t::contains_vertex(vertex_t const& v) const
 {
-    return p_;
+    return v.vi() < vertex_count();
 }
 
-vertex_t::velocity_type const& vertex_t::velocity() const
+index_type vertex_set_t::add_vertex()
 {
-    return v_;
+    index_type const vi = static_cast<index_type>(vertices_.size());
+    vertices_.push_back(vertex_t{vi});
+
+    return vi;
 }
 
-vertex_t::velocity_type& vertex_t::velocity()
+void vertex_set_t::add_vertex(vertex_t const& vertex)
 {
-    return v_;
-}
+    if (contains_vertex(vertex))
+        return;
 
-vertex_t::force_type const& vertex_t::force() const
-{
-    return f_;
-}
-
-vertex_t::force_type& vertex_t::force()
-{
-    return f_;
-}
-
-scalar_type const& vertex_t::mass() const
-{
-    return m_;
-}
-
-scalar_type& vertex_t::mass()
-{
-    return m_;
-}
-
-vertex_t::normal_type const& vertex_t::normal() const
-{
-    return n_;
-}
-
-vertex_t::normal_type& vertex_t::normal()
-{
-    return n_;
-}
-
-vertex_t::color_type const& vertex_t::color() const
-{
-    return c_;
-}
-
-vertex_t::color_type& vertex_t::color()
-{
-    return c_;
-}
-
-bool vertex_t::fixed() const
-{
-    return fixed_;
-}
-
-bool& vertex_t::fixed()
-{
-    return fixed_;
-}
-
-tetrahedron_t::tetrahedron_t(index_type v1, index_type v2, index_type v3, index_type v4)
-    : v_{v1, v2, v3, v4}, edges_{}, faces_{}, rho_{0.}
-{
-}
-
-tetrahedron_t::tetrahedron_t(tetrahedron_t const& other)
-    : v_{other.v_}, edges_{}, faces_{}, rho_{other.rho_}
-{
-    if (static_cast<bool>(other.edges_))
+    std::size_t const previous_size = vertex_count();
+    std::size_t const new_size      = static_cast<std::size_t>(vertex.vi()) + 1u;
+    reserve_vertices(new_size);
+    for (std::size_t i = previous_size; i < new_size; ++i)
     {
-        edges_ = std::make_unique<std::array<index_type, 6u>>(*other.edges_);
-    }
-    if (static_cast<bool>(other.faces_))
-    {
-        faces_ = std::make_unique<std::array<index_type, 4u>>(*other.faces_);
+        add_vertex();
     }
 }
 
-tetrahedron_t& tetrahedron_t::operator=(tetrahedron_t const& other)
+void vertex_set_t::add_vertex(index_type const vi)
 {
-    v_   = other.v_;
-    rho_ = other.rho_;
-    if (static_cast<bool>(other.edges_))
+    add_vertex(vertex_t{vi});
+}
+
+std::size_t vertex_set_t::vertex_count() const
+{
+    return vertices_.size();
+}
+
+void vertex_set_t::reserve_vertices(std::size_t count)
+{
+    vertices_.reserve(count);
+}
+
+void vertex_set_t::clear()
+{
+    vertices_.clear();
+}
+
+std::vector<vertex_t> const& vertex_set_t::vertices() const
+{
+    return vertices_;
+}
+
+void vertex_set_t::remove_vertex_to_edge_incidency(index_type const vi, index_type ei)
+{
+    vertex_t& v = vertices_[vi];
+    auto it = std::remove(v.incident_edge_indices().begin(), v.incident_edge_indices().end(), ei);
+    v.incident_edge_indices().erase(it);
+}
+
+void vertex_set_t::remove_vertex_to_triangle_incidency(index_type const vi, index_type fi)
+{
+    vertex_t& v = vertices_[vi];
+    auto it =
+        std::remove(v.incident_triangle_indices().begin(), v.incident_triangle_indices().end(), fi);
+    v.incident_triangle_indices().erase(it);
+}
+
+void vertex_set_t::remove_vertex_to_tetrahedron_incidency(index_type const vi, index_type ti)
+{
+    vertex_t& v = vertices_[vi];
+    auto it     = std::remove(
+        v.incident_tetrahedron_indices().begin(),
+        v.incident_tetrahedron_indices().end(),
+        ti);
+    v.incident_tetrahedron_indices().erase(it);
+}
+
+bool vertex_set_t::operator==(vertex_set_t const& other) const
+{
+    return vertex_count() == other.vertex_count();
+}
+
+/**
+ * Edge set implementation
+ */
+
+edge_t const& edge_set_t::edge(index_type ei) const
+{
+    return edges_[ei];
+}
+
+edge_t& edge_set_t::edge(index_type ei)
+{
+    return edges_[ei];
+}
+
+index_type edge_set_t::ei(edge_t const& edge) const
+{
+    auto it = edge_map_.find(edge);
+    assert(it != edge_map_.end());
+    return it->second;
+}
+
+index_type edge_set_t::add_edge(edge_t const& edge)
+{
+    auto it = edge_map_.find(edge);
+    if (it != edge_map_.end())
     {
-        edges_ = std::make_unique<std::array<index_type, 6u>>(*other.edges_);
+        index_type const ei = it->second;
+        return ei;
     }
-    if (static_cast<bool>(other.faces_))
+
+    edge_t created_edge{edge.v1(), edge.v2()};
+
+    for (index_type const vi : created_edge.vertex_indices())
     {
-        faces_ = std::make_unique<std::array<index_type, 4u>>(*other.faces_);
+        add_vertex(vi);
     }
-    return *this;
+
+    index_type ei{};
+    if (!edge_garbage_collector_.empty())
+    {
+        ei         = *edge_garbage_collector_.begin();
+        edges_[ei] = created_edge;
+        edge_garbage_collector_.erase(edge_garbage_collector_.begin());
+    }
+    else
+    {
+        ei = static_cast<index_type>(edges_.size());
+        edges_.push_back(created_edge);
+    }
+
+    edge_map_[created_edge] = ei;
+    create_vertex_to_edge_incidency(ei);
+    return ei;
 }
 
-index_type const& tetrahedron_t::v1() const
+edge_t edge_set_t::remove_edge(index_type ei)
 {
-    return v_[0];
+    edge_t const& edge = edges_[ei];
+
+    for (index_type const vi : edge.vertex_indices())
+    {
+        remove_vertex_to_edge_incidency(vi, ei);
+    }
+
+    auto it = edge_map_.find(edge);
+    assert(it != edge_map_.end());
+    edge_map_.erase(it);
+
+    edge_garbage_collector_.insert(ei);
+
+    return edge;
 }
 
-index_type const& tetrahedron_t::v2() const
+edge_t edge_set_t::remove_edge(edge_t const& edge)
 {
-    return v_[1];
+    auto it = edge_map_.find(edge);
+    assert(it != edge_map_.end());
+    index_type const ei = it->second;
+    remove_edge(ei);
+    return edge;
 }
 
-index_type const& tetrahedron_t::v3() const
+std::size_t edge_set_t::edge_count() const
 {
-    return v_[2];
+    return edges_.size() - edge_garbage_collector_.size();
 }
 
-index_type const& tetrahedron_t::v4() const
+bool edge_set_t::contains_edge(edge_t const& edge) const
 {
-    return v_[3];
+    return edge_map_.find(edge) != edge_map_.end();
 }
 
-index_type& tetrahedron_t::v1()
+void edge_set_t::reserve_edges(std::size_t count)
 {
-    return v_[0];
+    edges_.reserve(count);
 }
 
-index_type& tetrahedron_t::v2()
+void edge_set_t::clear()
 {
-    return v_[1];
+    vertex_set_t::clear();
+    edges_.clear();
+    edge_map_.clear();
+    edge_garbage_collector_.clear();
 }
 
-index_type& tetrahedron_t::v3()
+bool edge_set_t::is_safe_to_iterate_over_edges() const
 {
-    return v_[2];
+    return edge_garbage_collector_.empty();
 }
 
-index_type& tetrahedron_t::v4()
-{
-    return v_[3];
-}
-
-std::array<index_type, 4u> const& tetrahedron_t::vertices() const
-{
-    return v_;
-}
-
-scalar_type const& tetrahedron_t::mass_density() const
-{
-    return rho_;
-}
-
-scalar_type& tetrahedron_t::mass_density()
-{
-    return rho_;
-}
-
-std::array<edge_t, 6u> tetrahedron_t::edges_copy() const
-{
-    return std::array<edge_t, 6u>{
-        edge_t{v1(), v2()},
-        edge_t{v2(), v3()},
-        edge_t{v3(), v1()},
-        edge_t{v1(), v4()},
-        edge_t{v2(), v4()},
-        edge_t{v3(), v4()}};
-}
-
-std::array<triangle_t, 4u> tetrahedron_t::faces_copy() const
-{
-    return std::array<triangle_t, 4u>{
-        triangle_t{v1(), v2(), v4()},
-        triangle_t{v2(), v3(), v4()},
-        triangle_t{v3(), v1(), v4()},
-        triangle_t{v1(), v3(), v2()}};
-}
-
-std::unique_ptr<std::array<index_type, 6u>> const& tetrahedron_t::edge_indices() const
+std::vector<edge_t> const& edge_set_t::edges() const
 {
     return edges_;
 }
 
-std::unique_ptr<std::array<index_type, 6u>>& tetrahedron_t::edge_indices()
+std::vector<edge_t>& edge_set_t::edges()
 {
     return edges_;
 }
 
-std::unique_ptr<std::array<index_type, 4u>> const& tetrahedron_t::face_indices() const
+std::map<edge_t, index_type>::const_iterator edge_set_t::safe_edges_begin() const
 {
-    return faces_;
+    return edge_map_.begin();
 }
 
-std::unique_ptr<std::array<index_type, 4u>>& tetrahedron_t::face_indices()
+std::map<edge_t, index_type>::const_iterator edge_set_t::safe_edges_end() const
 {
-    return faces_;
+    return edge_map_.end();
 }
 
-edge_t::edge_t(index_type v1, index_type v2) : v_{v1, v2}, adjacent_tets_{}, adjacent_triangles_{}
+void edge_set_t::remove_edge_to_triangle_incidency(index_type const ei, index_type fi)
 {
+    edge_t& edge = edges_[ei];
+    auto it      = std::remove(
+        edge.incident_triangle_indices().begin(),
+        edge.incident_triangle_indices().end(),
+        fi);
+    edge.incident_triangle_indices().erase(it);
 }
 
-index_type const& edge_t::v1() const
+void edge_set_t::remove_edge_to_tetrahedron_incidency(index_type const ei, index_type ti)
 {
-    return v_[0];
+    edge_t& edge = edges_[ei];
+    auto it      = std::remove(
+        edge.incident_tetrahedron_indices().begin(),
+        edge.incident_tetrahedron_indices().end(),
+        ti);
+    edge.incident_tetrahedron_indices().erase(it);
 }
 
-index_type const& edge_t::v2() const
+void edge_set_t::create_vertex_to_edge_incidency(index_type const ei)
 {
-    return v_[1];
-}
-
-index_type& edge_t::v1()
-{
-    return v_[0];
-}
-
-index_type& edge_t::v2()
-{
-    return v_[1];
-}
-
-std::array<index_type, 2u> const& edge_t::vertices() const
-{
-    return v_;
-}
-
-std::vector<index_type> const& edge_t::adjacent_tetrahedron_indices() const
-{
-    return adjacent_tets_;
-}
-
-std::vector<index_type>& edge_t::adjacent_tetrahedron_indices()
-{
-    return adjacent_tets_;
-}
-
-std::vector<index_type> const& edge_t::adjacent_triangle_indices() const
-{
-    return adjacent_triangles_;
-}
-
-std::vector<index_type>& edge_t::adjacent_triangle_indices()
-{
-    return adjacent_triangles_;
-}
-
-bool edge_t::operator==(edge_t const& other) const
-{
-    std::array<index_type, 2u> v      = v_;
-    std::array<index_type, 2u> vother = other.v_;
-
-    std::sort(v.begin(), v.end());
-    std::sort(vother.begin(), vother.end());
-
-    return v == vother;
-}
-
-bool edge_t::operator<(edge_t const& other) const
-{
-    std::array<index_type, 2u> v      = v_;
-    std::array<index_type, 2u> vother = other.v_;
-
-    std::sort(v.begin(), v.end());
-    std::sort(vother.begin(), vother.end());
-
-    return v < vother;
-}
-
-bool edge_t::is_reverse_of(edge_t const& other) const
-{
-    return v1() == other.v2() && v2() == other.v1();
-}
-
-triangle_t::triangle_t(index_type v1, index_type v2, index_type v3)
-    : v_{v1, v2, v3}, adjacent_tets_{}, edges_{}
-{
-}
-
-triangle_t::triangle_t(triangle_t const& other)
-    : v_{other.v_}, adjacent_tets_{other.adjacent_tets_}, edges_{}
-{
-    if (static_cast<bool>(other.edges_))
+    edge_t const& edge = edges_[ei];
+    for (index_type const vi : edge.vertex_indices())
     {
-        edges_ = std::make_unique<std::array<index_type, 3u>>(*other.edges_);
+        vertex_t& v = vertex(vi);
+        v.incident_edge_indices().push_back(ei);
     }
 }
 
-triangle_t& triangle_t::operator=(triangle_t const& other)
+bool edge_set_t::operator==(edge_set_t const& other) const
 {
-    v_             = other.v_;
-    adjacent_tets_ = other.adjacent_tets_;
-    if (static_cast<bool>(other.edges_))
+    bool const are_vertex_sets_equal = vertex_set_t::operator==(other);
+
+    if (!are_vertex_sets_equal)
+        return false;
+
+    std::vector<edge_t> edge_set_1{};
+    std::transform(
+        edge_map_.begin(),
+        edge_map_.end(),
+        std::back_inserter(edge_set_1),
+        [](std::pair<edge_t const, index_type> const& kv) { return kv.first; });
+
+    std::vector<edge_t> edge_set_2{};
+    std::transform(
+        other.edge_map_.begin(),
+        other.edge_map_.end(),
+        std::back_inserter(edge_set_2),
+        [](std::pair<edge_t const, index_type> const& kv) { return kv.first; });
+
+    bool const are_edge_sets_equal = (edge_set_1 == edge_set_2);
+    return are_edge_sets_equal;
+}
+
+/**
+ * Triangle set implementation
+ */
+
+triangle_t const& triangle_set_t::triangle(index_type fi) const
+{
+    return triangles_[fi];
+}
+
+triangle_t& triangle_set_t::triangle(index_type fi)
+{
+    return triangles_[fi];
+}
+
+index_type triangle_set_t::fi(triangle_t const& triangle) const
+{
+    auto it = triangle_map_.find(triangle);
+    assert(it != triangle_map_.end());
+    return it->second;
+}
+
+void triangle_set_t::add_triangle(triangle_t const& triangle)
+{
+    auto it = triangle_map_.find(triangle);
+    if (it != triangle_map_.end())
     {
-        edges_ = std::make_unique<std::array<index_type, 3u>>(*other.edges_);
+        return;
     }
-    return *this;
+
+    triangle_t created_triangle{triangle.v1(), triangle.v2(), triangle.v3()};
+    std::array<edge_t, 3u> const edge_copies = created_triangle.edges_copy();
+    for (std::uint8_t e = 0u; e < edge_copies.size(); ++e)
+    {
+        edge_t const& edge_copy = edge_copies[e];
+
+        auto edge_it = edge_map_.find(edge_copy);
+        if (edge_it == edge_map_.end())
+        {
+            index_type const ei                   = add_edge(edge_copy);
+            created_triangle.edge_indices().at(e) = ei;
+        }
+        else
+        {
+            index_type const ei                   = edge_it->second;
+            created_triangle.edge_indices().at(e) = ei;
+        }
+    }
+    index_type fi{};
+    if (!triangle_garbage_collector_.empty())
+    {
+        fi             = *triangle_garbage_collector_.begin();
+        triangles_[fi] = created_triangle;
+        triangle_garbage_collector_.erase(triangle_garbage_collector_.begin());
+    }
+    else
+    {
+        fi = static_cast<index_type>(triangles_.size());
+        triangles_.push_back(created_triangle);
+    }
+
+    triangle_map_[created_triangle] = fi;
+    create_vertex_to_triangle_incidency(fi);
+    create_edge_to_triangle_incidency(fi);
+    return;
 }
 
-index_type const& triangle_t::v1() const
+triangle_t triangle_set_t::remove_triangle(index_type fi)
 {
-    return v_[0];
+    triangle_t const triangle = triangles_[fi];
+
+    for (index_type const vi : triangle.vertex_indices())
+    {
+        remove_vertex_to_triangle_incidency(vi, fi);
+    }
+    for (index_type const ei : triangle.edge_indices())
+    {
+        remove_edge_to_triangle_incidency(ei, fi);
+        if (edge(ei).incident_triangle_indices().empty())
+        {
+            remove_edge(ei);
+        }
+    }
+
+    auto it = triangle_map_.find(triangle);
+    assert(it != triangle_map_.end());
+    triangle_map_.erase(it);
+    triangle_garbage_collector_.insert(fi);
+
+    return triangle;
 }
 
-index_type const& triangle_t::v2() const
+triangle_t triangle_set_t::remove_triangle(triangle_t const& triangle)
 {
-    return v_[1];
+    auto it = triangle_map_.find(triangle);
+    assert(it != triangle_map_.end());
+    index_type const fi = it->second;
+    remove_triangle(fi);
+    return triangle;
 }
 
-index_type const& triangle_t::v3() const
+std::size_t triangle_set_t::triangle_count() const
 {
-    return v_[2];
+    return triangles_.size() - triangle_garbage_collector_.size();
 }
 
-index_type& triangle_t::v1()
+bool triangle_set_t::contains_triangle(triangle_t const& triangle) const
 {
-    return v_[0];
+    return triangle_map_.find(triangle) != triangle_map_.end();
 }
 
-index_type& triangle_t::v2()
+void triangle_set_t::reserve_triangles(std::size_t count)
 {
-    return v_[1];
+    triangles_.reserve(count);
 }
 
-index_type& triangle_t::v3()
+void triangle_set_t::clear()
 {
-    return v_[2];
+    edge_set_t::clear();
+    triangles_.clear();
+    triangle_map_.clear();
+    triangle_garbage_collector_.clear();
 }
 
-std::array<index_type, 3u> const& triangle_t::vertices() const
+bool triangle_set_t::is_safe_to_iterate_over_triangles() const
 {
-    return v_;
+    return triangle_garbage_collector_.empty();
 }
 
-std::array<edge_t, 3u> triangle_t::edges_copy() const
+std::vector<triangle_t> const& triangle_set_t::triangles() const
 {
-    return std::array<edge_t, 3u>{edge_t{v1(), v2()}, edge_t{v2(), v3()}, edge_t{v3(), v1()}};
+    return triangles_;
 }
 
-bool triangle_t::operator==(triangle_t const& other) const
+std::vector<triangle_t>& triangle_set_t::triangles()
 {
-    std::array<index_type, 3u> v      = v_;
-    std::array<index_type, 3u> vother = other.v_;
-
-    std::sort(v.begin(), v.end());
-    std::sort(vother.begin(), vother.end());
-
-    return v == vother;
+    return triangles_;
 }
 
-bool triangle_t::operator<(triangle_t const& other) const
+std::map<triangle_t, index_type>::const_iterator triangle_set_t::safe_triangles_begin() const
 {
-    std::array<index_type, 3u> v      = v_;
-    std::array<index_type, 3u> vother = other.v_;
-
-    std::sort(v.begin(), v.end());
-    std::sort(vother.begin(), vother.end());
-
-    return v < vother;
+    return triangle_map_.begin();
 }
 
-bool triangle_t::is_reverse_of(triangle_t const& other) const
+std::map<triangle_t, index_type>::const_iterator triangle_set_t::safe_triangles_end() const
 {
-    std::array<index_type, 3u> v      = v_;
-    std::array<index_type, 3u> vother = other.v_;
-
-    auto const v_min      = std::min_element(v.begin(), v.end());
-    auto const vother_min = std::min_element(vother.begin(), vother.end());
-
-    std::rotate(v.begin(), v_min, v.end());
-    std::rotate(vother.begin(), vother_min, vother.end());
-
-    return v != vother;
+    return triangle_map_.end();
 }
 
-bool triangle_t::is_boundary_triangle() const
+void triangle_set_t::create_vertex_to_triangle_incidency(index_type const fi)
 {
-    return adjacent_tets_.size() == 1u;
+    triangle_t const& f = triangle(fi);
+    for (index_type const vi : f.vertex_indices())
+    {
+        vertex_t& v = vertex(vi);
+        v.incident_triangle_indices().push_back(fi);
+    }
 }
 
-bool triangle_t::is_interior_triangle() const
+void triangle_set_t::create_edge_to_triangle_incidency(index_type const fi)
 {
-    return adjacent_tets_.size() == 2u;
+    triangle_t const& f = triangle(fi);
+    for (index_type const ei : f.edge_indices())
+    {
+        edge_t& e = edge(ei);
+        e.incident_triangle_indices().push_back(fi);
+    }
 }
 
-std::vector<index_type> const& triangle_t::adjacent_tetrahedron_indices() const
+void triangle_set_t::remove_triangle_to_tetrahedron_incidency(
+    index_type const fi,
+    index_type const ti)
 {
-    return adjacent_tets_;
+    triangle_t& f = triangle(fi);
+    auto it       = std::remove(
+        f.incident_tetrahedron_indices().begin(),
+        f.incident_tetrahedron_indices().end(),
+        ti);
+    f.incident_tetrahedron_indices().erase(it);
 }
 
-std::vector<index_type>& triangle_t::adjacent_tetrahedron_indices()
+bool triangle_set_t::operator==(triangle_set_t const& other) const
 {
-    return adjacent_tets_;
+    bool const are_edge_sets_equal = edge_set_t::operator==(other);
+
+    if (!are_edge_sets_equal)
+        return false;
+
+    std::vector<triangle_t> triangle_set_1{};
+    std::transform(
+        triangle_map_.begin(),
+        triangle_map_.end(),
+        std::back_inserter(triangle_set_1),
+        [](std::pair<triangle_t const, index_type> const& kv) { return kv.first; });
+
+    std::vector<triangle_t> triangle_set_2{};
+    std::transform(
+        other.triangle_map_.begin(),
+        other.triangle_map_.end(),
+        std::back_inserter(triangle_set_2),
+        [](std::pair<triangle_t const, index_type> const& kv) { return kv.first; });
+
+    bool const are_triangle_sets_equal = (triangle_set_1 == triangle_set_2);
+    return are_triangle_sets_equal;
 }
 
-std::unique_ptr<std::array<index_type, 3u>> const& triangle_t::adjacent_edge_indices() const
+/**
+ * Tetrahedron set
+ */
+
+tetrahedron_t const& tetrahedron_set_t::tetrahedron(index_type ti) const
 {
-    return edges_;
+    return tetrahedra_[ti];
 }
 
-std::unique_ptr<std::array<index_type, 3u>>& triangle_t::adjacent_edge_indices()
+tetrahedron_t& tetrahedron_set_t::tetrahedron(index_type ti)
 {
-    return edges_;
+    return tetrahedra_[ti];
 }
 
-void build_topology_parameters_t::include_vertex_to_edge_adjacency()
+void tetrahedron_set_t::add_tetrahedron(tetrahedron_t const& tetrahedron)
 {
-    vertex_to_edge = true;
-}
-void build_topology_parameters_t::include_vertex_to_triangle_adjacency()
-{
-    vertex_to_triangle = true;
-}
-void build_topology_parameters_t::include_vertex_to_tetrahedra_adjacency()
-{
-    vertex_to_tetrahedra = true;
-}
-void build_topology_parameters_t::include_triangle_to_edge_adjacency()
-{
-    triangle_to_edge = true;
-}
-void build_topology_parameters_t::include_triangle_to_tetrahedra_adjacency()
-{
-    triangle_to_tetrahedra = true;
-}
-void build_topology_parameters_t::include_tetrahedron_to_edge_adjacency()
-{
-    tetrahedron_to_edge = true;
-}
-void build_topology_parameters_t::include_tetrahedron_to_triangle_adjacency()
-{
-    tetrahedron_to_triangle = true;
-}
-void build_topology_parameters_t::include_edge_to_triangle_adjacency()
-{
-    edge_to_triangle = true;
-}
-void build_topology_parameters_t::include_edge_to_tetrahedra_adjacency()
-{
-    edge_to_tetrahedra = true;
+    tetrahedron_t created_tetrahedron{
+        tetrahedron.v1(),
+        tetrahedron.v2(),
+        tetrahedron.v3(),
+        tetrahedron.v4()};
+
+    std::array<triangle_t, 4u> const triangle_copies = created_tetrahedron.faces_copy();
+    for (std::uint8_t f = 0u; f < triangle_copies.size(); ++f)
+    {
+        triangle_t const& triangle_copy = triangle_copies[f];
+
+        auto triangle_it = triangle_map_.find(triangle_copy);
+        if (triangle_it == triangle_map_.end())
+        {
+            add_triangle(triangle_copy);
+            index_type const fi                      = triangle_map_[triangle_copy];
+            created_tetrahedron.face_indices().at(f) = fi;
+        }
+        else
+        {
+            index_type const fi                      = triangle_it->second;
+            created_tetrahedron.face_indices().at(f) = fi;
+        }
+    }
+    std::array<edge_t, 6u> const edge_copies = created_tetrahedron.edges_copy();
+    for (std::uint8_t e = 0u; e < edge_copies.size(); ++e)
+    {
+        auto it = edge_map_.find(edge_copies[e]);
+        assert(it != edge_map_.end());
+        index_type const ei                      = it->second;
+        created_tetrahedron.edge_indices().at(e) = ei;
+    }
+
+    index_type ti{};
+    if (!tetrahedron_garbage_collector_.empty())
+    {
+        ti              = *tetrahedron_garbage_collector_.begin();
+        tetrahedra_[ti] = created_tetrahedron;
+        tetrahedron_garbage_collector_.erase(tetrahedron_garbage_collector_.begin());
+    }
+    else
+    {
+        ti = static_cast<index_type>(tetrahedra_.size());
+        tetrahedra_.push_back(created_tetrahedron);
+    }
+
+    create_vertex_to_tetrahedron_incidency(ti);
+    create_edge_to_tetrahedron_incidency(ti);
+    create_triangle_to_tetrahedron_incidency(ti);
+    return;
 }
 
-void build_topology_parameters_t::exclude_vertex_to_edge_adjacency()
+tetrahedron_t tetrahedron_set_t::remove_tetrahedron(index_type ti)
 {
-    vertex_to_edge = false;
+    tetrahedron_t const tetrahedron = tetrahedra_[ti];
+
+    for (index_type const vi : tetrahedron.vertex_indices())
+    {
+        remove_vertex_to_tetrahedron_incidency(vi, ti);
+    }
+    for (index_type const ei : tetrahedron.edge_indices())
+    {
+        remove_edge_to_tetrahedron_incidency(ei, ti);
+    }
+    for (index_type const fi : tetrahedron.face_indices())
+    {
+        remove_triangle_to_tetrahedron_incidency(fi, ti);
+        if (triangle(fi).incident_tetrahedron_indices().empty())
+        {
+            remove_triangle(fi);
+        }
+    }
+
+    tetrahedron_garbage_collector_.insert(ti);
+    return tetrahedron;
 }
-void build_topology_parameters_t::exclude_vertex_to_triangle_adjacency()
+
+std::size_t tetrahedron_set_t::tetrahedron_count() const
 {
-    vertex_to_triangle = false;
+    return tetrahedra_.size() - tetrahedron_garbage_collector_.size();
 }
-void build_topology_parameters_t::exclude_vertex_to_tetrahedra_adjacency()
+
+void tetrahedron_set_t::reserve_tetrahedra(std::size_t count)
 {
-    vertex_to_tetrahedra = false;
+    tetrahedra_.reserve(count);
 }
-void build_topology_parameters_t::exclude_triangle_to_edge_adjacency()
+
+void tetrahedron_set_t::clear()
 {
-    triangle_to_edge = false;
+    triangle_set_t::clear();
+    tetrahedra_.clear();
+    tetrahedron_garbage_collector_.clear();
 }
-void build_topology_parameters_t::exclude_triangle_to_tetrahedra_adjacency()
+
+bool tetrahedron_set_t::is_safe_to_iterate_over_tetrahedra() const
 {
-    triangle_to_tetrahedra = false;
+    return tetrahedron_garbage_collector_.empty();
 }
-void build_topology_parameters_t::exclude_tetrahedron_to_edge_adjacency()
+
+std::vector<tetrahedron_t> const& tetrahedron_set_t::tetrahedra() const
 {
-    tetrahedron_to_edge = false;
+    return tetrahedra_;
 }
-void build_topology_parameters_t::exclude_tetrahedron_to_triangle_adjacency()
+
+std::vector<tetrahedron_t>& tetrahedron_set_t::tetrahedra()
 {
-    tetrahedron_to_triangle = false;
+    return tetrahedra_;
 }
-void build_topology_parameters_t::exclude_edge_to_triangle_adjacency()
+
+void tetrahedron_set_t::create_vertex_to_tetrahedron_incidency(index_type const ti)
 {
-    edge_to_triangle = false;
+    tetrahedron_t const& t = tetrahedron(ti);
+    for (index_type const vi : t.vertex_indices())
+    {
+        vertex_t& v = vertex(vi);
+        v.incident_tetrahedron_indices().push_back(ti);
+    }
 }
-void build_topology_parameters_t::exclude_edge_to_tetrahedra_adjacency()
+
+void tetrahedron_set_t::create_edge_to_tetrahedron_incidency(index_type const ti)
 {
-    edge_to_tetrahedra = false;
+    tetrahedron_t const& t = tetrahedron(ti);
+    for (index_type const ei : t.edge_indices())
+    {
+        edge_t& e = edge(ei);
+        e.incident_tetrahedron_indices().push_back(ti);
+    }
+}
+
+void tetrahedron_set_t::create_triangle_to_tetrahedron_incidency(index_type const ti)
+{
+    tetrahedron_t const& t = tetrahedron(ti);
+    for (index_type const fi : t.face_indices())
+    {
+        triangle_t& f = triangle(fi);
+        f.incident_tetrahedron_indices().push_back(ti);
+    }
+}
+
+void tetrahedron_set_t::collect_garbage()
+{
+    /**
+     * Partitions the edge vector, triangle vector and tetrahedron
+     * vector such that primitives to remove are found at the end
+     * of the vectors, and we can call erase() from the cutoff to
+     * the end of the primitive vectors to delete those primitives.
+     */
+
+    std::size_t const previous_edge_count = edges().size();
+    std::size_t const edge_cutoff         = edges().size() - edge_garbage_collector_.size();
+    if (edge_cutoff > 0u)
+    {
+        auto pointer_to_valid_edge = edges().rbegin();
+        auto const begin           = edges().begin();
+        auto const index_of        = [this, begin](std::vector<edge_t>::reverse_iterator rit) {
+            return static_cast<index_type>(std::distance(begin, rit.base())) - 1u;
+        };
+        auto const is_valid_edge = [this](index_type const ei) {
+            return edge_garbage_collector_.find(ei) == edge_garbage_collector_.end();
+        };
+        // move the pointer to the first valid edge
+        while (!is_valid_edge(index_of(pointer_to_valid_edge)))
+        {
+            ++pointer_to_valid_edge;
+        }
+
+        auto pointer_to_removed_edge = std::find_if(
+            edge_garbage_collector_.rbegin(),
+            edge_garbage_collector_.rend(),
+            [pointer_to_valid_edge, index_of](index_type const ei) {
+                index_type const eip = index_of(pointer_to_valid_edge);
+                return ei < eip;
+            });
+
+        while (pointer_to_removed_edge != edge_garbage_collector_.rend())
+        {
+            index_type const ei  = *pointer_to_removed_edge;
+            index_type const eip = index_of(pointer_to_valid_edge);
+
+            swap_edges(ei, eip);
+
+            ++pointer_to_valid_edge;
+            ++pointer_to_removed_edge;
+        }
+    }
+
+    std::size_t const previous_triangle_count = triangles().size();
+    std::size_t const triangle_cutoff = triangles().size() - triangle_garbage_collector_.size();
+    if (triangle_cutoff > 0u)
+    {
+        auto pointer_to_valid_triangle = triangles().rbegin();
+        auto const begin               = triangles().begin();
+        auto const index_of = [this, begin](std::vector<triangle_t>::reverse_iterator rit) {
+            return static_cast<index_type>(std::distance(begin, rit.base())) - 1u;
+        };
+        auto const is_valid_triangle = [this](index_type const fi) {
+            return triangle_garbage_collector_.find(fi) == triangle_garbage_collector_.end();
+        };
+        // move the pointer to the first valid edge
+        while (!is_valid_triangle(index_of(pointer_to_valid_triangle)))
+        {
+            ++pointer_to_valid_triangle;
+        }
+
+        auto pointer_to_removed_triangle = std::find_if(
+            triangle_garbage_collector_.rbegin(),
+            triangle_garbage_collector_.rend(),
+            [pointer_to_valid_triangle, index_of](index_type const fi) {
+                index_type const fip = index_of(pointer_to_valid_triangle);
+                return fi < fip;
+            });
+
+        while (pointer_to_removed_triangle != triangle_garbage_collector_.rend())
+        {
+            index_type const fi  = *pointer_to_removed_triangle;
+            index_type const fip = index_of(pointer_to_valid_triangle);
+
+            swap_triangles(fi, fip);
+
+            ++pointer_to_valid_triangle;
+            ++pointer_to_removed_triangle;
+        }
+    }
+
+    std::size_t const previous_tetrahedron_count = tetrahedra().size();
+    std::size_t const tetrahedron_cutoff =
+        tetrahedra().size() - tetrahedron_garbage_collector_.size();
+    if (tetrahedron_cutoff > 0u)
+    {
+        auto pointer_to_valid_tetrahedron = tetrahedra().rbegin();
+        auto const begin                  = tetrahedra().begin();
+        auto const index_of = [this, begin](std::vector<tetrahedron_t>::reverse_iterator rit) {
+            return static_cast<index_type>(std::distance(begin, rit.base())) - 1u;
+        };
+        auto const is_valid_tetrahedron = [this](index_type const ti) {
+            return tetrahedron_garbage_collector_.find(ti) == tetrahedron_garbage_collector_.end();
+        };
+        // move the pointer to the first valid edge
+        while (!is_valid_tetrahedron(index_of(pointer_to_valid_tetrahedron)))
+        {
+            ++pointer_to_valid_tetrahedron;
+        }
+
+        auto pointer_to_removed_tetrahedron = std::find_if(
+            tetrahedron_garbage_collector_.rbegin(),
+            tetrahedron_garbage_collector_.rend(),
+            [pointer_to_valid_tetrahedron, index_of](index_type const ti) {
+                index_type const tip = index_of(pointer_to_valid_tetrahedron);
+                return ti < tip;
+            });
+
+        while (pointer_to_removed_tetrahedron != tetrahedron_garbage_collector_.rend() &&
+               pointer_to_valid_tetrahedron != tetrahedra().rend())
+        {
+            index_type const ti  = *pointer_to_removed_tetrahedron;
+            index_type const tip = index_of(pointer_to_valid_tetrahedron);
+
+            swap_tetrahedra(ti, tip);
+
+            ++pointer_to_valid_tetrahedron;
+            ++pointer_to_removed_tetrahedron;
+        }
+    }
+
+    edges().erase(edges().begin() + edge_cutoff, edges().end());
+    triangles().erase(triangles().begin() + triangle_cutoff, triangles().end());
+    tetrahedra().erase(tetrahedra().begin() + tetrahedron_cutoff, tetrahedra().end());
+
+    edge_garbage_collector_.clear();
+    triangle_garbage_collector_.clear();
+    tetrahedron_garbage_collector_.clear();
+    return;
+}
+
+bool tetrahedron_set_t::operator==(tetrahedron_set_t const& other) const
+{
+    bool const are_triangle_sets_equal = triangle_set_t::operator==(other);
+
+    if (!are_triangle_sets_equal)
+        return false;
+
+    std::set<tetrahedron_t> tet_set_1(tetrahedra_.begin(), tetrahedra_.end());
+    std::set<tetrahedron_t> tet_set_2(other.tetrahedra_.begin(), other.tetrahedra_.end());
+
+    bool const are_tetrahedron_sets_equal = (tet_set_1 == tet_set_2);
+    return are_tetrahedron_sets_equal;
+}
+
+void tetrahedron_set_t::swap_edges(index_type ei, index_type eip)
+{
+    std::swap(edge(ei), edge(eip));
+    edge_map_[edge(ei)] = ei;
+
+    edge_t const& swapped_edge = edge(ei);
+
+    for (index_type const vi : swapped_edge.vertex_indices())
+    {
+        vertex_t& v = vertex(vi);
+        std::replace(v.incident_edge_indices().begin(), v.incident_edge_indices().end(), eip, ei);
+    }
+    for (index_type const fi : swapped_edge.incident_triangle_indices())
+    {
+        triangle_t& f = triangle(fi);
+        std::replace(f.edge_indices().begin(), f.edge_indices().end(), eip, ei);
+    }
+    for (index_type const ti : swapped_edge.incident_tetrahedron_indices())
+    {
+        tetrahedron_t& t = tetrahedron(ti);
+        std::replace(t.edge_indices().begin(), t.edge_indices().end(), eip, ei);
+    }
+}
+
+void tetrahedron_set_t::swap_triangles(index_type fi, index_type fip)
+{
+    std::swap(triangle(fi), triangle(fip));
+    triangle_map_[triangle(fi)] = fi;
+
+    triangle_t const& swapped_triangle = triangle(fi);
+
+    for (index_type const vi : swapped_triangle.vertex_indices())
+    {
+        vertex_t& v = vertex(vi);
+        std::replace(
+            v.incident_triangle_indices().begin(),
+            v.incident_triangle_indices().end(),
+            fip,
+            fi);
+    }
+    for (index_type const ei : swapped_triangle.edge_indices())
+    {
+        edge_t& e = edge(ei);
+        std::replace(
+            e.incident_triangle_indices().begin(),
+            e.incident_triangle_indices().end(),
+            fip,
+            fi);
+    }
+    for (index_type const ti : swapped_triangle.incident_tetrahedron_indices())
+    {
+        tetrahedron_t& t = tetrahedron(ti);
+        std::replace(t.face_indices().begin(), t.face_indices().end(), fip, fi);
+    }
+}
+
+void tetrahedron_set_t::swap_tetrahedra(index_type ti, index_type tip)
+{
+    std::swap(tetrahedron(ti), tetrahedron(tip));
+
+    tetrahedron_t const& swapped_tetrahedron = tetrahedron(ti);
+
+    for (index_type const vi : swapped_tetrahedron.vertex_indices())
+    {
+        vertex_t& v = vertex(vi);
+        std::replace(
+            v.incident_tetrahedron_indices().begin(),
+            v.incident_tetrahedron_indices().end(),
+            tip,
+            ti);
+    }
+    for (index_type const ei : swapped_tetrahedron.edge_indices())
+    {
+        edge_t& e = edge(ei);
+        std::replace(
+            e.incident_tetrahedron_indices().begin(),
+            e.incident_tetrahedron_indices().end(),
+            tip,
+            ti);
+    }
+    for (index_type const fi : swapped_tetrahedron.face_indices())
+    {
+        triangle_t& f = triangle(fi);
+        std::replace(
+            f.incident_tetrahedron_indices().begin(),
+            f.incident_tetrahedron_indices().end(),
+            tip,
+            ti);
+    }
 }
 
 } // namespace physics

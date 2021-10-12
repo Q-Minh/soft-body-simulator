@@ -239,13 +239,13 @@ pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_i const& mesh)
     for (std::size_t f = 0u; f < num_triangles; ++f)
     {
         auto const t  = mesh.triangle(f);
-        auto const v1 = mesh.vertex(t.v1);
-        auto const v2 = mesh.vertex(t.v2);
-        auto const v3 = mesh.vertex(t.v3);
+        auto const v1 = mesh.vertex(t.vertices[0u]);
+        auto const v2 = mesh.vertex(t.vertices[1u]);
+        auto const v3 = mesh.vertex(t.vertices[2u]);
 
-        auto const& a = common::point_t{v1.x, v1.y, v1.z};
-        auto const& b = common::point_t{v2.x, v2.y, v2.z};
-        auto const& c = common::point_t{v3.x, v3.y, v3.z};
+        auto const& a = common::point_t{v1.position};
+        auto const& b = common::point_t{v2.position};
+        auto const& c = common::point_t{v3.position};
 
         common::triangle_t const triangle{a, b, c};
         auto const intersection = common::intersect_twoway(ray, triangle);
@@ -267,25 +267,25 @@ pick(common::ray_t const& ray, common::shared_vertex_surface_mesh_i const& mesh)
         [&ray, &mesh](auto const& intersection1, auto const& intersection2) {
             auto const& [f1, u1, v1, w1] = intersection1;
             auto const triangle1         = mesh.triangle(f1);
-            auto const vertex1_t1        = mesh.vertex(triangle1.v1);
-            auto const vertex2_t1        = mesh.vertex(triangle1.v2);
-            auto const vertex3_t1        = mesh.vertex(triangle1.v3);
+            auto const vertex1_t1        = mesh.vertex(triangle1.vertices[0u]);
+            auto const vertex2_t1        = mesh.vertex(triangle1.vertices[1u]);
+            auto const vertex3_t1        = mesh.vertex(triangle1.vertices[2u]);
 
             common::triangle_t const triangle_primitive1{
-                Eigen::Vector3d{vertex1_t1.x, vertex1_t1.y, vertex1_t1.z},
-                Eigen::Vector3d{vertex2_t1.x, vertex2_t1.y, vertex2_t1.z},
-                Eigen::Vector3d{vertex3_t1.x, vertex3_t1.y, vertex3_t1.z}};
+                Eigen::Vector3d{vertex1_t1.position},
+                Eigen::Vector3d{vertex2_t1.position},
+                Eigen::Vector3d{vertex3_t1.position}};
 
             auto const& [f2, u2, v2, w2] = intersection2;
             auto const triangle2         = mesh.triangle(f2);
-            auto const vertex1_t2        = mesh.vertex(triangle2.v1);
-            auto const vertex2_t2        = mesh.vertex(triangle2.v2);
-            auto const vertex3_t2        = mesh.vertex(triangle2.v3);
+            auto const vertex1_t2        = mesh.vertex(triangle2.vertices[0u]);
+            auto const vertex2_t2        = mesh.vertex(triangle2.vertices[1u]);
+            auto const vertex3_t2        = mesh.vertex(triangle2.vertices[2u]);
 
             common::triangle_t const triangle_primitive2{
-                Eigen::Vector3d{vertex1_t2.x, vertex1_t2.y, vertex1_t2.z},
-                Eigen::Vector3d{vertex2_t2.x, vertex2_t2.y, vertex2_t2.z},
-                Eigen::Vector3d{vertex3_t2.x, vertex3_t2.y, vertex3_t2.z}};
+                Eigen::Vector3d{vertex1_t2.position},
+                Eigen::Vector3d{vertex2_t2.position},
+                Eigen::Vector3d{vertex3_t2.position}};
 
             common::point_t const p1 = u1 * triangle_primitive1.a() + v1 * triangle_primitive1.b() +
                                        w1 * triangle_primitive1.c();
@@ -306,11 +306,11 @@ pick_vertex(common::ray_t const& ray, common::shared_vertex_surface_mesh_i const
         return {};
 
     auto const& [f, u, v, w] = picked_triangle.value();
-    std::uint32_t vi         = mesh.triangle(f).v1;
+    std::uint32_t vi         = mesh.triangle(f).vertices[0u];
     if (v > u && v > w)
-        vi = mesh.triangle(f).v2;
+        vi = mesh.triangle(f).vertices[1u];
     if (w > u && w > v)
-        vi = mesh.triangle(f).v3;
+        vi = mesh.triangle(f).vertices[2u];
 
     return vi;
 };

@@ -1,51 +1,38 @@
 #ifndef SBS_PHYSICS_XPBD_COLLISION_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_COLLISION_CONSTRAINT_H
 
-#include "sbs/physics/xpbd/constraint.h"
-
 #include <Eigen/Core>
+#include <sbs/physics/constraint.h>
 
 namespace sbs {
-
-// forward declares
-namespace common {
-
-struct triangle_t;
-
-} // namespace common
-
 namespace physics {
+
+// Forward declares
+class simulation_t;
+
 namespace xpbd {
 
 class collision_constraint_t : public constraint_t
 {
   public:
-    using scalar_type   = double;
-    using position_type = Eigen::Vector3d;
-    using normal_type   = Eigen::Vector3d;
-    using index_type    = std::uint32_t;
-    using body_ptr_type = tetrahedral_mesh_t*;
-
     collision_constraint_t(
         scalar_type alpha /*compliance*/,
-        body_ptr_type b /*penetrating body*/,
+        scalar_type beta /*damping*/,
+        simulation_t const& simulation,
+        index_type bi /*penetrating body*/,
         index_type vi /*penetrating vertex*/,
-        common::triangle_t const& t /*penetrated triangle*/,
-        normal_type const& n /*surface normal at qs*/);
+        Eigen::Vector3d const& p, /*contact point*/
+        Eigen::Vector3d const& n /*surface normal of correction*/);
 
-    void project(
-        std::vector<std::shared_ptr<tetrahedral_mesh_t>> const& bodies,
-        scalar_type& lagrange_multiplier,
-        scalar_type const dt) const;
-
-    scalar_type evaluate(position_type const& p) const;
+    virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
+    scalar_type evaluate(Eigen::Vector3d const& p) const;
 
   private:
-    body_ptr_type b_; ///< Penetrating body
-    index_type vi_;   ///< Index of penetrating vertex
+    index_type bi_; ///< Penetrating body
+    index_type vi_; ///< Index of penetrating vertex
 
-    position_type qs_; ///< Intersection point
-    normal_type n_;    ///< Normal at intersection point
+    Eigen::Vector3d qs_; ///< Intersection point
+    Eigen::Vector3d n_;  ///< Normal at intersection point
 };
 
 } // namespace xpbd

@@ -1,66 +1,40 @@
 #ifndef SBS_PHYSICS_MESH_H
 #define SBS_PHYSICS_MESH_H
 
-#include "sbs/common/mesh.h"
-
 #include <Eigen/Core>
 #include <array>
-#include <memory>
-#include <optional>
+#include <map>
+#include <sbs/aliases.h>
+#include <set>
 #include <vector>
 
 namespace sbs {
 namespace physics {
 
-using index_type  = std::uint32_t;
-using scalar_type = double;
-
-class tetrahedron_t;
-class edge_t;
-class triangle_t;
-
 class vertex_t
 {
   public:
-    vertex_t();
-    vertex_t(vertex_t const&) = default;
-    vertex_t(vertex_t&&)      = default;
+    vertex_t() = default;
 
-    using position_type = Eigen::Vector3d;
-    using velocity_type = Eigen::Vector3d;
-    using force_type    = Eigen::Vector3d;
-    using normal_type   = Eigen::Vector3d;
-    using color_type    = Eigen::Vector3f;
+    vertex_t(index_type vi);
 
-    position_type const& position() const;
-    position_type& position();
+    index_type vi() const;
 
-    velocity_type const& velocity() const;
-    velocity_type& velocity();
-
-    force_type const& force() const;
-    force_type& force();
-
-    scalar_type const& mass() const;
-    scalar_type& mass();
-
-    normal_type const& normal() const;
-    normal_type& normal();
-
-    color_type const& color() const;
-    color_type& color();
-
-    bool fixed() const;
-    bool& fixed();
+    std::vector<index_type> const& incident_edge_indices() const;
+    std::vector<index_type> const& incident_triangle_indices() const;
+    std::vector<index_type> const& incident_tetrahedron_indices() const;
+    std::vector<index_type>& incident_edge_indices();
+    std::vector<index_type>& incident_triangle_indices();
+    std::vector<index_type>& incident_tetrahedron_indices();
+    bool operator==(vertex_t const& other) const;
+    bool operator!=(vertex_t const& other) const;
+    bool operator<(vertex_t const& other) const;
 
   private:
-    position_type p_;
-    velocity_type v_;
-    force_type f_;
-    normal_type n_;
-    double m_;
-    bool fixed_;
-    color_type c_;
+    index_type vi_;                              ///< Index of this vertex
+    std::vector<index_type> incident_edges_;     ///< Indices to incident edges
+    std::vector<index_type> incident_triangles_; ///< Indices to incident triangles
+    std::vector<index_type> incident_tets_;      ///< Indices to incident tetrahedra
 };
 
 class edge_t
@@ -68,52 +42,22 @@ class edge_t
   public:
     edge_t() = default;
     edge_t(index_type v1, index_type v2);
-    edge_t(edge_t const&) = default;
-    edge_t(edge_t&&)      = default;
-
-    index_type const& v1() const;
-    index_type const& v2() const;
-
-    index_type& v1();
-    index_type& v2();
-
-    std::array<index_type, 2u> const& vertices() const;
-
-    std::vector<index_type>& adjacent_tetrahedron_indices();
-    std::vector<index_type> const& adjacent_tetrahedron_indices() const;
-
-    std::vector<index_type>& adjacent_triangle_indices();
-    std::vector<index_type> const& adjacent_triangle_indices() const;
-
-    /**
-     * @brief Checks if other edge is the same as this edge, disregarding orientation.
-     * @param other Edge to test against
-     * @return True if other edge has same vertices as this edge
-     */
-    bool operator==(edge_t const& other) const;
-
-    /**
-     * @brief
-     * Specifies ordering of edge in a collection of edges for use in a std::map, for
-     * example.
-     * @param other Edge to compare against.
-     * @return True if this edge comes before other edge in the ordering.
-     */
-    bool operator<(edge_t const& other) const;
-
-    /**
-     * @brief
-     * Checks if other edge has opposite orientation from this edge.
-     * @pre (*this == other) is true.
-     * @param other The edge to test against
-     * @return True if other has opposite orientation from this edge
-     */
+    edge_t(vertex_t const& v1, vertex_t const& v2);
+    std::array<index_type, 2u> const& vertex_indices() const;
+    index_type v1() const;
+    index_type v2() const;
+    std::vector<index_type> const& incident_triangle_indices() const;
+    std::vector<index_type> const& incident_tetrahedron_indices() const;
+    std::vector<index_type>& incident_triangle_indices();
+    std::vector<index_type>& incident_tetrahedron_indices();
     bool is_reverse_of(edge_t const& other) const;
+    bool operator==(edge_t const&) const;
+    bool operator<(edge_t const&) const;
 
   private:
-    std::array<index_type, 2u> v_;
-    std::vector<index_type> adjacent_tets_;
-    std::vector<index_type> adjacent_triangles_;
+    std::array<index_type, 2u> v_;               ///< Vertex indices
+    std::vector<index_type> incident_triangles_; ///< Indices to incident triangles
+    std::vector<index_type> incident_tets_;      ///< indices to incident tetrahedra
 };
 
 class triangle_t
@@ -121,67 +65,30 @@ class triangle_t
   public:
     triangle_t() = default;
     triangle_t(index_type v1, index_type v2, index_type v3);
-    triangle_t(triangle_t const&);
-    triangle_t(triangle_t&&) = default;
-    triangle_t& operator     =(triangle_t const& other);
+    triangle_t(vertex_t const& v1, vertex_t const& v2, vertex_t const& v3);
+    std::array<index_type, 3u> const& vertex_indices() const;
+    index_type v1() const;
+    index_type v2() const;
+    index_type v3() const;
 
-    index_type const& v1() const;
-    index_type const& v2() const;
-    index_type const& v3() const;
-
-    index_type& v1();
-    index_type& v2();
-    index_type& v3();
-
-    std::array<index_type, 3u> const& vertices() const;
-
-    /**
-     * @brief
-     * Return list of edge copies of this triangle's edges containing vertex indices, but no
-     * connectivity information. Can be used even if adjacency information for this triangle
-     * has not been built.
-     * @return Edge copies of this triangle
-     */
     std::array<edge_t, 3u> edges_copy() const;
+    std::array<index_type, 3u> const& edge_indices() const;
+    std::array<index_type, 3u>& edge_indices();
 
-    /**
-     * @brief Checks if other triangle is the same as this triangle, disregarding orientation.
-     * @param other Triangle to test against
-     * @return True if other triangle has same vertices as this triangle
-     */
-    bool operator==(triangle_t const& other) const;
+    std::vector<index_type> const& incident_tetrahedron_indices() const;
+    std::vector<index_type>& incident_tetrahedron_indices();
 
-    /**
-     * @brief
-     * Specifies ordering of triangle in a collection of triangles for use in a std::map, for
-     * example.
-     * @param other Triangle to compare against.
-     * @return True if this triangle comes before other triangle in the ordering.
-     */
-    bool operator<(triangle_t const& other) const;
-
-    /**
-     * @brief
-     * Checks if other triangle has opposite orientation from this triangle.
-     * @pre (*this == other) is true.
-     * @param other The triangle to test against
-     * @return True if other has opposite orientation from this triangle
-     */
+    std::uint8_t id_of_vertex(index_type vi) const;
+    std::uint8_t id_of_edge(index_type ei) const;
     bool is_reverse_of(triangle_t const& other) const;
 
-    bool is_boundary_triangle() const;
-    bool is_interior_triangle() const;
-
-    std::vector<index_type> const& adjacent_tetrahedron_indices() const;
-    std::vector<index_type>& adjacent_tetrahedron_indices();
-
-    std::unique_ptr<std::array<index_type, 3u>> const& adjacent_edge_indices() const;
-    std::unique_ptr<std::array<index_type, 3u>>& adjacent_edge_indices();
+    bool operator==(triangle_t const& other) const;
+    bool operator<(triangle_t const& other) const;
 
   private:
-    std::array<index_type, 3u> v_;
-    std::vector<index_type> adjacent_tets_;
-    std::unique_ptr<std::array<index_type, 3u>> edges_;
+    std::array<index_type, 3u> v_;          ///< Vertex indices
+    std::array<index_type, 3u> edges_;      ///< Indices to this triangle's edges
+    std::vector<index_type> incident_tets_; ///< Indices to tetahedra incident on this triangle
 };
 
 class tetrahedron_t
@@ -189,116 +96,180 @@ class tetrahedron_t
   public:
     tetrahedron_t() = default;
     tetrahedron_t(index_type v1, index_type v2, index_type v3, index_type v4);
-    tetrahedron_t(tetrahedron_t const& other);
-    tetrahedron_t(tetrahedron_t&&) = default;
-    tetrahedron_t& operator        =(tetrahedron_t const& other);
+    tetrahedron_t(vertex_t const& v1, vertex_t const& v2, vertex_t const& v3, vertex_t const& v4);
 
-    index_type const& v1() const;
-    index_type const& v2() const;
-    index_type const& v3() const;
-    index_type const& v4() const;
+    std::array<index_type, 4u> const& vertex_indices() const;
+    std::array<index_type, 4u>& vertex_indices();
+    index_type v1() const;
+    index_type v2() const;
+    index_type v3() const;
+    index_type v4() const;
 
     index_type& v1();
     index_type& v2();
     index_type& v3();
     index_type& v4();
-
-    std::array<index_type, 4u> const& vertices() const;
-
-    scalar_type const& mass_density() const;
-    scalar_type& mass_density();
-
-    /**
-     * @brief
-     * Return list of edge copies of this tetrahedron's edges containing vertex indices, but no
-     * connectivity information. Can be used even if adjacency information for this tetrahedron
-     * has not been built.
-     * @return Edge copies of this tetrahedron
-     */
     std::array<edge_t, 6u> edges_copy() const;
-
-    /**
-     * @brief
-     * Return list of face copies of this tetrahedron's faces containing vertex indices, but no
-     * connectivity information. Can be used even if adjacency information for this tetrahedron
-     * has not been built.
-     * @return Face copies of this tetrahedron
-     */
     std::array<triangle_t, 4u> faces_copy() const;
-
-    std::unique_ptr<std::array<index_type, 6u>> const& edge_indices() const;
-    std::unique_ptr<std::array<index_type, 6u>>& edge_indices();
-
-    std::unique_ptr<std::array<index_type, 4u>> const& face_indices() const;
-    std::unique_ptr<std::array<index_type, 4u>>& face_indices();
+    std::array<index_type, 6u> const& edge_indices() const;
+    std::array<index_type, 4u> const& face_indices() const;
+    std::array<index_type, 6u>& edge_indices();
+    std::array<index_type, 4u>& face_indices();
+    std::uint8_t id_of_vertex(index_type vi) const;
+    std::uint8_t id_of_edge(index_type ei) const;
+    std::uint8_t id_of_face(index_type fi) const;
+    bool operator==(tetrahedron_t const& other) const;
+    bool operator<(tetrahedron_t const& other) const;
 
   private:
-    std::array<index_type, 4u> v_;
-    std::unique_ptr<std::array<index_type, 6u>> edges_;
-    std::unique_ptr<std::array<index_type, 4u>> faces_;
-    double rho_; ///< mass density
+    std::array<index_type, 4u> v_{};   ///< Vertex indices
+    std::array<index_type, 6u> edges_; ///< Edge indices
+    std::array<index_type, 4u> faces_; ///< Face indices
 };
 
-template <class Derived>
-class simulated_mesh_i;
-
-struct build_topology_parameters_t
-{
-    bool vertex_to_edge{
-        false}; ///< Vertices must have references to their adjacent edges. Not supported yet.
-    bool vertex_to_triangle{
-        false}; ///< Vertices must have references to their adjacent triangles. Not supported yet.
-    bool vertex_to_tetrahedra{
-        false}; ///< Vertices must have references to their adjacent tetrahedra. Not supported yet.
-
-    bool triangle_to_edge{false}; ///< Triangles must have references to their edges
-    bool triangle_to_tetrahedra{
-        false}; ///< Triangles must have references to their adjacent tetrahedra
-
-    bool tetrahedron_to_edge{false};     ///< Tetrahedra must have references to their edges
-    bool tetrahedron_to_triangle{false}; ///< Tetrahedra must have references to their faces
-
-    bool edge_to_triangle{false};   ///< Edges must have references to their adjacent triangles
-    bool edge_to_tetrahedra{false}; ///< Edges must have references to their adjacent tetrahedra
-
-    void include_vertex_to_edge_adjacency();
-    void include_vertex_to_triangle_adjacency();
-    void include_vertex_to_tetrahedra_adjacency();
-    void include_triangle_to_edge_adjacency();
-    void include_triangle_to_tetrahedra_adjacency();
-    void include_tetrahedron_to_edge_adjacency();
-    void include_tetrahedron_to_triangle_adjacency();
-    void include_edge_to_triangle_adjacency();
-    void include_edge_to_tetrahedra_adjacency();
-
-    void exclude_vertex_to_edge_adjacency();
-    void exclude_vertex_to_triangle_adjacency();
-    void exclude_vertex_to_tetrahedra_adjacency();
-    void exclude_triangle_to_edge_adjacency();
-    void exclude_triangle_to_tetrahedra_adjacency();
-    void exclude_tetrahedron_to_edge_adjacency();
-    void exclude_tetrahedron_to_triangle_adjacency();
-    void exclude_edge_to_triangle_adjacency();
-    void exclude_edge_to_tetrahedra_adjacency();
-};
-
-/**
- * @brief CRTP interface for simulated mesh types.
- * @tparam Derived Statically polymorphic type which implements the simulated_mesh_i interface.
- */
-template <class Derived>
-class simulated_mesh_i
+class vertex_set_t
 {
   public:
-    simulated_mesh_i() = default;
+    vertex_set_t() = default;
+    template <class VertexIterator>
+    vertex_set_t(VertexIterator begin, VertexIterator end);
+    vertex_t const& vertex(std::size_t vi) const;
+    vertex_t& vertex(std::size_t vi);
 
-    std::vector<vertex_t> const& vertices() const { static_cast<Derived&>(*this).vertices(); }
-    std::vector<edge_t> const& edges() const { static_cast<Derived&>(*this).edges(); }
-    std::vector<triangle_t> const& triangles() const { static_cast<Derived&>(*this).triangles(); }
-    std::vector<tetrahedron_t> const& tetrahedra() const
-    {
-        static_cast<Derived&>(*this).tetrahedra();
-    }
+    bool contains_vertex(vertex_t const& v) const;
+
+    index_type add_vertex();
+    void add_vertex(vertex_t const& vertex);
+    void add_vertex(index_type const vi);
+    std::size_t vertex_count() const;
+    void reserve_vertices(std::size_t count);
+    void clear();
+    std::vector<vertex_t> const& vertices() const;
+
+    void remove_vertex_to_edge_incidency(index_type const vi, index_type ei);
+    void remove_vertex_to_triangle_incidency(index_type const vi, index_type fi);
+    void remove_vertex_to_tetrahedron_incidency(index_type const vi, index_type ti);
+    bool operator==(vertex_set_t const& other) const;
+
+  private:
+    std::vector<vertex_t> vertices_; ///< Vertices of this set
+};
+
+template <class VertexIterator>
+inline vertex_set_t::vertex_set_t(VertexIterator begin, VertexIterator end) : vertices_{begin, end}
+{
+}
+
+class edge_set_t : public vertex_set_t
+{
+  public:
+    edge_set_t() = default;
+
+    edge_t const& edge(index_type ei) const;
+    edge_t& edge(index_type ei);
+    index_type ei(edge_t const& edge) const;
+    index_type add_edge(edge_t const& edge);
+    edge_t remove_edge(index_type ei);
+    edge_t remove_edge(edge_t const& edge);
+    std::size_t edge_count() const;
+    bool contains_edge(edge_t const& edge) const;
+    void reserve_edges(std::size_t count);
+    void clear();
+    bool is_safe_to_iterate_over_edges() const;
+
+    std::vector<edge_t> const& edges() const;
+    std::vector<edge_t>& edges();
+
+    std::map<edge_t, index_type>::const_iterator safe_edges_begin() const;
+    std::map<edge_t, index_type>::const_iterator safe_edges_end() const;
+
+    void remove_edge_to_triangle_incidency(index_type const ei, index_type fi);
+    void remove_edge_to_tetrahedron_incidency(index_type const ei, index_type ti);
+    void create_vertex_to_edge_incidency(index_type const ei);
+    bool operator==(edge_set_t const& other) const;
+
+  protected:
+    std::map<edge_t, index_type> edge_map_; ///< Map from edge to edge indices
+    std::set<index_type>
+        edge_garbage_collector_; ///< Set of indices that can be reused for edge creation
+
+  private:
+    std::vector<edge_t> edges_; ///< Edges of this set
+};
+
+class triangle_set_t : public edge_set_t
+{
+  public:
+    triangle_set_t() = default;
+
+    triangle_t const& triangle(index_type fi) const;
+    triangle_t& triangle(index_type fi);
+    index_type fi(triangle_t const& triangle) const;
+
+    void add_triangle(triangle_t const& triangle);
+    triangle_t remove_triangle(index_type fi);
+    triangle_t remove_triangle(triangle_t const& triangle);
+
+    std::size_t triangle_count() const;
+    bool contains_triangle(triangle_t const& triangle) const;
+    void reserve_triangles(std::size_t count);
+    void clear();
+    bool is_safe_to_iterate_over_triangles() const;
+
+    std::vector<triangle_t> const& triangles() const;
+    std::vector<triangle_t>& triangles();
+    std::map<triangle_t, index_type>::const_iterator safe_triangles_begin() const;
+    std::map<triangle_t, index_type>::const_iterator safe_triangles_end() const;
+
+    void create_vertex_to_triangle_incidency(index_type const fi);
+    void create_edge_to_triangle_incidency(index_type const fi);
+    void remove_triangle_to_tetrahedron_incidency(index_type const fi, index_type const ti);
+    bool operator==(triangle_set_t const& other) const;
+
+  protected:
+    std::map<triangle_t, index_type> triangle_map_;   ///< Map of triangles to their indices
+    std::set<index_type> triangle_garbage_collector_; ///< Indices of deleted triangles
+
+  private:
+    std::vector<triangle_t> triangles_; ///< Triangles of this set
+};
+
+class tetrahedron_set_t : public triangle_set_t
+{
+  public:
+    tetrahedron_set_t() = default;
+
+    tetrahedron_t const& tetrahedron(index_type ti) const;
+    tetrahedron_t& tetrahedron(index_type ti);
+
+    void add_tetrahedron(tetrahedron_t const& tetrahedron);
+    tetrahedron_t remove_tetrahedron(index_type ti);
+
+    std::size_t tetrahedron_count() const;
+    void reserve_tetrahedra(std::size_t count);
+    void clear();
+    bool is_safe_to_iterate_over_tetrahedra() const;
+
+    std::vector<tetrahedron_t> const& tetrahedra() const;
+    std::vector<tetrahedron_t>& tetrahedra();
+
+    void create_vertex_to_tetrahedron_incidency(index_type const ti);
+    void create_edge_to_tetrahedron_incidency(index_type const ti);
+    void create_triangle_to_tetrahedron_incidency(index_type const ti);
+
+    void collect_garbage();
+
+    bool operator==(tetrahedron_set_t const& other) const;
+
+  protected:
+    std::set<index_type> tetrahedron_garbage_collector_; ///< Indices of deleted tetrahedra
+
+  private:
+    void swap_edges(index_type ei, index_type eip);
+    void swap_triangles(index_type fi, index_type fip);
+    void swap_tetrahedra(index_type ti, index_type tip);
+
+    std::vector<tetrahedron_t> tetrahedra_; ///< Tetrahedra of this set
 };
 
 } // namespace physics

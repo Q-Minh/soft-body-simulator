@@ -181,41 +181,38 @@ PRIVATE
 
     # physics/xpbd
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/collision_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/mesh.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/simulation_parameters.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/solver.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/collision_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/mesh.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/simulation_parameters.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/solver.cpp"
 
     # physics/collision
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/aabb_bvh_model.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/boundary.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_cd_system.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_collision_detector.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/bvh.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/bvh_model.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/cd_system.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_detector.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_model.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/contact.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/intersections.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/primitive.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/sdf_model.h"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/aabb_bvh_model.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/boundary.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_cd_system.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_collision_detector.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/bvh_model.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/cd_system.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_detector.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_model.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/contact.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/intersections.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/primitive.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/sdf_model.cpp"
 
     # physics/cutting
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/cutting/cut_tetrahedron.h"
@@ -247,6 +244,10 @@ PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
         >
 )
+
+add_executable(tester)
+target_sources(tester PRIVATE main.cpp)
+target_link_libraries(tester PRIVATE sbs)
 
 include(GNUInstallDirs)
 

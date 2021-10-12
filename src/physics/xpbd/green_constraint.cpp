@@ -1,9 +1,8 @@
 #include "sbs/physics/xpbd/green_constraint.h"
 
-#include "sbs/physics/xpbd/mesh.h"
-
 #include <Eigen/LU>
 #include <Eigen/SVD>
+#include <sbs/physics/simulation.h>
 
 namespace sbs {
 namespace physics {
@@ -11,20 +10,35 @@ namespace xpbd {
 
 green_constraint_t::green_constraint_t(
     scalar_type const alpha,
-    body_ptr_type b,
-    index_type ti,
-    Eigen::Vector3d const& p1,
-    Eigen::Vector3d const& p2,
-    Eigen::Vector3d const& p3,
-    Eigen::Vector3d const& p4,
+    scalar_type const beta,
+    simulation_t const& simulation,
+    index_type bi,
+    index_type v1,
+    index_type v2,
+    index_type v3,
+    index_type v4,
     scalar_type young_modulus,
     scalar_type poisson_ratio)
-    : constraint_t(alpha), b_(b), ti_(ti), DmInv_(), V0_(), mu_(), lambda_()
+    : constraint_t(alpha, beta),
+      bi_(bi),
+      v1_(v1),
+      v2_(v2),
+      v3_(v3),
+      v4_(v4),
+      DmInv_(),
+      V0_(),
+      mu_(),
+      lambda_()
 {
+    auto const& p1 = simulation.particles()[bi_][v1_];
+    auto const& p2 = simulation.particles()[bi_][v2_];
+    auto const& p3 = simulation.particles()[bi_][v3_];
+    auto const& p4 = simulation.particles()[bi_][v4_];
+
     Eigen::Matrix3d Dm;
-    Dm.col(0) = (p1 - p4).transpose();
-    Dm.col(1) = (p2 - p4).transpose();
-    Dm.col(2) = (p3 - p4).transpose();
+    Dm.col(0) = (p1.x0() - p4.x0()).transpose();
+    Dm.col(1) = (p2.x0() - p4.x0()).transpose();
+    Dm.col(2) = (p3.x0() - p4.x0()).transpose();
 
     DmInv_  = Dm.inverse();
     V0_     = (1. / 6.) * Dm.determinant();
@@ -32,39 +46,30 @@ green_constraint_t::green_constraint_t(
     lambda_ = (young_modulus * poisson_ratio) / ((1 + poisson_ratio) * (1 - 2 * poisson_ratio));
 }
 
-void green_constraint_t::project(
-    std::vector<std::shared_ptr<tetrahedral_mesh_t>> const& positions,
-    scalar_type& lagrange_multiplier,
-    scalar_type const dt) const
+void green_constraint_t::project_positions(simulation_t& simulation, scalar_type dt)
 {
-    tetrahedron_t const& t = b_->tetrahedra().at(ti_);
+    auto& p1 = simulation.particles()[bi_][v1_];
+    auto& p2 = simulation.particles()[bi_][v2_];
+    auto& p3 = simulation.particles()[bi_][v3_];
+    auto& p4 = simulation.particles()[bi_][v4_];
 
-    physics::vertex_t& v1 = b_->vertices().at(t.v1());
-    physics::vertex_t& v2 = b_->vertices().at(t.v2());
-    physics::vertex_t& v3 = b_->vertices().at(t.v3());
-    physics::vertex_t& v4 = b_->vertices().at(t.v4());
+    scalar_type const w1 = p1.invmass();
+    scalar_type const w2 = p2.invmass();
+    scalar_type const w3 = p3.invmass();
+    scalar_type const w4 = p4.invmass();
 
-    Eigen::Vector3d const p1 = v1.position();
-    Eigen::Vector3d const p2 = v2.position();
-    Eigen::Vector3d const p3 = v3.position();
-    Eigen::Vector3d const p4 = v4.position();
-
-    auto const w1 = v1.fixed() ? 0. : 1. / v1.mass();
-    auto const w2 = v2.fixed() ? 0. : 1. / v2.mass();
-    auto const w3 = v3.fixed() ? 0. : 1. / v3.mass();
-    auto const w4 = v4.fixed() ? 0. : 1. / v4.mass();
-
-    auto const Vsigned        = signed_volume(p1, p2, p3, p4);
+    auto const Vsigned        = signed_volume(p1.xi(), p2.xi(), p3.xi(), p4.xi());
     bool const is_V_positive  = Vsigned >= 0.;
     bool const is_V0_positive = V0_ >= 0.;
     bool const is_tet_inverted =
         (is_V_positive && !is_V0_positive) || (!is_V_positive && is_V0_positive);
+
     scalar_type constexpr epsilon = 1e-20;
 
     Eigen::Matrix3d Ds;
-    Ds.col(0) = (p1 - p4).transpose();
-    Ds.col(1) = (p2 - p4).transpose();
-    Ds.col(2) = (p3 - p4).transpose();
+    Ds.col(0) = (p1.xi() - p4.xi());
+    Ds.col(1) = (p2.xi() - p4.xi());
+    Ds.col(2) = (p3.xi() - p4.xi());
 
     Eigen::Matrix3d const F = Ds * DmInv_;
     Eigen::Matrix3d const I = Eigen::Matrix3d::Identity();
@@ -128,26 +133,26 @@ void green_constraint_t::project(
     scalar_type const C           = V0 * psi;
     scalar_type const alpha_tilde = alpha() / (dt * dt);
     scalar_type const delta_lagrange =
-        -(C + alpha_tilde * lagrange_multiplier) / (weighted_sum_of_gradients + alpha_tilde);
+        -(C + alpha_tilde * lagrange_) / (weighted_sum_of_gradients + alpha_tilde);
 
-    lagrange_multiplier += delta_lagrange;
+    lagrange_ += delta_lagrange;
     // because f = - grad(potential), then grad(potential) = -f and thus grad(C) = -f
-    v1.position() += w1 * -f1 * delta_lagrange;
-    v2.position() += w2 * -f2 * delta_lagrange;
-    v3.position() += w3 * -f3 * delta_lagrange;
-    v4.position() += w4 * -f4 * delta_lagrange;
+    p1.xi() += w1 * -f1 * delta_lagrange;
+    p2.xi() += w2 * -f2 * delta_lagrange;
+    p3.xi() += w3 * -f3 * delta_lagrange;
+    p4.xi() += w4 * -f4 * delta_lagrange;
 }
 
-green_constraint_t::scalar_type green_constraint_t::signed_volume(
+scalar_type green_constraint_t::signed_volume(
     Eigen::Vector3d const& p1,
     Eigen::Vector3d const& p2,
     Eigen::Vector3d const& p3,
     Eigen::Vector3d const& p4) const
 {
     Eigen::Matrix3d Dm;
-    Dm.col(0) = (p1 - p4).transpose();
-    Dm.col(1) = (p2 - p4).transpose();
-    Dm.col(2) = (p3 - p4).transpose();
+    Dm.col(0) = (p1 - p4);
+    Dm.col(1) = (p2 - p4);
+    Dm.col(2) = (p3 - p4);
 
     scalar_type const V = (1. / 6.) * Dm.determinant();
     return V;

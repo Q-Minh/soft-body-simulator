@@ -1,36 +1,33 @@
 #ifndef SBS_PHYSICS_XPBD_GREEN_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_GREEN_CONSTRAINT_H
 
-#include "constraint.h"
-
 #include <Eigen/Core>
+#include <sbs/physics/constraint.h>
 
 namespace sbs {
 namespace physics {
+
+// Forward declares
+class simulation_t;
+
 namespace xpbd {
 
 class green_constraint_t : public constraint_t
 {
   public:
-    using scalar_type   = typename constraint_t::scalar_type;
-    using index_type    = std::uint32_t;
-    using body_ptr_type = tetrahedral_mesh_t*;
-
     green_constraint_t(
         scalar_type const alpha,
-        body_ptr_type b,
-        index_type ti,
-        Eigen::Vector3d const& p1,
-        Eigen::Vector3d const& p2,
-        Eigen::Vector3d const& p3,
-        Eigen::Vector3d const& p4,
+        scalar_type const beta,
+        simulation_t const& simulation,
+        index_type bi,
+        index_type v1,
+        index_type v2,
+        index_type v3,
+        index_type v4,
         scalar_type young_modulus,
         scalar_type poisson_ratio);
 
-    virtual void project(
-        std::vector<std::shared_ptr<tetrahedral_mesh_t>> const& bodies,
-        scalar_type& lagrange_multiplier,
-        scalar_type const dt) const override;
+    virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
 
   protected:
     scalar_type signed_volume(
@@ -40,8 +37,11 @@ class green_constraint_t : public constraint_t
         Eigen::Vector3d const& p4) const;
 
   private:
-    body_ptr_type b_;
-    index_type ti_;
+    index_type bi_;
+    index_type v1_;
+    index_type v2_;
+    index_type v3_;
+    index_type v4_;
 
     Eigen::Matrix3d DmInv_;
     scalar_type V0_;

@@ -8,7 +8,7 @@
 
 namespace sbs {
 namespace common {
-class geometry_t;
+struct geometry_t;
 } // namespace common
 namespace physics {
 

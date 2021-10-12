@@ -13,6 +13,8 @@ sdf_model_t::sdf_model_t(
 {
 }
 
+sdf_model_t::sdf_model_t(Discregrid::CubicLagrangeDiscreteGrid const& sdf) : sdf_(sdf) {}
+
 model_type_t sdf_model_t::model_type() const
 {
     return model_type_t::sdf;
@@ -58,7 +60,8 @@ sdf_model_t sdf_model_t::from_plane(
     sdf.sdf_.reduceField(
         0u,
         [sampling_depth_from_surface](Eigen::Vector3d const& xi, double signed_distance) {
-            return static_cast<scalar_type>(signed_distance) < sampling_depth_from_surface;
+            return std::abs(static_cast<scalar_type>(signed_distance)) <
+                   sampling_depth_from_surface;
         });
     return sdf;
 }

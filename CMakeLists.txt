@@ -159,6 +159,7 @@ PRIVATE
     # physics
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/body.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/environment_body.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/gauss_seidel_solver.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mesh.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/particle.h"
@@ -170,6 +171,7 @@ PRIVATE
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/body.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/environment_body.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/gauss_seidel_solver.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mesh.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/particle.cpp"

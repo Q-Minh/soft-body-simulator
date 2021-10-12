@@ -16,6 +16,13 @@ class sdf_model_t : public collision_model_t
 {
   public:
     sdf_model_t(Eigen::AlignedBox3d const& domain, std::array<unsigned int, 3u> const& resolution);
+    sdf_model_t(Discregrid::CubicLagrangeDiscreteGrid const& sdf);
+
+    sdf_model_t(sdf_model_t const& other) = default;
+    sdf_model_t(sdf_model_t&& other)      = default;
+
+    sdf_model_t& operator=(sdf_model_t const& other) = default;
+    sdf_model_t& operator=(sdf_model_t&& other) = default;
 
     virtual model_type_t model_type() const override;
     virtual primitive_type_t primitive_type() const override;

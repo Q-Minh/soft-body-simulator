@@ -9,7 +9,7 @@
 namespace sbs {
 namespace common {
 
-static_mesh::static_mesh(common::geometry_t const& geometry)
+static_mesh_t::static_mesh_t(common::geometry_t const& geometry)
 {
     bool const is_triangle_mesh =
         geometry.geometry_type == common::geometry_t::geometry_type_t::triangle;
@@ -100,27 +100,27 @@ static_mesh::static_mesh(common::geometry_t const& geometry)
     transfer_indices_for_rendering(std::move(index_buffer));
 }
 
-void static_mesh::prepare_vertices_for_rendering()
+void static_mesh_t::prepare_vertices_for_rendering()
 {
     // no-op
 }
 
-void static_mesh::prepare_indices_for_rendering()
+void static_mesh_t::prepare_indices_for_rendering()
 {
     // no-op
 }
 
-std::size_t static_mesh::triangle_count() const
+std::size_t static_mesh_t::triangle_count() const
 {
     return get_cpu_index_buffer().size() / 3u;
 }
 
-std::size_t static_mesh::vertex_count() const
+std::size_t static_mesh_t::vertex_count() const
 {
     return get_cpu_vertex_buffer().size() / 9u;
 }
 
-shared_vertex_surface_mesh_i::vertex_type static_mesh::vertex(std::size_t vi) const
+shared_vertex_surface_mesh_i::vertex_type static_mesh_t::vertex(std::size_t vi) const
 {
     auto const& vertex_buffer = get_cpu_vertex_buffer();
     vertex_type v{};
@@ -137,7 +137,7 @@ shared_vertex_surface_mesh_i::vertex_type static_mesh::vertex(std::size_t vi) co
     return v;
 }
 
-shared_vertex_surface_mesh_i::triangle_type static_mesh::triangle(std::size_t f) const
+shared_vertex_surface_mesh_i::triangle_type static_mesh_t::triangle(std::size_t f) const
 {
     auto const& index_buffer = get_cpu_index_buffer();
     triangle_type t{};

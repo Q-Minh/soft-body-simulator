@@ -35,11 +35,11 @@ class shared_vertex_surface_mesh_i : public renderable_node_t
     virtual void prepare_indices_for_rendering()  = 0;
 };
 
-class static_mesh : public shared_vertex_surface_mesh_i
+class static_mesh_t : public shared_vertex_surface_mesh_i
 {
   public:
-    static_mesh() = default;
-    static_mesh(geometry_t const& geometry);
+    static_mesh_t() = default;
+    static_mesh_t(geometry_t const& geometry);
 
     virtual void prepare_vertices_for_rendering() override;
     virtual void prepare_indices_for_rendering() override;

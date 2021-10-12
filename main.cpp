@@ -140,7 +140,7 @@ int main(int argc, char** argv)
 
     auto const environment_node_factory = [](sbs::io::scene::scene_body_info const& sbi)
         -> std::shared_ptr<sbs::common::renderable_node_t> {
-        return std::make_shared<sbs::common::static_mesh>(sbi.geometry);
+        return std::make_shared<sbs::common::static_mesh_t>(sbi.geometry);
     };
 
     auto const physics_node_factory = [](sbs::io::scene::physics_body_info const& pbi)

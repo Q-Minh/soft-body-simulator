@@ -27,10 +27,10 @@ tetrahedral_body_t::tetrahedral_body_t(common::geometry_t const& geometry)
     for (std::size_t i = 0u; i < geometry.indices.size(); i += 4u)
     {
         tetrahedron_t const& tetrahedron{
-            geometry.indices[i],
-            geometry.indices[i + 1u],
-            geometry.indices[i + 2u],
-            geometry.indices[i + 3u]};
+            static_cast<index_type>(geometry.indices[i]),
+            static_cast<index_type>(geometry.indices[i + 1u]),
+            static_cast<index_type>(geometry.indices[i + 2u]),
+            static_cast<index_type>(geometry.indices[i + 3u])};
 
         physical_model_.add_tetrahedron(tetrahedron);
     }

@@ -5,6 +5,12 @@ namespace sbs {
 namespace physics {
 namespace collision {
 
+brute_force_cd_system_t::brute_force_cd_system_t(
+    std::vector<collision_model_t*> const& collision_objects)
+    : cd_system_t(collision_objects)
+{
+}
+
 void brute_force_cd_system_t::execute()
 {
     std::vector<collision_model_t*>& objects = collision_objects();

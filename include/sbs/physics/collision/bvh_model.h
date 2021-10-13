@@ -1,8 +1,9 @@
 #ifndef SBS_PHYSICS_COLLISION_BVH_MODEL_H
 #define SBS_PHYSICS_COLLISION_BVH_MODEL_H
 
+#include <Discregrid/acceleration/bounding_sphere.hpp>
+#include <Discregrid/acceleration/kd_tree.hpp>
 #include <sbs/aliases.h>
-#include <sbs/physics/collision/bvh.h>
 #include <sbs/physics/collision/collision_model.h>
 
 namespace sbs {
@@ -49,12 +50,12 @@ class point_bvh_to_sdf_intersector_t
     index_type sdf_model_id_;
 };
 
-class point_bvh_model_t : public collision_model_t
+class point_bvh_model_t : public collision_model_t,
+                          public Discregrid::KDTree<Discregrid::BoundingSphere>
 {
   public:
-    point_bvh_model_t() = default;
-    point_bvh_model_t(
-        common::shared_vertex_surface_mesh_i const* surface);
+    point_bvh_model_t();
+    point_bvh_model_t(common::shared_vertex_surface_mesh_i const* surface);
 
     point_bvh_model_t(point_bvh_model_t const& other) = default;
     point_bvh_model_t(point_bvh_model_t&& other)      = default;
@@ -66,10 +67,16 @@ class point_bvh_model_t : public collision_model_t
     virtual void collide(collision_model_t& other, contact_handler_t& handler) override;
     virtual void update(simulation_t const& simulation) override;
 
+  protected:
+    using kd_tree_type = Discregrid::KDTree<Discregrid::BoundingSphere>;
+
+    virtual Eigen::Vector3d const& entityPosition(unsigned int i) const override final;
+    virtual void computeHull(unsigned int b, unsigned int n, Discregrid::BoundingSphere& hull)
+        const override final;
+
   private:
     common::shared_vertex_surface_mesh_i const* surface_;
     contact_handler_t* handler_;
-    Eigen::KdBVH<scalar_type, 3, index_type> bvh_;
 };
 
 } // namespace collision

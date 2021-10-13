@@ -34,17 +34,6 @@ void gauss_seidel_solver_t::solve(simulation_t& simulation, scalar_type dt, std:
             constraint->project_positions(simulation, dt);
         }
     }
-
-    // set solution
-    for (std::vector<particle_t>& body_particles : particles)
-    {
-        for (particle_t& p : body_particles)
-        {
-            p.x()  = p.xi();
-            p.v()  = (p.x() - p.xn()) / dt;
-            p.xn() = p.x();
-        }
-    }
 }
 
 } // namespace physics

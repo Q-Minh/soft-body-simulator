@@ -143,9 +143,11 @@ PRIVATE
     #geometry 
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_bar_model.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_cloth_model.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_plane_model.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_bar_model.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_cloth_model.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_plane_model.cpp"
 
     # io
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/io/endianness.hpp"

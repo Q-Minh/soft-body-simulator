@@ -25,12 +25,12 @@ index_type contact_t::b2() const
     return bodies_[1u];
 }
 
-index_type surface_mesh_particle_contact_t::vi() const
+index_type surface_mesh_particle_to_sdf_contact_t::vi() const
 {
     return vi_;
 }
 
-index_type& surface_mesh_particle_contact_t::vi()
+index_type& surface_mesh_particle_to_sdf_contact_t::vi()
 {
     return vi_;
 }

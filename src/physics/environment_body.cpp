@@ -63,10 +63,6 @@ environment_body_t::environment_body_t(
 
     Discregrid::CubicLagrangeDiscreteGrid grid(domain, resolution);
     grid.addFunction(sdf);
-    grid.reduceField(0u, [](Eigen::Vector3d const& xi, double signed_distance) {
-        return std::abs(signed_distance) <
-               1.; // Only keep cells that are a distance of less than 1 to the surface
-    });
 
     collision_model_ = collision::sdf_model_t(grid);
 }
@@ -76,6 +72,14 @@ body_t::visual_model_type const& environment_body_t::visual_model() const
     return visual_model_;
 }
 body_t::collision_model_type const& environment_body_t::collision_model() const
+{
+    return collision_model_;
+}
+body_t::visual_model_type& environment_body_t::visual_model()
+{
+    return visual_model_;
+}
+body_t::collision_model_type& environment_body_t::collision_model()
 {
     return collision_model_;
 }

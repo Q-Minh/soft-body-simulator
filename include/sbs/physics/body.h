@@ -20,6 +20,8 @@ class body_t
 
     virtual visual_model_type const& visual_model() const               = 0;
     virtual collision_model_type const& collision_model() const         = 0;
+    virtual visual_model_type& visual_model()                           = 0;
+    virtual collision_model_type& collision_model()                     = 0;
     virtual void update_visual_model(simulation_t const& simulation)    = 0;
     virtual void update_collision_model(simulation_t const& simulation) = 0;
     virtual void update_physical_model(simulation_t const& simulation)  = 0;

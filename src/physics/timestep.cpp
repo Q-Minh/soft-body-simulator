@@ -14,16 +14,6 @@ void timestep_t::step(simulation_t& simulation)
 
     auto& particles = simulation.particles();
 
-    // move particles using semi-implicit integration
-    for (std::vector<particle_t>& body_particles : particles)
-    {
-        for (particle_t& p : body_particles)
-        {
-            p.v()  = p.v() + p.a() * dt;
-            p.xi() = p.x() + p.v() * dt;
-        }
-    }
-
     // TODO: Cut
     // cut(simulation);
     // body->update_physical_model();
@@ -33,7 +23,30 @@ void timestep_t::step(simulation_t& simulation)
 
     for (std::size_t s = 0u; s < substeps_; ++s)
     {
+        // move particles using semi-implicit integration
+        for (std::vector<particle_t>& body_particles : particles)
+        {
+            for (particle_t& p : body_particles)
+            {
+                p.f().y() -= scalar_type{9.81};
+                p.v()  = p.v() + p.a() * dt;
+                p.xi() = p.x() + p.v() * dt;
+            }
+        }
+
         solver_->solve(simulation, dt, iterations_);
+
+        // set solution
+        for (std::vector<particle_t>& body_particles : particles)
+        {
+            for (particle_t& p : body_particles)
+            {
+                p.x()  = p.xi();
+                p.v()  = (p.x() - p.xn()) / dt;
+                p.xn() = p.x();
+                p.f().setZero();
+            }
+        }
     }
 
     simulation.collision_constraints().clear();
@@ -46,6 +59,42 @@ void timestep_t::step(simulation_t& simulation)
     }
 
     cd_system->update(simulation);
+}
+
+scalar_type timestep_t::dt() const
+{
+    return dt_;
+}
+scalar_type& timestep_t::dt()
+{
+    return dt_;
+}
+
+std::size_t timestep_t::iterations() const
+{
+    return iterations_;
+}
+std::size_t& timestep_t::iterations()
+{
+    return iterations_;
+}
+
+std::size_t timestep_t::substeps() const
+{
+    return substeps_;
+}
+std::size_t& timestep_t::substeps()
+{
+    return substeps_;
+}
+
+std::unique_ptr<solver_t> const& timestep_t::solver() const
+{
+    return solver_;
+}
+std::unique_ptr<solver_t>& timestep_t::solver()
+{
+    return solver_;
 }
 
 } // namespace physics

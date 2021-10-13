@@ -8,17 +8,85 @@
 
 // #include <imgui/imgui.h>
 // #include <iostream>
+#include <algorithm>
 #include <sbs/geometry/get_simple_bar_model.h>
+#include <sbs/geometry/get_simple_plane_model.h>
+#include <sbs/physics/collision/brute_force_cd_system.h>
+#include <sbs/physics/environment_body.h>
+#include <sbs/physics/gauss_seidel_solver.h>
 #include <sbs/physics/simulation.h>
 #include <sbs/physics/tetrahedral_body.h>
+#include <sbs/physics/timestep.h>
+#include <sbs/physics/xpbd/contact_handler.h>
+#include <sbs/physics/xpbd/green_constraint.h>
 
 int main(int argc, char** argv)
 {
     sbs::physics::simulation_t simulation{};
-    sbs::common::geometry_t beam = sbs::geometry::get_simple_bar_model(3u, 3u, 12u);
-    beam.set_color(255, 255, 0);
-    // auto soft_body = std::make_unique<sbs::physics::tetrahedral_body_t>(beam);
-    sbs::physics::tetrahedral_body_t soft_body(beam);
+
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(3u, 3u, 12u);
+    beam_geometry.set_color(255, 255, 0);
+    auto const beam_idx = static_cast<sbs::index_type>(simulation.bodies().size());
+    simulation.add_body(std::make_unique<sbs::physics::tetrahedral_body_t>(beam_geometry));
+    for (std::size_t i = 0u; i < beam_geometry.positions.size(); i += 3u)
+    {
+        sbs::physics::particle_t particle{};
+        particle.x0() = Eigen::Vector3d{
+            beam_geometry.positions[i],
+            beam_geometry.positions[i + 1u],
+            beam_geometry.positions[i + 2u]};
+        particle.x()  = particle.x0();
+        particle.xn() = particle.x0();
+        particle.xi() = particle.x0();
+        particle.v().setZero();
+        particle.f().setZero();
+        particle.mass() = 1.;
+        simulation.add_particle(particle, beam_idx);
+    }
+    sbs::physics::tetrahedral_body_t const& beam =
+        *dynamic_cast<sbs::physics::tetrahedral_body_t*>(simulation.bodies()[beam_idx].get());
+    for (auto const& tetrahedron : beam.physical_model().tetrahedra())
+    {
+        auto const alpha = simulation.simulation_parameters().compliance;
+        auto const beta  = simulation.simulation_parameters().damping;
+        auto const nu    = simulation.simulation_parameters().poisson_ratio;
+        auto const E     = simulation.simulation_parameters().young_modulus;
+        simulation.add_constraint(std::make_unique<sbs::physics::xpbd::green_constraint_t>(
+            alpha,
+            beta,
+            simulation,
+            beam_idx,
+            tetrahedron.v1(),
+            tetrahedron.v2(),
+            tetrahedron.v3(),
+            tetrahedron.v4(),
+            E,
+            nu));
+    }
+    sbs::common::geometry_t floor_geometry =
+        sbs::geometry::get_simple_plane_model({-20., -20.}, {20., 20.}, 0.);
+    floor_geometry.set_color(50, 50, 50);
+    auto const floor_idx = simulation.bodies().size();
+    simulation.add_body(std::make_unique<sbs::physics::environment_body_t>(floor_geometry));
+
+    std::vector<sbs::physics::collision::collision_model_t*> collision_objects{};
+    std::transform(
+        simulation.bodies().begin(),
+        simulation.bodies().end(),
+        std::back_inserter(collision_objects),
+        [](std::unique_ptr<sbs::physics::body_t>& b) { return &(b->collision_model()); });
+    simulation.use_collision_detection_system(
+        std::make_unique<sbs::physics::collision::brute_force_cd_system_t>(collision_objects));
+    simulation.collision_detection_system()->use_contact_handler(
+        std::make_unique<sbs::physics::xpbd::contact_handler_t>(simulation));
+
+    sbs::physics::timestep_t timestep{};
+    timestep.dt()         = 0.005;
+    timestep.iterations() = 10u;
+    timestep.substeps()   = 5u;
+    timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
+
+    timestep.step(simulation);
 
     // std::filesystem::path const cwd = std::filesystem::current_path();
 
@@ -27,7 +95,8 @@ int main(int argc, char** argv)
     //     std::cerr
     //         << "Usage: sbs-viewer.exe <scene specification json file> "
     //            "<path/to/vertex_shader.vs> <path/to/fragment_shader.fs> "
-    //            "<path/to/wireframe_vertex_shader.vs> <path/to/wireframe_fragment_shader.fs>\n";
+    //            "<path/to/wireframe_vertex_shader.vs>
+    //            <path/to/wireframe_fragment_shader.fs>\n";
     //     return 1;
     // }
 
@@ -119,7 +188,8 @@ int main(int argc, char** argv)
     //         [](std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i> node) {
     //             return true;
     //         };
-    //     fix_picker.picked = [](std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i> node,
+    //     fix_picker.picked = [](std::shared_ptr<sbs::common::shared_vertex_surface_mesh_i>
+    //     node,
     //                            std::uint32_t vi) {
     //         auto const phys_node =
     //             std::dynamic_pointer_cast<sbs::physics::tetrahedral_mesh_surface_mesh_adapter_t>(
@@ -214,7 +284,8 @@ int main(int argc, char** argv)
     // }*/
 
     // std::shared_ptr<sbs::common::renderable_node_t> selected_node{};
-    // renderer.on_mouse_button_pressed = [&](GLFWwindow* window, int button, int action, int mods)
+    // renderer.on_mouse_button_pressed = [&](GLFWwindow* window, int button, int action, int
+    // mods)
     // {
 
     // };
@@ -250,13 +321,15 @@ int main(int argc, char** argv)
     //     {
     //         ImGui::TreePush();
     //         float const scene_panel_width = ImGui::GetColumnWidth();
-    //         if (ImGui::CollapsingHeader("Select Nodes##Scene", ImGuiTreeNodeFlags_DefaultOpen))
+    //         if (ImGui::CollapsingHeader("Select Nodes##Scene",
+    //         ImGuiTreeNodeFlags_DefaultOpen))
     //         {
     //             ImGui::BulletText("Select active object");
     //             for (std::size_t b = 0u; b < scene.nodes.size(); ++b)
     //             {
     //                 auto const& body = scene.nodes[b];
-    //                 ImGui::RadioButton(body->id().c_str(), &selected_idx, static_cast<int>(b));
+    //                 ImGui::RadioButton(body->id().c_str(), &selected_idx,
+    //                 static_cast<int>(b));
     //             }
 
     //             selected_node = scene.nodes[selected_idx];
@@ -322,7 +395,8 @@ int main(int argc, char** argv)
     //             static float poisson_ratio = 0.45f;
     //             ImGui::TreePush();
     //             ImGui::InputFloat("Young modulus##XPBD", &young_modulus, 1000.f, 10'000.f,
-    //             "%.1f"); ImGui::InputFloat("Poisson ratio##XPBD", &poisson_ratio, 0.01f, 0.1f,
+    //             "%.1f"); ImGui::InputFloat("Poisson ratio##XPBD", &poisson_ratio, 0.01f,
+    //             0.1f,
     //             "%.2f"); ImGui::TreePop();
 
     //             ImGui::Text("Solver");

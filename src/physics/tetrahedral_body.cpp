@@ -67,6 +67,16 @@ tetrahedral_body_t::collision_model_type const& tetrahedral_body_t::collision_mo
     return collision_model_;
 }
 
+body_t::visual_model_type& tetrahedral_body_t::visual_model()
+{
+    return visual_model_;
+}
+
+body_t::collision_model_type& tetrahedral_body_t::collision_model()
+{
+    return collision_model_;
+}
+
 void tetrahedral_body_t::update_visual_model(simulation_t const& simulation)
 {
     auto const& particles = simulation.particles()[id()];
@@ -81,6 +91,11 @@ void tetrahedral_body_t::update_collision_model(simulation_t const& simulation)
 void tetrahedral_body_t::update_physical_model(simulation_t const& simulation)
 {
     // no-op
+}
+
+tetrahedron_set_t const& tetrahedral_body_t::physical_model() const
+{
+    return physical_model_;
 }
 
 tetrahedral_mesh_boundary_t const& tetrahedral_body_t::surface_mesh() const

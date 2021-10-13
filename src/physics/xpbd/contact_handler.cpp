@@ -9,13 +9,15 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
+contact_handler_t::contact_handler_t(simulation_t& simulation) : simulation_(simulation) {}
+
 void contact_handler_t::handle(collision::contact_t const& contact)
 {
     auto const contact_type = contact.type();
     if (contact_type == collision::contact_t::type_t::surface_particle_to_sdf)
     {
-        collision::surface_mesh_particle_contact_t const& surface_mesh_contact =
-            reinterpret_cast<collision::surface_mesh_particle_contact_t const&>(contact);
+        collision::surface_mesh_particle_to_sdf_contact_t const& surface_mesh_contact =
+            reinterpret_cast<collision::surface_mesh_particle_to_sdf_contact_t const&>(contact);
 
         body_t const& b1 = *simulation_.bodies().at(contact.b1());
         body_t const& b2 = *simulation_.bodies().at(contact.b2());

@@ -4,9 +4,9 @@
 #include <sbs/aliases.h>
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/bvh_model.h>
-#include <sbs/physics/topology.h>
 #include <sbs/physics/particle.h>
 #include <sbs/physics/tetrahedral_mesh_boundary.h>
+#include <sbs/physics/topology.h>
 
 namespace sbs {
 namespace common {
@@ -28,9 +28,13 @@ class tetrahedral_body_t : public body_t
 
     virtual visual_model_type const& visual_model() const override;
     virtual collision_model_type const& collision_model() const override;
+    virtual visual_model_type& visual_model() override;
+    virtual collision_model_type& collision_model() override;
     virtual void update_visual_model(simulation_t const& simulation) override;
     virtual void update_collision_model(simulation_t const& simulation) override;
     virtual void update_physical_model(simulation_t const& simulation) override;
+
+    tetrahedron_set_t const& physical_model() const;
 
     tetrahedral_mesh_boundary_t const& surface_mesh() const;
     tetrahedral_mesh_boundary_t& surface_mesh();

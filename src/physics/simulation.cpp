@@ -16,8 +16,9 @@ void simulation_t::add_particle(particle_t const& p, index_type const body_idx)
 
 void simulation_t::add_body(std::unique_ptr<body_t> body)
 {
-    index_type const id = static_cast<index_type>(bodies_.size());
-    body->id()          = id;
+    index_type const id          = static_cast<index_type>(bodies_.size());
+    body->id()                   = id;
+    body->collision_model().id() = id;
     bodies_.push_back(std::move(body));
     particles_.push_back({});
 }

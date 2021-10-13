@@ -6,6 +6,11 @@
 #include <sbs/physics/collision/sdf_model.h>
 
 namespace sbs {
+
+namespace common {
+struct geometry_t;
+} // namespace common
+
 namespace physics {
 
 class environment_body_t : public body_t
@@ -17,6 +22,8 @@ class environment_body_t : public body_t
 
     virtual visual_model_type const& visual_model() const override;
     virtual collision_model_type const& collision_model() const override;
+    virtual visual_model_type& visual_model() override;
+    virtual collision_model_type& collision_model() override;
     virtual void update_visual_model(simulation_t const& simulation) override;
     virtual void update_collision_model(simulation_t const& simulation) override;
     virtual void update_physical_model(simulation_t const& simulation) override;

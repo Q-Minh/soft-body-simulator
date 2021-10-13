@@ -36,10 +36,10 @@ class contact_t
     Eigen::Vector3d normal_;
 };
 
-class surface_mesh_particle_contact_t : public contact_t
+class surface_mesh_particle_to_sdf_contact_t : public contact_t
 {
   public:
-    surface_mesh_particle_contact_t(
+    surface_mesh_particle_to_sdf_contact_t(
         contact_t::type_t contact_type,
         index_type const body1,
         index_type const body2,

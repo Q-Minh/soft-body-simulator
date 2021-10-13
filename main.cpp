@@ -19,15 +19,22 @@
 #include <sbs/physics/timestep.h>
 #include <sbs/physics/xpbd/contact_handler.h>
 #include <sbs/physics/xpbd/green_constraint.h>
+#include <sbs/rendering/physics_timestep_throttler.h>
+#include <sbs/rendering/renderer.h>
 
 int main(int argc, char** argv)
 {
+    /**
+     * Setup simulation
+     */
     sbs::physics::simulation_t simulation{};
 
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(3u, 3u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
     auto const beam_idx = static_cast<sbs::index_type>(simulation.bodies().size());
-    simulation.add_body(std::make_unique<sbs::physics::tetrahedral_body_t>(beam_geometry));
+    simulation.add_body();
+    simulation.bodies()[beam_idx] =
+        std::make_unique<sbs::physics::tetrahedral_body_t>(simulation, beam_idx, beam_geometry);
     for (std::size_t i = 0u; i < beam_geometry.positions.size(); i += 3u)
     {
         sbs::physics::particle_t particle{};
@@ -43,7 +50,7 @@ int main(int argc, char** argv)
         particle.mass() = 1.;
         simulation.add_particle(particle, beam_idx);
     }
-    sbs::physics::tetrahedral_body_t const& beam =
+    sbs::physics::tetrahedral_body_t& beam =
         *dynamic_cast<sbs::physics::tetrahedral_body_t*>(simulation.bodies()[beam_idx].get());
     for (auto const& tetrahedron : beam.physical_model().tetrahedra())
     {
@@ -63,12 +70,20 @@ int main(int argc, char** argv)
             E,
             nu));
     }
-    sbs::common::geometry_t floor_geometry =
-        sbs::geometry::get_simple_plane_model({-20., -20.}, {20., 20.}, 0.);
-    floor_geometry.set_color(50, 50, 50);
-    auto const floor_idx = simulation.bodies().size();
-    simulation.add_body(std::make_unique<sbs::physics::environment_body_t>(floor_geometry));
+    Eigen::Affine3d beam_transform{Eigen::Translation3d(0., 3., -10.)};
+    beam_transform.rotate(Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d::UnitY()));
+    beam.transform(beam_transform);
 
+    sbs::common::geometry_t floor_geometry =
+        sbs::geometry::get_simple_plane_model({-20., -20.}, {20., 20.}, 0., 1e-2);
+    floor_geometry.set_color(100, 100, 100);
+    auto const floor_idx = static_cast<sbs::index_type>(simulation.bodies().size());
+    simulation.add_body(
+        std::make_unique<sbs::physics::environment_body_t>(simulation, floor_idx, floor_geometry));
+
+    /**
+     * Setup collision detection
+     */
     std::vector<sbs::physics::collision::collision_model_t*> collision_objects{};
     std::transform(
         simulation.bodies().begin(),
@@ -80,31 +95,54 @@ int main(int argc, char** argv)
     simulation.collision_detection_system()->use_contact_handler(
         std::make_unique<sbs::physics::xpbd::contact_handler_t>(simulation));
 
+    /**
+     * Setup renderer
+     */
+    if (argc != 2)
+    {
+        std::cerr << "Usage: tester.exe <path/to/shader/directory/>\n";
+        return 1;
+    }
+
+    sbs::rendering::point_light_t point_light(0.f, 5.f, 0.f);
+    sbs::rendering::directional_light_t directional_light(0.f, 0.f, -1.f);
+    sbs::rendering::renderer_t renderer(simulation, point_light, directional_light);
+
+    std::filesystem::path const cwd = std::filesystem::current_path();
+
+    std::filesystem::path const shader_directory_path{argv[1]};
+    std::filesystem::path const vertex_shader_path   = shader_directory_path / "mesh.vs";
+    std::filesystem::path const fragment_shader_path = shader_directory_path / "mesh.fs";
+    std::filesystem::path const wireframe_vertex_shader_path =
+        shader_directory_path / "wireframe.vs";
+    std::filesystem::path const wireframe_fragment_shader_path =
+        shader_directory_path / "wireframe.fs";
+    std::filesystem::path const point_vertex_shader_path   = shader_directory_path / "point.vs";
+    std::filesystem::path const point_fragment_shader_path = shader_directory_path / "point.fs";
+
+    renderer.use_mesh_shaders(vertex_shader_path, fragment_shader_path);
+    renderer.use_wireframe_shaders(wireframe_vertex_shader_path, wireframe_fragment_shader_path);
+    renderer.use_point_shaders(point_vertex_shader_path, point_fragment_shader_path);
+
+    /**
+     * Setup time integration technique
+     */
     sbs::physics::timestep_t timestep{};
     timestep.dt()         = 0.005;
     timestep.iterations() = 10u;
     timestep.substeps()   = 5u;
     timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
 
-    timestep.step(simulation);
+    sbs::rendering::physics_timestep_throttler_t throttler(
+        timestep.dt(),
+        [&](sbs::rendering::physics_timestep_throttler_t& throttler,
+            double dt,
+            sbs::physics::simulation_t& simulation) { timestep.step(simulation); });
+    throttler.activate_physics();
 
-    // std::filesystem::path const cwd = std::filesystem::current_path();
+    renderer.on_new_physics_timestep = throttler;
 
-    // if (argc != 6)
-    // {
-    //     std::cerr
-    //         << "Usage: sbs-viewer.exe <scene specification json file> "
-    //            "<path/to/vertex_shader.vs> <path/to/fragment_shader.fs> "
-    //            "<path/to/wireframe_vertex_shader.vs>
-    //            <path/to/wireframe_fragment_shader.fs>\n";
-    //     return 1;
-    // }
-
-    // std::filesystem::path const scene_specification_path{argv[1]};
-    // std::filesystem::path const vertex_shader_path{argv[2]};
-    // std::filesystem::path const fragment_shader_path{argv[3]};
-    // std::filesystem::path const wireframe_vertex_shader_path{argv[4]};
-    // std::filesystem::path const wireframe_fragment_shader_path{argv[5]};
+    renderer.launch();
 
     // sbs::rendering::renderer_t renderer{};
     // sbs::physics::xpbd::solver_t solver{};

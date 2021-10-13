@@ -6,11 +6,11 @@
 namespace sbs {
 
 // forward declares
-namespace common {
+namespace physics {
 
-struct scene_t;
+class simulation_t;
 
-} // namespace common
+} // namespace physics
 
 namespace rendering {
 
@@ -22,16 +22,16 @@ class physics_timestep_throttler_t
         std::function<void(
             physics_timestep_throttler_t& /*throttler*/,
             double /*physics_dt*/,
-            sbs::common::scene_t& /*scene*/)> step);
+            physics::simulation_t& /*simulation*/)> step);
     physics_timestep_throttler_t(physics_timestep_throttler_t const&) = default;
     physics_timestep_throttler_t(physics_timestep_throttler_t&&)      = default;
 
     /**
      * @brief Handler for the renderer's loop's new_physics_update event
      * @param frame_dt Renderer's duration/elapsed time since last frame
-     * @param scene The renderer's scene
+     * @param simulation The renderer's simulation
      */
-    void operator()(double frame_dt, sbs::common::scene_t& scene);
+    void operator()(double frame_dt, physics::simulation_t& simulation);
 
     /**
      * @brief Gets the estimated fps of the physics simulation loop. Does not correspond to the
@@ -57,8 +57,10 @@ class physics_timestep_throttler_t
     double tb_;       ///< Time elapsed since last physics step
     double timestep_; ///< Desired timestep
     std::size_t fps_; ///< Computed frames per second
-    std::function<
-        void(physics_timestep_throttler_t&, double /*physics_dt*/, sbs::common::scene_t& /*scene*/)>
+    std::function<void(
+        physics_timestep_throttler_t&,
+        double /*physics_dt*/,
+        physics::simulation_t& /*simulation*/)>
         step_; ///< Physics step to execute with throttling
     bool are_physics_active_;
 };

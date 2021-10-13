@@ -16,9 +16,9 @@ class shared_vertex_surface_mesh_i : public renderable_node_t
   public:
     struct vertex_type
     {
-        Eigen::Vector3d position;
-        Eigen::Vector3d normal;
-        Eigen::Vector3f color;
+        Eigen::Vector3d position{0.f, 0.f, 0.f};
+        Eigen::Vector3d normal{0.f, 0.f, 0.f};
+        Eigen::Vector3f color{0.f, 0.f, 0.f};
     };
     struct triangle_type
     {

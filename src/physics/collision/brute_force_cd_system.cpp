@@ -17,7 +17,7 @@ void brute_force_cd_system_t::execute()
     for (std::size_t i = 0u; i < objects.size(); ++i)
     {
         collision_model_t* b1 = objects[i];
-        for (std::size_t j = 0u; j < objects.size(); ++j)
+        for (std::size_t j = i + 1u; j < objects.size(); ++j)
         {
             collision_model_t* b2 = objects[j];
             b1->collide(*b2, *contact_handler());

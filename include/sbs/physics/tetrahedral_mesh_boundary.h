@@ -39,6 +39,9 @@ class tetrahedral_mesh_boundary_t : public common::shared_vertex_surface_mesh_i
     virtual void prepare_vertices_for_rendering() override;
     virtual void prepare_indices_for_rendering() override;
 
+    shared_vertex_surface_mesh_i::vertex_type& mutable_vertex(std::size_t vi);
+    shared_vertex_surface_mesh_i::triangle_type& mutable_triangle(std::size_t f);
+
     /**
      * @brief Gets the mapping from this surface mesh's vertex indices to its underlying tetrahedral
      * mesh's vertex indices

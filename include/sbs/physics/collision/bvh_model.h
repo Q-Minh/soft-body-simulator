@@ -20,36 +20,6 @@ class simulation_t;
 
 namespace collision {
 
-class sdf_model_t;
-
-class point_bvh_to_sdf_intersector_t
-{
-  public:
-    point_bvh_to_sdf_intersector_t(
-        common::shared_vertex_surface_mesh_i const& surface,
-        sdf_model_t const& sdf,
-        contact_handler_t& handler,
-        index_type const bvh_model_id,
-        index_type const sdf_model_id)
-        : surface_(surface),
-          sdf_(sdf),
-          handler_(handler),
-          bvh_model_id_(bvh_model_id),
-          sdf_model_id_(sdf_model_id)
-    {
-    }
-
-    bool intersectVolume(Eigen::AlignedBox3d const& aabb) const;
-    bool intersectObject(index_type const vi) const;
-
-  private:
-    common::shared_vertex_surface_mesh_i const& surface_;
-    sdf_model_t const& sdf_;
-    contact_handler_t& handler_;
-    index_type bvh_model_id_;
-    index_type sdf_model_id_;
-};
-
 class point_bvh_model_t : public collision_model_t,
                           public Discregrid::KDTree<Discregrid::BoundingSphere>
 {
@@ -76,7 +46,6 @@ class point_bvh_model_t : public collision_model_t,
 
   private:
     common::shared_vertex_surface_mesh_i const* surface_;
-    contact_handler_t* handler_;
 };
 
 } // namespace collision

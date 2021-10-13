@@ -9,9 +9,10 @@ namespace physics {
 
 environment_body_t::environment_body_t(
     simulation_t& simulation,
+    index_type id,
     common::geometry_t const& geometry,
     std::array<unsigned int, 3u> const& resolution)
-    : body_t(simulation),
+    : body_t(simulation, id),
       visual_model_(geometry),
       collision_model_(
           Eigen::AlignedBox3d{},
@@ -67,6 +68,7 @@ environment_body_t::environment_body_t(
     grid.addFunction(sdf);
 
     collision_model_ = collision::sdf_model_t(grid);
+    collision_model_.id() = this->id();
 }
 
 body_t::visual_model_type const& environment_body_t::visual_model() const

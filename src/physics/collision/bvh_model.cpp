@@ -9,47 +9,7 @@ namespace sbs {
 namespace physics {
 namespace collision {
 
-bool point_bvh_to_sdf_intersector_t::intersectVolume(Eigen::AlignedBox3d const& aabb) const
-{
-    Eigen::Vector3d const& min = aabb.min();
-    Eigen::Vector3d const& max = aabb.max();
-
-    auto const min_depth = sdf_.evaluate(min).first;
-    auto const max_depth = sdf_.evaluate(max).first;
-
-    bool const is_min_point_penetrating = min_depth < 0.;
-    bool const is_max_point_penetrating = max_depth < 0.;
-
-    return is_min_point_penetrating || is_max_point_penetrating;
-}
-
-bool point_bvh_to_sdf_intersector_t::intersectObject(index_type const vi) const
-{
-    Eigen::Vector3d const& point = surface_.vertex(vi).position;
-    auto const [sdf, grad]       = sdf_.evaluate(point);
-
-    bool const is_sdf_positive = sdf > 0.;
-    if (is_sdf_positive)
-        return false;
-
-    scalar_type const penetration_depth   = sdf;
-    Eigen::Vector3d const& contact_normal = grad;
-    Eigen::Vector3d const contact_point   = point + -sdf * contact_normal;
-
-    surface_mesh_particle_to_sdf_contact_t contact(
-        contact_t::type_t::surface_particle_to_sdf,
-        sdf_model_id_,
-        bvh_model_id_,
-        contact_point,
-        contact_normal,
-        vi);
-
-    handler_.handle(contact);
-
-    return false;
-}
-
-point_bvh_model_t::point_bvh_model_t() : kd_tree_type(0), surface_(), handler_() {}
+point_bvh_model_t::point_bvh_model_t() : kd_tree_type(0), surface_() {}
 
 model_type_t point_bvh_model_t::model_type() const
 {
@@ -62,10 +22,10 @@ primitive_type_t point_bvh_model_t::primitive_type() const
 }
 
 point_bvh_model_t::point_bvh_model_t(common::shared_vertex_surface_mesh_i const* surface)
-    : Discregrid::KDTree<Discregrid::BoundingSphere>(surface_->vertex_count()),
-      surface_(surface),
-      handler_()
+    : Discregrid::KDTree<Discregrid::BoundingSphere>(surface->vertex_count()),
+      surface_(surface)
 {
+    kd_tree_type::construct();
 }
 
 void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& handler)
@@ -75,8 +35,6 @@ void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& han
     if (other_model_type == model_type_t::sdf)
     {
         sdf_model_t const& sdf_model = reinterpret_cast<sdf_model_t const&>(other);
-        point_bvh_to_sdf_intersector_t
-            intersector(*surface_, sdf_model, handler, this->id(), other.id());
 
         auto const is_sphere_colliding_with_sdf =
             [this, &sdf_model](unsigned int node_idx, unsigned int depth) -> bool {

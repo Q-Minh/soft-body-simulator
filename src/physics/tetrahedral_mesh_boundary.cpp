@@ -1,3 +1,5 @@
+#include "..\..\include\sbs\physics\tetrahedral_mesh_boundary.h"
+#include "..\..\include\sbs\physics\tetrahedral_mesh_boundary.h"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <numeric>
@@ -150,6 +152,18 @@ void tetrahedral_mesh_boundary_t::prepare_vertices_for_rendering()
 void tetrahedral_mesh_boundary_t::prepare_indices_for_rendering()
 {
     prepare_indices_for_surface_rendering();
+}
+
+common::shared_vertex_surface_mesh_i::vertex_type&
+tetrahedral_mesh_boundary_t::mutable_vertex(std::size_t vi)
+{
+    return vertices_[vi];
+}
+
+common::shared_vertex_surface_mesh_i::triangle_type&
+tetrahedral_mesh_boundary_t::mutable_triangle(std::size_t f)
+{
+    return triangles_[f];
 }
 
 void tetrahedral_mesh_boundary_t::prepare_vertices_for_surface_rendering()

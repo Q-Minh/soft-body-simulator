@@ -25,8 +25,12 @@ class tetrahedral_body_t : public body_t
     using visual_model_type    = body_t::visual_model_type;
     using collision_model_type = body_t::collision_model_type;
 
-    tetrahedral_body_t(simulation_t& simulation, std::vector<Eigen::Vector3d> const& positions, tetrahedron_set_t const& topology);
-    tetrahedral_body_t(simulation_t& simulation, common::geometry_t const& geometry);
+    tetrahedral_body_t(
+        simulation_t& simulation,
+        index_type id,
+        std::vector<Eigen::Vector3d> const& positions,
+        tetrahedron_set_t const& topology);
+    tetrahedral_body_t(simulation_t& simulation, index_type id, common::geometry_t const& geometry);
 
     virtual visual_model_type const& visual_model() const override;
     virtual collision_model_type const& collision_model() const override;

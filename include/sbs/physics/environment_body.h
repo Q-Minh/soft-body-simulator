@@ -18,6 +18,7 @@ class environment_body_t : public body_t
   public:
     environment_body_t(
         simulation_t& simulation,
+        index_type id,
         common::geometry_t const& geometry,
         std::array<unsigned int, 3u> const& resolution = {10, 10, 10});
 

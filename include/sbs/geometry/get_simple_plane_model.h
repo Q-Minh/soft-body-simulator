@@ -11,7 +11,8 @@ namespace geometry {
 common::geometry_t get_simple_plane_model(
     std::array<scalar_type, 2u> const& min,
     std::array<scalar_type, 2u> const& max,
-    scalar_type level);
+    scalar_type level, 
+    scalar_type thickness);
 
 } // namespace geometry
 } // namespace sbs

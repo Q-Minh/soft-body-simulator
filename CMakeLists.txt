@@ -222,18 +222,20 @@ PRIVATE
 
     # rendering
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/camera.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/light.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/physics_timestep_throttler.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/pick.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/renderer.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/shader.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/trackball_rotation_adapter.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/physics_timestep_throttler.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/pick.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/camera.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/light.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/physics_timestep_throttler.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/pick.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/shader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/trackball_rotation_adapter.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/physics_timestep_throttler.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/pick.cpp"
 )
 target_include_directories(sbs 
 PUBLIC 

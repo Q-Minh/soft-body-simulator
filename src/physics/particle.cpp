@@ -3,6 +3,10 @@
 namespace sbs {
 namespace physics {
 
+particle_t::particle_t(position_type const& p) : x0_(p), xi_(p), xn_(p), x_(p), v_(), f_(), m_(1.)
+{
+}
+
 particle_t::position_type const& particle_t::x0() const
 {
     return x0_;

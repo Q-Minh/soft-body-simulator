@@ -54,8 +54,8 @@ void timestep_t::step(simulation_t& simulation)
     auto& bodies = simulation.bodies();
     for (auto& body : bodies)
     {
-        body->update_visual_model(simulation);
-        body->update_collision_model(simulation);
+        body->update_visual_model();
+        body->update_collision_model();
     }
 
     cd_system->update(simulation);

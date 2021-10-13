@@ -8,15 +8,24 @@ namespace sbs {
 namespace physics {
 
 tetrahedral_body_t::tetrahedral_body_t(
-    std::vector<particle_t> const& particles,
+    simulation_t& simulation,
+    std::vector<Eigen::Vector3d> const& positions,
     tetrahedron_set_t const& topology)
-    : physical_model_(topology), visual_model_(&physical_model_), collision_model_()
+    : body_t(simulation),
+      physical_model_(topology),
+      visual_model_(&physical_model_),
+      collision_model_()
 {
-    update_visual_model(particles);
+    for (auto const& x : positions)
+    {
+        particle_t const p{x};
+        simulation.add_particle(p, id());
+    }
+    update_visual_model(simulation.particles().at(id()));
 }
 
-tetrahedral_body_t::tetrahedral_body_t(common::geometry_t const& geometry)
-    : physical_model_(), visual_model_(), collision_model_()
+tetrahedral_body_t::tetrahedral_body_t(simulation_t& simulation, common::geometry_t const& geometry)
+    : body_t(simulation), physical_model_(), visual_model_(), collision_model_()
 {
     assert(geometry.geometry_type == common::geometry_t::geometry_type_t::tetrahedron);
     assert(geometry.has_indices());
@@ -44,6 +53,7 @@ tetrahedral_body_t::tetrahedral_body_t(common::geometry_t const& geometry)
         scalar_type const x = static_cast<scalar_type>(geometry.positions[idx]);
         scalar_type const y = static_cast<scalar_type>(geometry.positions[idx + 1u]);
         scalar_type const z = static_cast<scalar_type>(geometry.positions[idx + 2u]);
+        Eigen::Vector3d const pos{x, y, z};
 
         float const r = static_cast<float>(geometry.colors[idx] / 255.f);
         float const g = static_cast<float>(geometry.colors[idx + 1u] / 255.f);
@@ -51,6 +61,9 @@ tetrahedral_body_t::tetrahedral_body_t(common::geometry_t const& geometry)
 
         visual_model_.vertex(i).position = Eigen::Vector3d{x, y, z};
         visual_model_.vertex(i).color    = Eigen::Vector3f{r, g, b};
+
+        particle_t const p{pos};
+        simulation.add_particle(p, id());
     }
     visual_model_.compute_normals();
 
@@ -77,20 +90,30 @@ body_t::collision_model_type& tetrahedral_body_t::collision_model()
     return collision_model_;
 }
 
-void tetrahedral_body_t::update_visual_model(simulation_t const& simulation)
+void tetrahedral_body_t::update_visual_model()
 {
-    auto const& particles = simulation.particles()[id()];
+    auto const& particles = simulation().particles()[id()];
     update_visual_model(particles);
 }
 
-void tetrahedral_body_t::update_collision_model(simulation_t const& simulation)
+void tetrahedral_body_t::update_collision_model()
 {
-    collision_model_.update(simulation);
+    collision_model_.update(simulation());
 }
 
-void tetrahedral_body_t::update_physical_model(simulation_t const& simulation)
+void tetrahedral_body_t::update_physical_model()
 {
     // no-op
+}
+
+void tetrahedral_body_t::transform(Eigen::Affine3d const& affine)
+{
+    auto& particles = simulation().particles().at(id());
+    for (auto& p : particles)
+    {
+        p.x()  = affine * p.x();
+        p.xn() = affine * p.xn();
+    }
 }
 
 tetrahedron_set_t const& tetrahedral_body_t::physical_model() const

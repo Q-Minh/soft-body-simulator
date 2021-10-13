@@ -17,6 +17,7 @@ class environment_body_t : public body_t
 {
   public:
     environment_body_t(
+        simulation_t& simulation,
         common::geometry_t const& geometry,
         std::array<unsigned int, 3u> const& resolution = {10, 10, 10});
 
@@ -24,9 +25,10 @@ class environment_body_t : public body_t
     virtual collision_model_type const& collision_model() const override;
     virtual visual_model_type& visual_model() override;
     virtual collision_model_type& collision_model() override;
-    virtual void update_visual_model(simulation_t const& simulation) override;
-    virtual void update_collision_model(simulation_t const& simulation) override;
-    virtual void update_physical_model(simulation_t const& simulation) override;
+    virtual void update_visual_model() override;
+    virtual void update_collision_model() override;
+    virtual void update_physical_model() override;
+    virtual void transform(Eigen::Affine3d const& affine) override;
 
   private:
     common::static_mesh_t visual_model_;

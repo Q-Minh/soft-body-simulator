@@ -157,8 +157,6 @@ class renderer_t : public renderer_base_t
     shader_t wireframe_shader_;
     shader_t point_shader_;
 
-    bool should_render_wireframe_ = false;
-
     std::vector<float> points_;
     bool should_render_points_;
     unsigned int point_vbo_;

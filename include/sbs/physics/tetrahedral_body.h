@@ -17,22 +17,25 @@ struct geometry_t;
 
 namespace physics {
 
+class simulation_t;
+
 class tetrahedral_body_t : public body_t
 {
   public:
     using visual_model_type    = body_t::visual_model_type;
     using collision_model_type = body_t::collision_model_type;
 
-    tetrahedral_body_t(std::vector<particle_t> const& particles, tetrahedron_set_t const& topology);
-    tetrahedral_body_t(common::geometry_t const& geometry);
+    tetrahedral_body_t(simulation_t& simulation, std::vector<Eigen::Vector3d> const& positions, tetrahedron_set_t const& topology);
+    tetrahedral_body_t(simulation_t& simulation, common::geometry_t const& geometry);
 
     virtual visual_model_type const& visual_model() const override;
     virtual collision_model_type const& collision_model() const override;
     virtual visual_model_type& visual_model() override;
     virtual collision_model_type& collision_model() override;
-    virtual void update_visual_model(simulation_t const& simulation) override;
-    virtual void update_collision_model(simulation_t const& simulation) override;
-    virtual void update_physical_model(simulation_t const& simulation) override;
+    virtual void update_visual_model() override;
+    virtual void update_collision_model() override;
+    virtual void update_physical_model() override;
+    virtual void transform(Eigen::Affine3d const& affine) override;
 
     tetrahedron_set_t const& physical_model() const;
 

@@ -8,9 +8,11 @@ namespace sbs {
 namespace physics {
 
 environment_body_t::environment_body_t(
+    simulation_t& simulation,
     common::geometry_t const& geometry,
     std::array<unsigned int, 3u> const& resolution)
-    : visual_model_(geometry),
+    : body_t(simulation),
+      visual_model_(geometry),
       collision_model_(
           Eigen::AlignedBox3d{},
           {2, 2, 2}) /*dummy values, because Discregrid::CubicLagrangeGrid does not have a default
@@ -83,15 +85,19 @@ body_t::collision_model_type& environment_body_t::collision_model()
 {
     return collision_model_;
 }
-void environment_body_t::update_visual_model(simulation_t const& simulation)
+void environment_body_t::update_visual_model()
 {
     // no-op, static mesh, but might be changed to include local transformation later
 }
-void environment_body_t::update_collision_model(simulation_t const& simulation)
+void environment_body_t::update_collision_model()
 {
     // no-op, but might be changed to include local transformation later
 }
-void environment_body_t::update_physical_model(simulation_t const& simulation)
+void environment_body_t::update_physical_model()
+{
+    // no-op
+}
+void environment_body_t::transform(Eigen::Affine3d const& affine)
 {
     // no-op
 }

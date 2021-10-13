@@ -15,6 +15,14 @@ class particle_t
     using acceleration_type = Eigen::Vector3d;
     using force_type        = Eigen::Vector3d;
 
+    particle_t() = default;
+    particle_t(position_type const& p);
+
+    particle_t(particle_t const& other) = default;
+    particle_t(particle_t&& other)      = default;
+    particle_t& operator=(particle_t const& other) = default;
+    particle_t& operator=(particle_t&& other) = default;
+
     position_type const& x0() const;
     position_type const& x() const;
     position_type const& xi() const;
@@ -36,8 +44,8 @@ class particle_t
 
   private:
     position_type x0_;
-    position_type xn_;
     position_type xi_;
+    position_type xn_;
     position_type x_;
     velocity_type v_;
     force_type f_;

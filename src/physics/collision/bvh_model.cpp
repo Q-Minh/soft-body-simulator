@@ -127,7 +127,7 @@ void point_bvh_model_t::update(simulation_t const& simulation)
     kd_tree_type::update();
 }
 
-Eigen::Vector3d const& point_bvh_model_t::entityPosition(unsigned int i) const
+Eigen::Vector3d point_bvh_model_t::entityPosition(unsigned int i) const
 {
     Eigen::Vector3d const position = surface_->vertex(i).position;
     return position;

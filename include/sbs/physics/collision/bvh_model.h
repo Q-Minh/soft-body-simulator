@@ -70,7 +70,7 @@ class point_bvh_model_t : public collision_model_t,
   protected:
     using kd_tree_type = Discregrid::KDTree<Discregrid::BoundingSphere>;
 
-    virtual Eigen::Vector3d const& entityPosition(unsigned int i) const override final;
+    virtual Eigen::Vector3d entityPosition(unsigned int i) const override final;
     virtual void computeHull(unsigned int b, unsigned int n, Discregrid::BoundingSphere& hull)
         const override final;
 

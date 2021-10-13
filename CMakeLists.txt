@@ -198,21 +198,16 @@ PRIVATE
 
     # physics/collision
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_cd_system.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_collision_detector.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/bvh.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/bvh_model.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/cd_system.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_detector.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_model.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/contact.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/intersections.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/sdf_model.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_cd_system.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_collision_detector.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/bvh_model.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/cd_system.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_detector.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_model.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/contact.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/intersections.cpp"

@@ -29,9 +29,9 @@ int main(int argc, char** argv)
         std::make_unique<sbs::physics::tetrahedral_body_t>(simulation, beam_idx, beam_geometry);
     sbs::physics::tetrahedral_body_t& beam =
         *dynamic_cast<sbs::physics::tetrahedral_body_t*>(simulation.bodies()[beam_idx].get());
-    Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -10.)};
+    Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -1.)};
     beam_transform.rotate(
-        Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.1}.normalized()));
+        Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
     beam_transform.scale(Eigen::Vector3d{1.0, 0.8, 2.});
     beam.transform(beam_transform);
     for (auto const& tetrahedron : beam.physical_model().tetrahedra())
@@ -131,8 +131,8 @@ int main(int argc, char** argv)
 
     renderer.on_new_physics_timestep = throttler;
     renderer.camera().position().x   = 0.;
-    renderer.camera().position().y   = 1.;
-    renderer.camera().position().z   = 20.;
+    renderer.camera().position().y   = 5.;
+    renderer.camera().position().z   = 25.;
 
     renderer.pickers.clear();
     std::vector<sbs::common::shared_vertex_surface_mesh_i*> surfaces_to_pick{};
@@ -165,7 +165,6 @@ int main(int argc, char** argv)
     };
 
     renderer.pickers.push_back(fix_picker);
-
     renderer.on_new_imgui_frame = [&](sbs::physics::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 
@@ -201,9 +200,8 @@ int main(int argc, char** argv)
 
         if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            sbs::rendering::physics_timestep_throttler_t* throttler_ptr =
-                renderer.on_new_physics_timestep
-                    .target<sbs::rendering::physics_timestep_throttler_t>();
+            auto* throttler_ptr = renderer.on_new_physics_timestep
+                                      .target<sbs::rendering::physics_timestep_throttler_t>();
             static bool are_physics_active = throttler_ptr->are_physics_active();
             ImGui::Checkbox("Activate physics", &are_physics_active);
             if (are_physics_active)
@@ -214,8 +212,25 @@ int main(int argc, char** argv)
             {
                 throttler_ptr->deactivate_physics();
             }
-            std::string const fps_str = "FPS: " + std::to_string(throttler.fps());
+            static std::size_t windowed_fps_sum     = 0u;
+            static std::size_t num_frames           = 0u;
+            static std::size_t windowed_average_fps = 0.;
+            auto const fps                          = throttler_ptr->fps();
+            windowed_fps_sum += fps;
+            ++num_frames;
+
+            std::size_t constexpr window_size = 50u;
+            if (num_frames == window_size)
+            {
+                windowed_average_fps = windowed_fps_sum / num_frames;
+                num_frames           = 0u;
+                windowed_fps_sum     = 0u;
+            }
+
+            std::string const fps_str = "FPS: " + std::to_string(fps);
             ImGui::Text(fps_str.c_str());
+            std::string const fps_avg_str = "Mean FPS: " + std::to_string(windowed_average_fps);
+            ImGui::Text(fps_avg_str.c_str());
         }
 
         ImGui::End();

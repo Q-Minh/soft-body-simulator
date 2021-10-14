@@ -9,6 +9,14 @@
 namespace sbs {
 namespace physics {
 
+timestep_t::timestep_t(
+    scalar_type const dt,
+    std::size_t const iterations,
+    std::size_t const substeps)
+    : dt_(dt), iterations_(iterations), substeps_(substeps)
+{
+}
+
 void timestep_t::step(simulation_t& simulation)
 {
     scalar_type const dt = dt_ / static_cast<scalar_type>(substeps_);

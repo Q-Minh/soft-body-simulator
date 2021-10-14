@@ -131,9 +131,23 @@ void green_constraint_t::project_positions(simulation_t& simulation, scalar_type
         return;
 
     scalar_type const C           = V0 * psi;
-    scalar_type const alpha_tilde = alpha() / (dt * dt);
-    scalar_type const delta_lagrange =
-        -(C + alpha_tilde * lagrange_) / (weighted_sum_of_gradients + alpha_tilde);
+    scalar_type const dt2         = dt * dt;
+    scalar_type const alpha_tilde = alpha() / dt2;
+    scalar_type const beta_tilde  = beta() * dt2;
+    scalar_type const gamma       = alpha_tilde * beta_tilde / dt;
+
+    // clang-format off
+    scalar_type const gradC_dot_displacement =
+        f1.dot(p1.xi() - p1.xn()) + 
+        f2.dot(p2.xi() - p2.xn()) + 
+        f3.dot(p3.xi() - p3.xn()) +
+        f4.dot(p4.xi() - p4.xn());
+    // clang-format on
+
+    scalar_type const delta_lagrange_num =
+        -(C + alpha_tilde * lagrange_) + gamma * gradC_dot_displacement;
+    scalar_type const delta_lagrange_den = (1. + gamma) * (weighted_sum_of_gradients) + alpha_tilde;
+    scalar_type const delta_lagrange     = delta_lagrange_num / delta_lagrange_den;
 
     lagrange_ += delta_lagrange;
     // because f = - grad(potential), then grad(potential) = -f and thus grad(C) = -f

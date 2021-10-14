@@ -14,6 +14,9 @@ class solver_t;
 class timestep_t
 {
   public:
+    timestep_t() = default;
+    timestep_t(scalar_type const dt, std::size_t const iterations, std::size_t const substeps);
+
     void step(simulation_t& simulation);
 
     scalar_type dt() const;
@@ -29,10 +32,10 @@ class timestep_t
     std::unique_ptr<solver_t>& solver();
 
   private:
-    scalar_type dt_;
-    std::size_t iterations_;
-    std::size_t substeps_;
-    std::unique_ptr<solver_t> solver_;
+    scalar_type dt_{0.};
+    std::size_t iterations_{0u};
+    std::size_t substeps_{0u};
+    std::unique_ptr<solver_t> solver_{};
 };
 
 } // namespace physics

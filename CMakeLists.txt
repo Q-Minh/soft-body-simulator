@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(sbs VERSION 0.0.1 LANGUAGES CXX)
+project(sbs VERSION 0.0.1)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -13,7 +13,7 @@ if (NOT EXISTS "thirdparty/imgui")
 endif()
 
 if (_imgui_clone_failure)
-    message(FATAL_ERROR "Failed to download imgui")
+    message(STATUS "Failed to download imgui")
 endif()
 
 include(FetchContent)
@@ -92,6 +92,17 @@ PUBLIC
     IMGUI_IMPL_OPENGL_LOADER_GLAD=1
 )
 
+FetchContent_Declare(
+  _discregrid
+  GIT_REPOSITORY https://github.com/Q-Minh/Discregrid
+  GIT_TAG        master
+)
+FetchContent_MakeAvailable(_discregrid)
+set_target_properties(Discregrid
+PROPERTIES
+    DEBUG_POSTFIX "_d"
+)
+
 # Should make the library shared in the future
 add_library(sbs STATIC)
 add_library(sbs::sbs ALIAS sbs)
@@ -110,9 +121,12 @@ PUBLIC
     Eigen3::Eigen 
     glm::glm
     Threads::Threads
+    Discregrid
 )
 target_sources(sbs 
 PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/aliases.h"
+
     # common
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/geometry.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/mesh.h"
@@ -129,9 +143,11 @@ PRIVATE
     #geometry 
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_bar_model.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_cloth_model.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_plane_model.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_bar_model.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_cloth_model.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_plane_model.cpp"
 
     # io
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/io/endianness.hpp"
@@ -143,37 +159,59 @@ PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/io/ply.cpp"
 
     # physics
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mesh.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/topological_mesh.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/environment_body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/gauss_seidel_solver.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/particle.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/simulation.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/solver.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/tetrahedral_body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/timestep.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/tetrahedral_mesh_boundary.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/topology.h"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mesh.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/topological_mesh.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/environment_body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/gauss_seidel_solver.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/particle.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/simulation.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/solver.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/tetrahedral_body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/timestep.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/tetrahedral_mesh_boundary.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/topology.cpp"
 
     # physics/xpbd
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/collision_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/mesh.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/simulation_parameters.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/solver.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/collision_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/mesh.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/simulation_parameters.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/solver.cpp"
 
     # physics/collision
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_collision_detector.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_detector.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_cd_system.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/bvh_model.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/cd_system.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_model.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/contact.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/intersections.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/sdf_model.h"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_collision_detector.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_detector.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_cd_system.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/bvh_model.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/cd_system.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_model.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/contact.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/intersections.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/sdf_model.cpp"
 
     # physics/cutting
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/cutting/cut_tetrahedron.h"
@@ -184,18 +222,20 @@ PRIVATE
 
     # rendering
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/camera.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/light.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/physics_timestep_throttler.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/pick.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/renderer.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/shader.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/trackball_rotation_adapter.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/physics_timestep_throttler.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/pick.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/camera.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/light.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/physics_timestep_throttler.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/pick.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/shader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/trackball_rotation_adapter.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/physics_timestep_throttler.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/pick.cpp"
 )
 target_include_directories(sbs 
 PUBLIC 
@@ -206,10 +246,14 @@ PUBLIC
         >
 )
 
+add_executable(tester)
+target_sources(tester PRIVATE main.cpp)
+target_link_libraries(tester PRIVATE sbs)
+
 include(GNUInstallDirs)
 
 install(
-    TARGETS sbs glad imgui glfw
+    TARGETS sbs glad imgui glfw Discregrid
     EXPORT sbs_targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

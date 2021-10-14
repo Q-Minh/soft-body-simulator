@@ -1,5 +1,7 @@
 #include "sbs/rendering/physics_timestep_throttler.h"
 
+#include "sbs/physics/simulation.h"
+
 #include <chrono>
 
 namespace sbs {
@@ -10,12 +12,12 @@ physics_timestep_throttler_t::physics_timestep_throttler_t(
     std::function<void(
         physics_timestep_throttler_t& /*throttler*/,
         double /*physics_dt*/,
-        common::scene_t& /*scene*/)> step)
+        physics::simulation_t& /*simulation*/)> step)
     : tb_{0.}, timestep_(timestep), fps_{0u}, step_(step), are_physics_active_{false}
 {
 }
 
-void physics_timestep_throttler_t::operator()(double frame_dt, common::scene_t& scene)
+void physics_timestep_throttler_t::operator()(double frame_dt, physics::simulation_t& simulation)
 {
     tb_ += frame_dt;
     auto const time_between_frames = tb_;
@@ -33,7 +35,7 @@ void physics_timestep_throttler_t::operator()(double frame_dt, common::scene_t& 
 
     auto const begin = std::chrono::steady_clock::now();
 
-    step_(*this, timestep_, scene);
+    step_(*this, timestep_, simulation);
 
     auto const end      = std::chrono::steady_clock::now();
     auto const duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count();

@@ -6,8 +6,9 @@
 #include <GLFW/glfw3.h>
 // clang-format on
 
-#include "sbs/common/scene.h"
 #include "camera.h"
+#include "light.h"
+#include "sbs/common/node.h"
 #include "shader.h"
 
 #include <array>
@@ -16,6 +17,12 @@
 #include <list>
 
 namespace sbs {
+namespace physics {
+
+class simulation_t;
+
+} // namespace physics
+
 namespace rendering {
 
 // forward declare
@@ -60,12 +67,14 @@ class renderer_base_t
 class renderer_t : public renderer_base_t
 {
   public:
-    bool initialize();
-    void unload_current_scene();
-    void load_scene(common::scene_t const& scene);
+    renderer_t(
+        physics::simulation_t& simulation,
+        point_light_t const& point_light,
+        directional_light_t const& directional_light);
 
-    void remove_object_from_scene(std::uint32_t object_idx);
-    std::uint32_t add_object_to_scene(std::shared_ptr<common::renderable_node_t> const& node);
+    ~renderer_t();
+
+    bool initialize();
 
     bool use_mesh_shaders(
         std::filesystem::path const& vertex_shader_path,
@@ -88,7 +97,7 @@ class renderer_t : public renderer_base_t
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
     camera_t const& camera() const { return camera_; }
-    common::scene_t const& scene() const { return scene_; }
+    camera_t& camera() { return camera_; }
 
     void add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point);
     void clear_points();
@@ -96,12 +105,10 @@ class renderer_t : public renderer_base_t
     /**
      * Render loop hooks
      */
-    std::function<void(common::scene_t&)> on_scene_loaded;
-    std::function<void(common::scene_t&)> on_new_imgui_frame;
-    std::function<void(double /*render_frame_dt*/, common::scene_t& /*scene*/)>
+    std::function<void(physics::simulation_t&)> on_new_imgui_frame;
+    std::function<void(double /*render_frame_dt*/, physics::simulation_t& /*scene*/)>
         on_new_physics_timestep;
-    std::function<void(std::shared_ptr<common::renderable_node_t>)> on_node_rendered;
-    std::function<void(common::scene_t&)> on_pre_render;
+    std::function<void(physics::simulation_t&)> on_pre_render;
 
     /**
      * User input hooks
@@ -122,8 +129,7 @@ class renderer_t : public renderer_base_t
     virtual void
     mouse_button_callback(GLFWwindow* window, int button, int action, int mods) override;
 
-    void
-    render_objects(std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const;
+    void render_objects(std::vector<common::renderable_node_t*> const& objects) const;
 
     void render_points();
 
@@ -132,11 +138,9 @@ class renderer_t : public renderer_base_t
         int position_attribute_location,
         int normal_attribute_location,
         int color_attribute_location,
-        std::shared_ptr<common::renderable_node_t> const& object) const;
+        common::renderable_node_t const* object) const;
 
-    void transfer_indices_to_gpu(
-        unsigned int EBO,
-        std::shared_ptr<common::renderable_node_t> const& object) const;
+    void transfer_indices_to_gpu(unsigned int EBO, common::renderable_node_t const* object) const;
 
     void update_shader_view_projection_uniforms(shader_t const& shader) const;
     void update_shader_lighting_uniforms(shader_t const& shader) const;
@@ -149,15 +153,16 @@ class renderer_t : public renderer_base_t
     void process_input(GLFWwindow* window, double dt);
 
   private:
-    common::scene_t scene_;
+    physics::simulation_t& simulation_;
+    point_light_t point_light_;
+    directional_light_t directional_light_;
+
     camera_t camera_;
 
     GLFWwindow* window_;
     shader_t mesh_shader_;
     shader_t wireframe_shader_;
     shader_t point_shader_;
-
-    bool should_render_wireframe_ = false;
 
     std::vector<float> points_;
     bool should_render_points_;

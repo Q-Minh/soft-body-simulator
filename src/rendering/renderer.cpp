@@ -5,11 +5,221 @@
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>
 #include <imgui/imgui.h>
+#include <sbs/physics/simulation.h>
 
 namespace sbs {
 namespace rendering {
 
 renderer_base_t* renderer_base_t::active_renderer = nullptr;
+
+renderer_t::renderer_t(
+    physics::simulation_t& simulation,
+    point_light_t const& point_light,
+    directional_light_t const& directional_light)
+    : simulation_(simulation),
+      point_light_(point_light),
+      directional_light_(directional_light),
+      camera_(),
+      window_(),
+      mesh_shader_(),
+      wireframe_shader_(),
+      point_shader_(),
+      points_(),
+      should_render_points_(),
+      point_vbo_(),
+      point_vao_()
+{
+    initialize();
+}
+
+renderer_t::~renderer_t()
+{
+    close();
+}
+
+bool renderer_t::initialize()
+{
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+
+    int const width    = static_cast<int>(get_initial_window_width());
+    int const height   = static_cast<int>(get_initial_window_height());
+    GLFWwindow* window = glfwCreateWindow(width, height, "Soft Body Simulator", NULL, NULL);
+    if (window == NULL)
+    {
+        return false;
+    }
+    glfwMakeContextCurrent(window);
+
+    this->set_as_active_renderer();
+    glfwSetFramebufferSizeCallback(window, renderer_base_t::framebuffer_size_callback_dispatcher);
+    glfwSetMouseButtonCallback(window, renderer_base_t::mouse_button_callback_dispatcher);
+    glfwSetCursorPosCallback(window, renderer_base_t::mouse_move_callback_dispatcher);
+    glfwSetScrollCallback(window, renderer_base_t::scroll_callback_dispatcher);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        return false;
+    }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
+    window_ = window;
+
+    glGenVertexArrays(1, &point_vao_);
+    glGenBuffers(1, &point_vbo_);
+
+    auto const create_objects_for_opengl =
+        [](std::vector<std::unique_ptr<physics::body_t>> const& bodies) {
+            for (std::unique_ptr<physics::body_t> const& body : bodies)
+            {
+                common::renderable_node_t& object = body->visual_model();
+                unsigned int& VAO                 = object.VAO();
+                unsigned int& VBO                 = object.VBO();
+                unsigned int& EBO                 = object.EBO();
+
+                glGenVertexArrays(1, &VAO);
+                glGenBuffers(1, &VBO);
+                glGenBuffers(1, &EBO);
+
+                object.mark_vertices_dirty();
+                object.mark_indices_dirty();
+            }
+        };
+
+    create_objects_for_opengl(simulation_.bodies());
+
+    return true;
+}
+
+bool renderer_t::use_mesh_shaders(
+    std::filesystem::path const& vertex_shader_path,
+    std::filesystem::path const& fragment_shader_path)
+{
+    mesh_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
+    return mesh_shader_.should_use();
+}
+
+bool renderer_t::use_wireframe_shaders(
+    std::filesystem::path const& vertex_shader_path,
+    std::filesystem::path const& fragment_shader_path)
+{
+    wireframe_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
+    return wireframe_shader_.should_use();
+}
+
+bool renderer_t::use_point_shaders(
+    std::filesystem::path const& vertex_shader_path,
+    std::filesystem::path const& fragment_shader_path)
+{
+    point_shader_ = shader_t(vertex_shader_path, fragment_shader_path);
+    return point_shader_.should_use();
+}
+
+void renderer_t::launch()
+{
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_POINT_SMOOTH);
+
+    double last_frame_time = 0.f;
+    while (!glfwWindowShouldClose(window_))
+    {
+        glfwPollEvents();
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        double const now = glfwGetTime();
+        double const dt  = now - last_frame_time;
+        last_frame_time  = now;
+
+        process_input(window_, dt);
+
+        if (on_new_imgui_frame)
+        {
+            on_new_imgui_frame(simulation_);
+        }
+
+        if (on_new_physics_timestep)
+        {
+            on_new_physics_timestep(dt, simulation_);
+        }
+
+        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if (on_pre_render)
+        {
+            on_pre_render(simulation_);
+        }
+
+        std::vector<common::renderable_node_t*> objects{};
+        std::transform(
+            simulation_.bodies().begin(),
+            simulation_.bodies().end(),
+            std::back_inserter(objects),
+            [](std::unique_ptr<physics::body_t>& body) { return &body->visual_model(); });
+        render_objects(objects);
+
+        if (should_render_points_)
+            render_points();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        glfwSwapBuffers(window_);
+    }
+}
+
+void renderer_t::close()
+{
+    auto const delete_objects_from_opengl =
+        [](std::vector<std::unique_ptr<physics::body_t>> const& bodies) {
+            for (std::unique_ptr<physics::body_t> const& body : bodies)
+            {
+                common::renderable_node_t const& object = body->visual_model();
+                glDeleteVertexArrays(1, &(object.VAO()));
+                glDeleteBuffers(1, &(object.VBO()));
+                glDeleteBuffers(1, &(object.EBO()));
+            }
+        };
+
+    delete_objects_from_opengl(simulation_.bodies());
+
+    mesh_shader_.destroy();
+    wireframe_shader_.destroy();
+    point_shader_.destroy();
+    glfwTerminate();
+}
+
+void renderer_t::add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point)
+{
+    std::copy(
+        xyz_nxnynz_rgb_point.begin(),
+        xyz_nxnynz_rgb_point.end(),
+        std::back_inserter(points_));
+    should_render_points_ = true;
+}
+
+void renderer_t::clear_points()
+{
+    points_.clear();
+    should_render_points_ = true;
+}
 
 void renderer_t::process_input(GLFWwindow* window, double dt)
 {
@@ -130,15 +340,14 @@ void renderer_t::mouse_button_callback(GLFWwindow* window, int button, int actio
     }
 }
 
-void renderer_t::render_objects(
-    std::vector<std::shared_ptr<common::renderable_node_t>> const& objects) const
+void renderer_t::render_objects(std::vector<common::renderable_node_t*> const& objects) const
 {
     /**
      * Render the scene. Transfers data to the GPU every frame, since
      * we are primarily working with soft bodies. This is of course
      * not optimal, but is great for prototyping.
      */
-    for (std::shared_ptr<common::renderable_node_t> const& object : objects)
+    for (common::renderable_node_t* object : objects)
     {
         bool const should_render_wireframe = object->should_render_wireframe();
 
@@ -198,11 +407,6 @@ void renderer_t::render_objects(
          * Draw the mesh
          */
         glDrawElements(GL_TRIANGLES, static_cast<int>(num_indices), GL_UNSIGNED_INT, 0);
-
-        if (on_node_rendered)
-        {
-            on_node_rendered(object);
-        }
 
         /**
          * Unbind buffers and vertex arrays
@@ -277,242 +481,12 @@ void renderer_t::render_points()
     should_render_points_ = false;
 }
 
-bool renderer_t::initialize()
-{
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
-
-    int const width    = static_cast<int>(get_initial_window_width());
-    int const height   = static_cast<int>(get_initial_window_height());
-    GLFWwindow* window = glfwCreateWindow(width, height, "Soft Body Simulator", NULL, NULL);
-    if (window == NULL)
-    {
-        return false;
-    }
-    glfwMakeContextCurrent(window);
-
-    this->set_as_active_renderer();
-    glfwSetFramebufferSizeCallback(window, renderer_base_t::framebuffer_size_callback_dispatcher);
-    glfwSetMouseButtonCallback(window, renderer_base_t::mouse_button_callback_dispatcher);
-    glfwSetCursorPosCallback(window, renderer_base_t::mouse_move_callback_dispatcher);
-    glfwSetScrollCallback(window, renderer_base_t::scroll_callback_dispatcher);
-
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        return false;
-    }
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-
-    ImGui::StyleColorsDark();
-
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
-
-    window_ = window;
-
-    glGenVertexArrays(1, &point_vao_);
-    glGenBuffers(1, &point_vbo_);
-
-    return true;
-}
-
-void renderer_t::unload_current_scene()
-{
-    auto const delete_objects_from_opengl = [](auto const& objects) {
-        for (auto const& object : objects)
-        {
-            glDeleteVertexArrays(1, &(object->VAO()));
-            glDeleteBuffers(1, &(object->VBO()));
-            glDeleteBuffers(1, &(object->EBO()));
-        }
-    };
-
-    delete_objects_from_opengl(scene_.nodes);
-}
-
-void renderer_t::load_scene(common::scene_t const& scene)
-{
-    auto const create_objects_for_opengl = [](auto const& objects) {
-        for (std::shared_ptr<common::renderable_node_t> const& object : objects)
-        {
-            unsigned int& VAO = object->VAO();
-            unsigned int& VBO = object->VBO();
-            unsigned int& EBO = object->EBO();
-
-            glGenVertexArrays(1, &VAO);
-            glGenBuffers(1, &VBO);
-            glGenBuffers(1, &EBO);
-
-            object->mark_vertices_dirty();
-            object->mark_indices_dirty();
-        }
-    };
-
-    scene_ = scene;
-
-    create_objects_for_opengl(scene_.nodes);
-
-    if (on_scene_loaded)
-    {
-        on_scene_loaded(scene_);
-    }
-}
-
-void renderer_t::remove_object_from_scene(std::uint32_t object_idx)
-{
-    auto const& object = scene_.nodes[object_idx];
-    glDeleteVertexArrays(1, &(object->VAO()));
-    glDeleteBuffers(1, &(object->VBO()));
-    glDeleteBuffers(1, &(object->EBO()));
-    scene_.nodes.erase(scene_.nodes.begin() + object_idx);
-}
-
-std::uint32_t
-renderer_t::add_object_to_scene(std::shared_ptr<common::renderable_node_t> const& node)
-{
-    auto const object_idx = scene_.nodes.size();
-
-    unsigned int& VAO = node->VAO();
-    unsigned int& VBO = node->VBO();
-    unsigned int& EBO = node->EBO();
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    node->mark_vertices_dirty();
-    node->mark_indices_dirty();
-
-    scene_.nodes.push_back(node);
-
-    return static_cast<std::uint32_t>(object_idx);
-}
-
-bool renderer_t::use_mesh_shaders(
-    std::filesystem::path const& vertex_shader_path,
-    std::filesystem::path const& fragment_shader_path)
-{
-    mesh_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
-    return mesh_shader_.should_use();
-}
-
-bool renderer_t::use_wireframe_shaders(
-    std::filesystem::path const& vertex_shader_path,
-    std::filesystem::path const& fragment_shader_path)
-{
-    wireframe_shader_ = shader_t{vertex_shader_path, fragment_shader_path};
-    return wireframe_shader_.should_use();
-}
-
-bool renderer_t::use_point_shaders(
-    std::filesystem::path const& vertex_shader_path,
-    std::filesystem::path const& fragment_shader_path)
-{
-    point_shader_ = shader_t(vertex_shader_path, fragment_shader_path);
-    return point_shader_.should_use();
-}
-
-void renderer_t::launch()
-{
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_PROGRAM_POINT_SIZE);
-    glEnable(GL_POINT_SMOOTH);
-
-    double last_frame_time = 0.f;
-    while (!glfwWindowShouldClose(window_))
-    {
-        glfwPollEvents();
-
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        double const now = glfwGetTime();
-        double const dt  = now - last_frame_time;
-        last_frame_time  = now;
-
-        process_input(window_, dt);
-
-        if (on_new_imgui_frame)
-        {
-            on_new_imgui_frame(scene_);
-        }
-
-        if (on_new_physics_timestep)
-        {
-            on_new_physics_timestep(dt, scene_);
-        }
-
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        if (on_pre_render)
-        {
-            on_pre_render(scene_);
-        }
-
-        render_objects(scene_.nodes);
-
-        if (should_render_points_)
-            render_points();
-
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        glfwSwapBuffers(window_);
-    }
-}
-
-void renderer_t::close()
-{
-    auto const delete_object_from_opengl = [](auto const& objects) {
-        for (auto const& object : objects)
-        {
-            auto& VAO = object->VAO();
-            auto& VBO = object->VBO();
-            auto& EBO = object->EBO();
-
-            glDeleteVertexArrays(1, &VAO);
-            glDeleteBuffers(1, &VBO);
-            glDeleteBuffers(1, &EBO);
-        }
-    };
-    delete_object_from_opengl(scene_.nodes);
-
-    mesh_shader_.destroy();
-    glfwTerminate();
-}
-
-void renderer_t::add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point)
-{
-    std::copy(
-        xyz_nxnynz_rgb_point.begin(),
-        xyz_nxnynz_rgb_point.end(),
-        std::back_inserter(points_));
-    should_render_points_ = true;
-}
-
-void renderer_t::clear_points()
-{
-    points_.clear();
-    should_render_points_ = true;
-}
-
 void renderer_t::transfer_vertices_to_gpu(
     unsigned int VBO,
     int position_attribute_location,
     int normal_attribute_location,
     int color_attribute_location,
-    std::shared_ptr<common::renderable_node_t> const& object) const
+    common::renderable_node_t const* object) const
 {
     auto constexpr num_bytes_per_float = sizeof(float);
     auto constexpr size_of_one_vertex  = 3u * num_bytes_per_float /* x,y,z coordinates */ +
@@ -567,9 +541,8 @@ void renderer_t::transfer_vertices_to_gpu(
     glEnableVertexAttribArray(color_attribute_location);
 }
 
-void renderer_t::transfer_indices_to_gpu(
-    unsigned int EBO,
-    std::shared_ptr<common::renderable_node_t> const& object) const
+void renderer_t::transfer_indices_to_gpu(unsigned int EBO, common::renderable_node_t const* object)
+    const
 {
     std::vector<std::uint32_t> const& indices = object->get_cpu_index_buffer();
     auto const num_indices                    = indices.size();
@@ -602,8 +575,8 @@ void renderer_t::update_shader_view_projection_uniforms(shader_t const& shader) 
 
 void renderer_t::update_shader_lighting_uniforms(shader_t const& shader) const
 {
-    auto const& directional_light = scene_.directional_light;
-    auto const& point_light       = scene_.point_light;
+    auto const& directional_light = directional_light_;
+    auto const& point_light       = point_light_;
 
     shader.set_vec3_uniform("ViewPosition", camera_.position());
 

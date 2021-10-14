@@ -3,23 +3,26 @@
 
 #include "node.h"
 
+#include <Eigen/Core>
+#include <array>
+
 namespace sbs {
 namespace common {
 
 struct geometry_t;
 
-class shared_vertex_surface_mesh_i
+class shared_vertex_surface_mesh_i : public renderable_node_t
 {
   public:
     struct vertex_type
     {
-        double x, y, z;
-        double nx, ny, nz;
-        float r, g, b;
+        Eigen::Vector3d position{0.f, 0.f, 0.f};
+        Eigen::Vector3d normal{0.f, 0.f, 0.f};
+        Eigen::Vector3f color{0.f, 0.f, 0.f};
     };
     struct triangle_type
     {
-        std::uint32_t v1, v2, v3;
+        std::array<std::uint32_t, 3u> vertices;
     };
 
     virtual std::size_t triangle_count() const = 0;
@@ -27,13 +30,16 @@ class shared_vertex_surface_mesh_i
 
     virtual vertex_type vertex(std::size_t vi) const    = 0;
     virtual triangle_type triangle(std::size_t f) const = 0;
+
+    virtual void prepare_vertices_for_rendering() = 0;
+    virtual void prepare_indices_for_rendering()  = 0;
 };
 
-class static_mesh : public renderable_node_t, public shared_vertex_surface_mesh_i
+class static_mesh_t : public shared_vertex_surface_mesh_i
 {
   public:
-    static_mesh() = default;
-    static_mesh(geometry_t const& geometry);
+    static_mesh_t() = default;
+    static_mesh_t(geometry_t const& geometry);
 
     virtual void prepare_vertices_for_rendering() override;
     virtual void prepare_indices_for_rendering() override;
@@ -48,7 +54,7 @@ class static_mesh : public renderable_node_t, public shared_vertex_surface_mesh_
 /**
  * @brief Shared vertex surface mesh that can have its vertices and indices modified and rendered.
  */
-class dynamic_surface_mesh : public renderable_node_t, public shared_vertex_surface_mesh_i
+class dynamic_surface_mesh : public shared_vertex_surface_mesh_i
 {
   public:
     using vertex_type   = shared_vertex_surface_mesh_i::vertex_type;

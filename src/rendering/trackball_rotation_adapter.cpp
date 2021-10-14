@@ -13,7 +13,7 @@ static Eigen::Vector3d geometric_center(common::dynamic_surface_mesh const& mesh
     for (std::size_t vi = 0u; vi < mesh.vertex_count(); ++vi)
     {
         auto const& v = mesh.vertex(vi);
-        mu += Eigen::Vector3d{v.x, v.y, v.z};
+        mu += v.position;
     }
 
     mu = mu.array() / mesh.vertex_count();
@@ -24,12 +24,9 @@ static void rotate(common::dynamic_surface_mesh& mesh, Eigen::Matrix3d const& ro
 {
     for (std::size_t vi = 0u; vi < mesh.vertex_count(); ++vi)
     {
-        auto& v = mesh.mutable_vertex(vi);
-        Eigen::Vector3d p{v.x, v.y, v.z};
-        p   = rotation * p;
-        v.x = p.x();
-        v.y = p.y();
-        v.z = p.z();
+        auto& v            = mesh.mutable_vertex(vi);
+        Eigen::Vector3d& p = v.position;
+        p                  = rotation * p;
     }
 }
 
@@ -38,9 +35,7 @@ static void translate(common::dynamic_surface_mesh& mesh, Eigen::Vector3d const&
     for (std::size_t vi = 0u; vi < mesh.vertex_count(); ++vi)
     {
         auto& v = mesh.mutable_vertex(vi);
-        v.x += t.x();
-        v.y += t.y();
-        v.z += t.z();
+        v.position += t;
     }
 }
 

@@ -12,7 +12,7 @@ namespace rendering {
 
 picker_t::picker_t(
     renderer_t const* renderer,
-    std::vector<std::shared_ptr<common::shared_vertex_surface_mesh_i>> const& nodes)
+    std::vector<common::shared_vertex_surface_mesh_i*> const& nodes)
     : renderer_(renderer),
       nodes_(nodes),
       is_node_picked_(nodes.size(), false),

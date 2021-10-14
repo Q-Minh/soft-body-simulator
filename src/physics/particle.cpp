@@ -49,7 +49,7 @@ bool particle_t::fixed() const
 }
 particle_t::acceleration_type particle_t::a() const
 {
-    return f_ / m_;
+    return f_ * invmass();
 }
 
 particle_t::position_type& particle_t::x0()

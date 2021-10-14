@@ -29,7 +29,7 @@ class picker_t
   public:
     picker_t(
         renderer_t const* renderer,
-        std::vector<std::shared_ptr<common::shared_vertex_surface_mesh_i>> const& nodes);
+        std::vector<common::shared_vertex_surface_mesh_i*> const& nodes);
 
     void mouse_button_pressed_event(GLFWwindow* window, int button, int action, int mods);
     void mouse_moved_event(GLFWwindow* window, double x, double y);
@@ -48,20 +48,18 @@ class picker_t
         bool /*ctrl key pressed*/,
         bool /*shift key pressed*/)>
         should_picking_stop;
-    std::function<bool(std::shared_ptr<common::shared_vertex_surface_mesh_i>)> should_pick;
+    std::function<bool(common::shared_vertex_surface_mesh_i*)> should_pick;
 
     /**
      * Optional callbacks
      */
-    std::function<void(std::shared_ptr<common::shared_vertex_surface_mesh_i>, std::uint32_t)>
-        picked;
-    std::function<void(std::shared_ptr<common::shared_vertex_surface_mesh_i>, std::uint32_t)>
-        unpicked;
+    std::function<void(common::shared_vertex_surface_mesh_i*, std::uint32_t)> picked;
+    std::function<void(common::shared_vertex_surface_mesh_i*, std::uint32_t)> unpicked;
     std::function<void(
         double dx,
         double dy,
         Eigen::Vector3d const& /*d*/,
-        std::shared_ptr<common::shared_vertex_surface_mesh_i> /*node*/,
+        common::shared_vertex_surface_mesh_i* /*node*/,
         std::uint32_t /*picked vertex*/)>
         on_picker_moved;
 
@@ -69,7 +67,7 @@ class picker_t
     void unpick();
 
     renderer_t const* renderer_;
-    std::vector<std::shared_ptr<common::shared_vertex_surface_mesh_i>> nodes_;
+    std::vector<common::shared_vertex_surface_mesh_i*> nodes_;
     std::vector<bool> is_node_picked_;
     std::vector<std::uint32_t> picked_vertices_;
     bool is_picking_;

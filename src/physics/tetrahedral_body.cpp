@@ -123,8 +123,10 @@ void tetrahedral_body_t::transform(Eigen::Affine3d const& affine)
     auto& particles = simulation().particles().at(id());
     for (auto& p : particles)
     {
-        p.x()  = affine * p.x().homogeneous();
+        p.x0() = affine * p.x0().homogeneous();
+        p.xi() = affine * p.xi().homogeneous();
         p.xn() = affine * p.xn().homogeneous();
+        p.x()  = affine * p.x().homogeneous();
     }
     update_visual_model(particles);
 }

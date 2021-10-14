@@ -37,6 +37,11 @@ int main(int argc, char** argv)
         std::make_unique<sbs::physics::tetrahedral_body_t>(simulation, beam_idx, beam_geometry);
     sbs::physics::tetrahedral_body_t& beam =
         *dynamic_cast<sbs::physics::tetrahedral_body_t*>(simulation.bodies()[beam_idx].get());
+    Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -10.)};
+    beam_transform.rotate(
+        Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.1}.normalized()));
+    beam_transform.scale(Eigen::Vector3d{1.0, 0.8, 2.});
+    beam.transform(beam_transform);
     for (auto const& tetrahedron : beam.physical_model().tetrahedra())
     {
         auto const alpha = simulation.simulation_parameters().compliance;
@@ -55,9 +60,6 @@ int main(int argc, char** argv)
             E,
             nu));
     }
-    Eigen::Affine3d beam_transform{Eigen::Translation3d(0., 3., -10.)};
-    beam_transform.rotate(Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d::UnitY()));
-    beam.transform(beam_transform);
 
     sbs::common::geometry_t floor_geometry =
         sbs::geometry::get_simple_plane_model({-20., -20.}, {20., 20.}, 0., 1e-2);
@@ -76,11 +78,6 @@ int main(int argc, char** argv)
         floor_idx,
         floor_geometry,
         floor_collision_model));
-
-    //auto const floor =
-    //    *dynamic_cast<sbs::physics::environment_body_t*>(simulation.bodies()[floor_idx].get());
-    //sbs::physics::collision::sdf_model_t const& sdf_model = floor.sdf();
-    //auto const [sd, grad]                                 = sdf_model.evaluate({0., -0.5, 0.});
 
     /**
      * Setup collision detection
@@ -129,7 +126,7 @@ int main(int argc, char** argv)
      * Setup time integration technique
      */
     sbs::physics::timestep_t timestep{};
-    timestep.dt()         = 0.005;
+    timestep.dt()         = 0.016;
     timestep.iterations() = 5u;
     timestep.substeps()   = 1u;
     timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
@@ -142,7 +139,9 @@ int main(int argc, char** argv)
     throttler.activate_physics();
 
     renderer.on_new_physics_timestep = throttler;
-
+    renderer.camera().position().x   = 0.;
+    renderer.camera().position().y   = 1.;
+    renderer.camera().position().z   = 20.;
     renderer.launch();
 
     // sbs::rendering::renderer_t renderer{};

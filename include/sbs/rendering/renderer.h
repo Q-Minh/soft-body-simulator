@@ -97,6 +97,7 @@ class renderer_t : public renderer_base_t
     std::uint32_t constexpr get_initial_window_height() const { return 600u; }
 
     camera_t const& camera() const { return camera_; }
+    camera_t& camera() { return camera_; }
 
     void add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point);
     void clear_points();

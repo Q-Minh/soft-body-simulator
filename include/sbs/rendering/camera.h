@@ -52,6 +52,7 @@ class camera_t
     glm::vec3 right() const { return right_; }
 
     glm::vec3 const& position() const { return position_; }
+    glm::vec3& position() { return position_; }
 
     void handle_keyboard(movement_t direction, float dt);
 

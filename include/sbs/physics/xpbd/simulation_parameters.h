@@ -16,14 +16,14 @@ struct simulation_parameters_t
      * FEM parameters
      */
     scalar_type young_modulus = 1e6;
-    scalar_type poisson_ratio = 0.45;
+    scalar_type poisson_ratio = 0.30;
 
     /*
      * Spring parameters
      */
     scalar_type hooke_coefficient = 1.;
 
-    scalar_type collision_compliance = 1e-6;
+    scalar_type collision_compliance = 1e-8;
     scalar_type collision_damping    = 0.;
 };
 

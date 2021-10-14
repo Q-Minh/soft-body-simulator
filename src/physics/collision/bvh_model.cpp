@@ -22,8 +22,7 @@ primitive_type_t point_bvh_model_t::primitive_type() const
 }
 
 point_bvh_model_t::point_bvh_model_t(common::shared_vertex_surface_mesh_i const* surface)
-    : Discregrid::KDTree<Discregrid::BoundingSphere>(surface->vertex_count()),
-      surface_(surface)
+    : Discregrid::KDTree<Discregrid::BoundingSphere>(surface->vertex_count()), surface_(surface)
 {
     kd_tree_type::construct();
 }
@@ -36,12 +35,32 @@ void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& han
     {
         sdf_model_t const& sdf_model = reinterpret_cast<sdf_model_t const&>(other);
 
+        auto const closest_point_on_aabb = [](Eigen::Vector3d const& p,
+                                              Eigen::AlignedBox3d const& aabb) {
+            Eigen::Vector3d c = p;
+            c.x()             = std::clamp(c.x(), aabb.min().x(), aabb.max().x());
+            c.y()             = std::clamp(c.y(), aabb.min().y(), aabb.max().y());
+            c.z()             = std::clamp(c.z(), aabb.min().z(), aabb.max().z());
+            return c;
+        };
+
         auto const is_sphere_colliding_with_sdf =
-            [this, &sdf_model](unsigned int node_idx, unsigned int depth) -> bool {
-            Discregrid::BoundingSphere const& s = this->hull(node_idx);
-            auto const [signed_distance, grad]  = sdf_model.evaluate(s.x());
-            bool const is_sphere_penetrating    = s.r() > std::abs(signed_distance);
-            return is_sphere_penetrating;
+            [this, &sdf_model, closest_point_on_aabb](unsigned int node_idx, unsigned int depth) -> bool {
+            Discregrid::BoundingSphere const& s                     = this->hull(node_idx);
+            Eigen::AlignedBox3d const& sdf_englobing_volume         = sdf_model.volume();
+
+            auto const [sd, grad] = sdf_model.evaluate(s.x());
+            if (sd < 0.)
+                return true;
+
+            Eigen::Vector3d closest_point =
+                closest_point_on_aabb(s.x(), sdf_englobing_volume);
+
+            Eigen::Vector3d const diff = s.x() - closest_point;
+            scalar_type const dist2    = diff.squaredNorm();
+            scalar_type const r2       = s.r() * s.r();
+
+            return dist2 < r2;
         };
 
         auto const contact_callback =
@@ -66,8 +85,8 @@ void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& han
 
                     surface_mesh_particle_to_sdf_contact_t contact(
                         contact_t::type_t::surface_particle_to_sdf,
-                        sdf_model.id(),
                         this->id(),
+                        sdf_model.id(),
                         contact_point,
                         contact_normal,
                         vi);

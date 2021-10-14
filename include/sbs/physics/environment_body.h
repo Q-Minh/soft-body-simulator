@@ -20,7 +20,14 @@ class environment_body_t : public body_t
         simulation_t& simulation,
         index_type id,
         common::geometry_t const& geometry,
+        Eigen::AlignedBox3d const& domain,
         std::array<unsigned int, 3u> const& resolution = {10, 10, 10});
+
+    environment_body_t(
+        simulation_t& simulation,
+        index_type id,
+        common::geometry_t const& geometry,
+        collision::sdf_model_t const& sdf_model);
 
     virtual visual_model_type const& visual_model() const override;
     virtual collision_model_type const& collision_model() const override;
@@ -30,6 +37,8 @@ class environment_body_t : public body_t
     virtual void update_collision_model() override;
     virtual void update_physical_model() override;
     virtual void transform(Eigen::Affine3d const& affine) override;
+
+    collision::sdf_model_t const& sdf() const;
 
   private:
     common::static_mesh_t visual_model_;

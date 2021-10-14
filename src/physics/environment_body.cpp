@@ -1,3 +1,5 @@
+#include "..\..\include\sbs\physics\environment_body.h"
+
 #include <Discregrid/geometry/mesh_distance.hpp>
 #include <Discregrid/mesh/triangle_mesh.hpp>
 #include <cassert>
@@ -11,6 +13,7 @@ environment_body_t::environment_body_t(
     simulation_t& simulation,
     index_type id,
     common::geometry_t const& geometry,
+    Eigen::AlignedBox3d const& domain,
     std::array<unsigned int, 3u> const& resolution)
     : body_t(simulation, id),
       visual_model_(geometry),
@@ -47,15 +50,17 @@ environment_body_t::environment_body_t(
     }
 
     Discregrid::TriangleMesh mesh(vertices, faces);
-    Eigen::AlignedBox3d domain{};
+    Eigen::AlignedBox3d extended_domain = domain;
     for (auto const& x : mesh.vertices())
     {
         for (auto const& x : mesh.vertices())
         {
-            domain.extend(x);
+            extended_domain.extend(x);
         }
-        domain.max() += 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
-        domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
+        extended_domain.max() +=
+            1.0e-3 * extended_domain.diagonal().norm() * Eigen::Vector3d::Ones();
+        extended_domain.min() -=
+            1.0e-3 * extended_domain.diagonal().norm() * Eigen::Vector3d::Ones();
     }
 
     Discregrid::MeshDistance md(mesh);
@@ -64,10 +69,21 @@ environment_body_t::environment_body_t(
         return md.signedDistanceCached(xi);
     };
 
-    Discregrid::CubicLagrangeDiscreteGrid grid(domain, resolution);
+    Discregrid::CubicLagrangeDiscreteGrid grid(extended_domain, resolution);
     grid.addFunction(sdf);
 
-    collision_model_ = collision::sdf_model_t(grid);
+    collision_model_          = collision::sdf_model_t(grid);
+    collision_model_.volume() = extended_domain;
+    collision_model_.id()     = this->id();
+}
+
+environment_body_t::environment_body_t(
+    simulation_t& simulation,
+    index_type id,
+    common::geometry_t const& geometry,
+    collision::sdf_model_t const& sdf_model)
+    : body_t(simulation, id), visual_model_(geometry), collision_model_(sdf_model)
+{
     collision_model_.id() = this->id();
 }
 
@@ -102,6 +118,11 @@ void environment_body_t::update_physical_model()
 void environment_body_t::transform(Eigen::Affine3d const& affine)
 {
     // no-op
+}
+
+collision::sdf_model_t const& environment_body_t::sdf() const
+{
+    return collision_model_;
 }
 
 } // namespace physics

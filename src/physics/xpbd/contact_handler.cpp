@@ -40,8 +40,8 @@ void contact_handler_t::handle(collision::contact_t const& contact)
             mesh_boundary->from_surface_vertex(surface_mesh_contact.vi());
 
         auto collision_constraint = std::make_unique<xpbd::collision_constraint_t>(
-            simulation_.simulation_parameters().compliance,
-            simulation_.simulation_parameters().collision_damping,
+            0.,
+            0.,
             simulation_,
             b1.id(),
             particle_index,

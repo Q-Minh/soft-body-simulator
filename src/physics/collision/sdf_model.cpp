@@ -1,3 +1,5 @@
+#include "..\..\..\include\sbs\physics\collision\sdf_model.h"
+
 #include <sbs/physics/collision/bvh_model.h>
 #include <sbs/physics/collision/contact.h>
 #include <sbs/physics/collision/sdf_model.h>
@@ -14,6 +16,12 @@ sdf_model_t::sdf_model_t(
 }
 
 sdf_model_t::sdf_model_t(Discregrid::CubicLagrangeDiscreteGrid const& sdf) : sdf_(sdf) {}
+
+sdf_model_t::sdf_model_t(analytic_sdf_type const& analytic_sdf, Eigen::AlignedBox3d const& volume)
+    : sdf_(Eigen::AlignedBox3d(), {2, 2, 2} /*dummy values*/), analytic_sdf_(analytic_sdf)
+{
+    this->volume() = volume;
+}
 
 model_type_t sdf_model_t::model_type() const
 {
@@ -41,29 +49,29 @@ void sdf_model_t::update(simulation_t const& simulation)
     // to update.
 }
 
+sdf_model_t sdf_model_t::from_plane(
+    Eigen::Hyperplane<scalar_type, 3> const& plane,
+    Eigen::AlignedBox3d const& volume)
+{
+    auto const analytic_sdf =
+        [plane](Eigen::Vector3d const& pi) -> std::pair<scalar_type, Eigen::Vector3d> {
+        auto const sd   = plane.signedDistance(pi);
+        auto const grad = plane.normal();
+        return std::make_pair(sd, grad);
+    };
+    sdf_model_t sdf{analytic_sdf, volume};
+    return sdf;
+}
+
 std::pair<scalar_type, Eigen::Vector3d> sdf_model_t::evaluate(Eigen::Vector3d const& p) const
 {
+    if (analytic_sdf_)
+        return analytic_sdf_(p);
+
     unsigned int constexpr sdf_idx = 0u;
     Eigen::Vector3d grad{};
     double const signed_distance = sdf_.interpolate(sdf_idx, p, &grad);
     return {static_cast<scalar_type>(signed_distance), grad};
-}
-
-sdf_model_t sdf_model_t::from_plane(
-    Eigen::AlignedBox3d const& domain,
-    std::array<unsigned int, 3u> const& resolution,
-    Eigen::Hyperplane<scalar_type, 3> const& plane,
-    scalar_type const sampling_depth_from_surface)
-{
-    sdf_model_t sdf{domain, resolution};
-    sdf.sdf_.addFunction([plane](Eigen::Vector3d const& xi) { return plane.signedDistance(xi); });
-    sdf.sdf_.reduceField(
-        0u,
-        [sampling_depth_from_surface](Eigen::Vector3d const& xi, double signed_distance) {
-            return std::abs(static_cast<scalar_type>(signed_distance)) <
-                   sampling_depth_from_surface;
-        });
-    return sdf;
 }
 
 } // namespace collision

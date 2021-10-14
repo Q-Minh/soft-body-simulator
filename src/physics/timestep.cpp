@@ -1,3 +1,4 @@
+#include <iostream>
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/cd_system.h>
 #include <sbs/physics/collision/collision_model.h>
@@ -17,7 +18,6 @@ void timestep_t::step(simulation_t& simulation)
     // TODO: Cut
     // cut(simulation);
     // body->update_physical_model();
-
     auto const& cd_system = simulation.collision_detection_system();
     cd_system->execute();
 
@@ -49,15 +49,15 @@ void timestep_t::step(simulation_t& simulation)
         }
     }
 
-    simulation.collision_constraints().clear();
-
     auto& bodies = simulation.bodies();
     for (auto& body : bodies)
     {
         body->update_visual_model();
+        body->visual_model().mark_vertices_dirty();
         body->update_collision_model();
     }
 
+    simulation.collision_constraints().clear();
     cd_system->update(simulation);
 }
 

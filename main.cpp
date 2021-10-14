@@ -35,21 +35,6 @@ int main(int argc, char** argv)
     simulation.add_body();
     simulation.bodies()[beam_idx] =
         std::make_unique<sbs::physics::tetrahedral_body_t>(simulation, beam_idx, beam_geometry);
-    for (std::size_t i = 0u; i < beam_geometry.positions.size(); i += 3u)
-    {
-        sbs::physics::particle_t particle{};
-        particle.x0() = Eigen::Vector3d{
-            beam_geometry.positions[i],
-            beam_geometry.positions[i + 1u],
-            beam_geometry.positions[i + 2u]};
-        particle.x()  = particle.x0();
-        particle.xn() = particle.x0();
-        particle.xi() = particle.x0();
-        particle.v().setZero();
-        particle.f().setZero();
-        particle.mass() = 1.;
-        simulation.add_particle(particle, beam_idx);
-    }
     sbs::physics::tetrahedral_body_t& beam =
         *dynamic_cast<sbs::physics::tetrahedral_body_t*>(simulation.bodies()[beam_idx].get());
     for (auto const& tetrahedron : beam.physical_model().tetrahedra())
@@ -78,8 +63,24 @@ int main(int argc, char** argv)
         sbs::geometry::get_simple_plane_model({-20., -20.}, {20., 20.}, 0., 1e-2);
     floor_geometry.set_color(100, 100, 100);
     auto const floor_idx = static_cast<sbs::index_type>(simulation.bodies().size());
-    simulation.add_body(
-        std::make_unique<sbs::physics::environment_body_t>(simulation, floor_idx, floor_geometry));
+    Eigen::AlignedBox3d const floor_volume{
+        Eigen::Vector3d{-20., -5., -20.},
+        Eigen::Vector3d{20., 5., 20.}};
+    auto const floor_collision_model = sbs::physics::collision::sdf_model_t::from_plane(
+        Eigen::Hyperplane<sbs::scalar_type, 3>(
+            Eigen::Vector3d{0., 1., 0.},
+            Eigen::Vector3d{0., 0., 0.}),
+        floor_volume);
+    simulation.add_body(std::make_unique<sbs::physics::environment_body_t>(
+        simulation,
+        floor_idx,
+        floor_geometry,
+        floor_collision_model));
+
+    //auto const floor =
+    //    *dynamic_cast<sbs::physics::environment_body_t*>(simulation.bodies()[floor_idx].get());
+    //sbs::physics::collision::sdf_model_t const& sdf_model = floor.sdf();
+    //auto const [sd, grad]                                 = sdf_model.evaluate({0., -0.5, 0.});
 
     /**
      * Setup collision detection
@@ -129,8 +130,8 @@ int main(int argc, char** argv)
      */
     sbs::physics::timestep_t timestep{};
     timestep.dt()         = 0.005;
-    timestep.iterations() = 10u;
-    timestep.substeps()   = 5u;
+    timestep.iterations() = 5u;
+    timestep.substeps()   = 1u;
     timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(

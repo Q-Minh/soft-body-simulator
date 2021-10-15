@@ -183,19 +183,6 @@ PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/tetrahedral_mesh_boundary.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/topology.cpp"
 
-    # physics/xpbd
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/collision_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/simulation_parameters.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/collision_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/simulation_parameters.cpp"
-
     # physics/collision
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_cd_system.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/bvh_model.h"
@@ -219,6 +206,33 @@ PRIVATE
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/cutting/cut_tetrahedron.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/cutting/virtual_scalpel.cpp"
+
+    # physics/functions
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/functions/kernel.h"
+
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/functions/kernel.cpp"
+
+    # physics/mechanics
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_node.h"
+
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_node.cpp"
+
+    # physics/xpbd
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/collision_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_stvk_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/simulation_parameters.h"
+
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/collision_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_stvk_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/simulation_parameters.cpp"
 
     # rendering
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/camera.h"
@@ -246,9 +260,7 @@ PUBLIC
         >
 )
 
-add_executable(tester)
-target_sources(tester PRIVATE main.cpp)
-target_link_libraries(tester PRIVATE sbs)
+add_subdirectory(examples)
 
 include(GNUInstallDirs)
 

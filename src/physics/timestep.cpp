@@ -1,4 +1,3 @@
-#include <iostream>
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/cd_system.h>
 #include <sbs/physics/collision/collision_model.h>

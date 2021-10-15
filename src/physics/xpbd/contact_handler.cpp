@@ -22,12 +22,6 @@ void contact_handler_t::handle(collision::contact_t const& contact)
         body_t const& b1 = *simulation_.bodies().at(contact.b1());
         body_t const& b2 = *simulation_.bodies().at(contact.b2());
 
-        tetrahedral_body_t const* tet_mesh = dynamic_cast<tetrahedral_body_t const*>(&b1);
-        if (!tet_mesh)
-        {
-            return;
-        }
-
         auto const& visual_model = b1.visual_model();
         tetrahedral_mesh_boundary_t const* mesh_boundary =
             dynamic_cast<tetrahedral_mesh_boundary_t const*>(&visual_model);

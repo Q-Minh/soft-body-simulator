@@ -49,9 +49,9 @@ void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& han
             Discregrid::BoundingSphere const& s                     = this->hull(node_idx);
             Eigen::AlignedBox3d const& sdf_englobing_volume         = sdf_model.volume();
 
-            auto const [sd, grad] = sdf_model.evaluate(s.x());
-            if (sd < 0.)
-                return true;
+            //auto const [sd, grad] = sdf_model.evaluate(s.x());
+            //if (sd < 0.)
+            //    return true;
 
             Eigen::Vector3d closest_point =
                 closest_point_on_aabb(s.x(), sdf_englobing_volume);

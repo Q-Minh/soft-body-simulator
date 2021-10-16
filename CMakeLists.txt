@@ -123,9 +123,9 @@ PUBLIC
     Threads::Threads
     Discregrid
 )
-target_sources(sbs 
-PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/aliases.h"
+
+set(_sbs_sources 
+"${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/aliases.h"
 
     # common
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/geometry.h"
@@ -253,6 +253,12 @@ PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/shader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/trackball_rotation_adapter.cpp"
 )
+
+target_sources(sbs 
+PRIVATE
+    ${_sbs_sources}
+)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${_sbs_sources})
 target_include_directories(sbs 
 PUBLIC 
     $<INSTALL_INTERFACE:include>

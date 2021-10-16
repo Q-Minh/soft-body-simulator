@@ -213,25 +213,27 @@ PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/functions/kernel.cpp"
 
     # physics/mechanics
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_body.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_node.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_node.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_surface.h"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_body.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_node.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_node.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_surface.cpp"
 
     # physics/xpbd
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/collision_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_stvk_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_stvk_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/simulation_parameters.h"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/collision_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_stvk_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_stvk_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/simulation_parameters.cpp"
 
     # rendering

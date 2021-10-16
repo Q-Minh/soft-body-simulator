@@ -3,16 +3,16 @@
 
 #include <sbs/aliases.h>
 #include <sbs/physics/constraint.h>
-#include <sbs/physics/mechanics/meshless_node.h>
+#include <sbs/physics/mechanics/meshless_sph_node.h>
 
 namespace sbs {
 namespace physics {
 namespace xpbd {
 
-class meshless_stvk_constraint_t : public constraint_t
+class meshless_sph_stvk_constraint_t : public constraint_t
 {
   public:
-    meshless_stvk_constraint_t(
+    meshless_sph_stvk_constraint_t(
         scalar_type const alpha,
         scalar_type const beta,
         simulation_t const& simulation,
@@ -20,12 +20,19 @@ class meshless_stvk_constraint_t : public constraint_t
         index_type vi,
         scalar_type young_modulus,
         scalar_type poisson_ratio,
-        mechanics::meshless_node_t const& node);
+        mechanics::meshless_sph_node_t& node);
 
     virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
 
+    Eigen::Matrix3d deformation_gradient(simulation_t& simulation) const;
+    Eigen::Matrix3d green_strain(Eigen::Matrix3d const& Fi) const;
+    std::pair<scalar_type, Eigen::Matrix3d>
+    strain_energy_and_stress(Eigen::Matrix3d const& Fi, Eigen::Matrix3d const& Ei) const;
+    scalar_type const C(scalar_type const Psi) const;
+    std::vector<Eigen::Vector3d> dCdxk(Eigen::Matrix3d const& dPsidFi) const;
+
   private:
-    mechanics::meshless_node_t const& node_;
+    mechanics::meshless_sph_node_t& node_;
     index_type bi_;
     index_type vi_;
     scalar_type mu_;

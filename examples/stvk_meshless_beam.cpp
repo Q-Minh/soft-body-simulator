@@ -1,17 +1,14 @@
-#include <algorithm>
 #include <imgui/imgui.h>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
 #include <sbs/physics/environment_body.h>
 #include <sbs/physics/gauss_seidel_solver.h>
-#include <sbs/physics/mechanics/meshless_body.h>
-#include <sbs/physics/mechanics/meshless_node.h>
+#include <sbs/physics/mechanics/meshless_sph_body.h>
 #include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
 #include <sbs/physics/xpbd/contact_handler.h>
-#include <sbs/physics/xpbd/green_constraint.h>
-#include <sbs/physics/xpbd/meshless_stvk_constraint.h>
+#include <sbs/physics/xpbd/meshless_sph_stvk_constraint.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -22,27 +19,33 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::simulation_t simulation{};
+    simulation.simulation_parameters().damping           = 1.;
+    simulation.simulation_parameters().collision_damping = 0.01;
+    simulation.simulation_parameters().poisson_ratio     = 0.3;
+    simulation.simulation_parameters().young_modulus     = 1e6;
 
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(5u, 5u, 20u);
     beam_geometry.set_color(255, 255, 0);
-    sbs::scalar_type constexpr h = 0.7;
+    sbs::scalar_type constexpr h = 1.;
     auto const beam_idx          = static_cast<sbs::index_type>(simulation.bodies().size());
     simulation.add_body();
-    simulation.bodies()[beam_idx] = std::make_unique<sbs::physics::mechanics::meshless_body_t>(
+    simulation.bodies()[beam_idx] = std::make_unique<sbs::physics::mechanics::meshless_sph_body_t>(
         simulation,
         beam_idx,
         beam_geometry,
         h);
 
-    sbs::physics::mechanics::meshless_body_t& beam =
-        *dynamic_cast<sbs::physics::mechanics::meshless_body_t*>(
+    sbs::physics::mechanics::meshless_sph_body_t& beam =
+        *dynamic_cast<sbs::physics::mechanics::meshless_sph_body_t*>(
             simulation.bodies()[beam_idx].get());
-    Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -1.)};
+    Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 5., -1.)};
     beam_transform.rotate(
         Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
     beam_transform.scale(Eigen::Vector3d{0.2, 0.2, 0.5});
     beam.transform(beam_transform);
-    beam.initialize_physical_model(simulation);
+    beam.initialize_physical_model();
+    beam.initialize_visual_model();
+    beam.initialize_collision_model();
 
     for (std::size_t i = 0u; i < beam.nodes().size(); ++i)
     {
@@ -50,9 +53,9 @@ int main(int argc, char** argv)
         auto const beta  = simulation.simulation_parameters().damping;
         auto const E     = simulation.simulation_parameters().young_modulus;
         auto const nu    = simulation.simulation_parameters().poisson_ratio;
-        sbs::physics::mechanics::meshless_node_t const& node = beam.nodes()[i];
-        auto const ni                                        = static_cast<sbs::index_type>(i);
-        auto constraint = std::make_unique<sbs::physics::xpbd::meshless_stvk_constraint_t>(
+        sbs::physics::mechanics::meshless_sph_node_t& node = beam.nodes()[i];
+        auto const ni                                      = static_cast<sbs::index_type>(i);
+        auto constraint = std::make_unique<sbs::physics::xpbd::meshless_sph_stvk_constraint_t>(
             alpha,
             beta,
             simulation,
@@ -242,6 +245,8 @@ int main(int argc, char** argv)
             ImGui::Text(fps_str.c_str());
             std::string const fps_avg_str = "Mean FPS: " + std::to_string(windowed_average_fps);
             ImGui::Text(fps_avg_str.c_str());
+            std::string const particle_count = "Particles: " + std::to_string(beam.nodes().size());
+            ImGui::Text(particle_count.c_str());
         }
 
         ImGui::End();

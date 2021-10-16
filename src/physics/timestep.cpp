@@ -59,9 +59,10 @@ void timestep_t::step(simulation_t& simulation)
     auto& bodies = simulation.bodies();
     for (auto& body : bodies)
     {
+        body->update_physical_model();
         body->update_visual_model();
-        body->visual_model().mark_vertices_dirty();
         body->update_collision_model();
+        body->visual_model().mark_vertices_dirty();
     }
 
     simulation.collision_constraints().clear();

@@ -28,9 +28,9 @@ void meshless_sph_surface_t::initialize_interpolation_scheme()
     sks_.resize(vertex_count());
     neighbours_.resize(vertex_count());
 
-    range_searcher_t const& range_searcher    = mechanical_model_->range_searcher();
+    range_searcher_t const& range_searcher        = mechanical_model_->range_searcher();
     std::vector<meshless_sph_node_t> const& nodes = mechanical_model_->nodes();
-    scalar_type const h                       = mechanical_model_->h();
+    scalar_type const h                           = mechanical_model_->h();
 
     for (std::size_t i = 0u; i < vertex_count(); ++i)
     {
@@ -40,12 +40,12 @@ void meshless_sph_surface_t::initialize_interpolation_scheme()
         scalar_type sk{0.};
         for (std::size_t a = 0u; a < neighbour_indices.size(); ++a)
         {
-            index_type const j         = neighbour_indices[a];
-            meshless_sph_node_t const& nj  = nodes[j];
-            scalar_type const Vj       = nj.Vi();
-            Eigen::Vector3d const Xj   = nj.Xi();
-            Eigen::Vector3d const& Xkj = Xk - Xj;
-            scalar_type const Wkj      = nj.kernel()(Xk);
+            index_type const j            = neighbour_indices[a];
+            meshless_sph_node_t const& nj = nodes[j];
+            scalar_type const Vj          = nj.Vi();
+            Eigen::Vector3d const Xj      = nj.Xi();
+            Eigen::Vector3d const& Xkj    = Xk - Xj;
+            scalar_type const Wkj         = nj.kernel()(Xk);
 
             Xkjs_[i].push_back(Xkj);
             Wkjs_[i].push_back(Wkj);
@@ -92,13 +92,13 @@ void meshless_sph_surface_t::compute_positions()
         auto const num_neighbours = Xkjs_[i].size();
         for (std::size_t b = 0u; b < num_neighbours; ++b)
         {
-            index_type const j         = neighbours_[i][b];
-            meshless_sph_node_t const& nj  = nodes[j];
-            Eigen::Vector3d const& Xkj = Xkjs_[i][b];
-            scalar_type const Wkj      = Wkjs_[i][b];
-            scalar_type const Vj       = nj.Vi();
-            Eigen::Matrix3d const& Fj  = nj.Fi();
-            Eigen::Vector3d const& xj  = nj.xi();
+            index_type const j            = neighbours_[i][b];
+            meshless_sph_node_t const& nj = nodes[j];
+            Eigen::Vector3d const& Xkj    = Xkjs_[i][b];
+            scalar_type const Wkj         = Wkjs_[i][b];
+            scalar_type const Vj          = nj.Vi();
+            Eigen::Matrix3d const& Fj     = nj.Fi();
+            Eigen::Vector3d const& xj     = nj.xi();
             xk += Vj * (Fj * Xkj + xj) * Wkj;
         }
 

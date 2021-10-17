@@ -1177,6 +1177,154 @@ void tetrahedron_set_t::collect_garbage()
     return;
 }
 
+bool tetrahedron_set_t::is_boundary_tetrahedron(index_type const ti) const
+{
+    tetrahedron_t const& t = tetrahedron(ti);
+    return is_boundary_tetrahedron(t);
+}
+
+bool tetrahedron_set_t::is_boundary_triangle(index_type const fi) const
+{
+    triangle_t const& f = triangle(fi);
+    return is_boundary_triangle(f);
+}
+
+bool tetrahedron_set_t::is_boundary_edge(index_type const ei) const
+{
+    edge_t const& e = edge(ei);
+    return is_boundary_edge(e);
+}
+
+bool tetrahedron_set_t::is_boundary_vertex(index_type const vi) const
+{
+    vertex_t const& v = vertex(vi);
+    return is_boundary_vertex(v);
+}
+
+bool tetrahedron_set_t::is_boundary_tetrahedron(tetrahedron_t const& t) const
+{
+    auto const num_boundary_triangles = std::count_if(
+        t.face_indices().begin(),
+        t.face_indices().end(),
+        [this](index_type const fi) { return is_boundary_triangle(fi); });
+    return num_boundary_triangles > 0u;
+}
+
+bool tetrahedron_set_t::is_boundary_triangle(triangle_t const& f) const
+{
+    return f.incident_tetrahedron_indices().size() == 1u;
+}
+
+bool tetrahedron_set_t::is_boundary_edge(edge_t const& e) const
+{
+    auto const num_boundary_triangles = std::count_if(
+        e.incident_triangle_indices().begin(),
+        e.incident_triangle_indices().end(),
+        [this](index_type const fi) { return is_boundary_triangle(fi); });
+    return num_boundary_triangles == 2u;
+}
+
+bool tetrahedron_set_t::is_boundary_vertex(vertex_t const& v) const
+{
+    auto it = std::find_if(
+        v.incident_triangle_indices().begin(),
+        v.incident_triangle_indices().end(),
+        [this](index_type const fi) { return is_boundary_triangle(fi); });
+    return it != v.incident_triangle_indices().end();
+}
+
+std::vector<tetrahedron_t> tetrahedron_set_t::boundary_tetrahedra() const
+{
+    std::vector<tetrahedron_t> boundary_tets{};
+    for (tetrahedron_t const& t : tetrahedra_)
+    {
+        if (is_boundary_tetrahedron(t))
+            boundary_tets.push_back(t);
+    }
+    return boundary_tets;
+}
+
+std::vector<index_type> tetrahedron_set_t::boundary_tetrahedron_indices() const
+{
+    std::vector<index_type> boundary_tet_indices{};
+    for (std::size_t i = 0u; i < tetrahedra_.size(); ++i)
+    {
+        index_type const ti = static_cast<index_type>(i);
+        if (is_boundary_tetrahedron(ti))
+            boundary_tet_indices.push_back(ti);
+    }
+    return boundary_tet_indices;
+}
+
+std::vector<triangle_t> tetrahedron_set_t::boundary_triangles() const
+{
+    std::vector<triangle_t> boundary_tris{};
+    for (triangle_t const& f : triangles())
+    {
+        if (is_boundary_triangle(f))
+            boundary_tris.push_back(f);
+    }
+    return boundary_tris;
+}
+
+std::vector<index_type> tetrahedron_set_t::boundary_triangle_indices() const
+{
+    std::vector<index_type> boundary_triangle_indices{};
+    for (std::size_t i = 0u; i < triangles().size(); ++i)
+    {
+        index_type const fi = static_cast<index_type>(i);
+        if (is_boundary_triangle(fi))
+            boundary_triangle_indices.push_back(fi);
+    }
+    return boundary_triangle_indices;
+}
+
+std::vector<edge_t> tetrahedron_set_t::boundary_edges() const
+{
+    std::vector<edge_t> boundary_edge_list{};
+    for (edge_t const& e : edges())
+    {
+        if (is_boundary_edge(e))
+            boundary_edge_list.push_back(e);
+    }
+    return boundary_edge_list;
+}
+
+std::vector<index_type> tetrahedron_set_t::boundary_edge_indices() const
+{
+    std::vector<index_type> boundary_edge_indices{};
+    for (std::size_t i = 0u; i < edges().size(); ++i)
+    {
+        index_type const ei = static_cast<index_type>(i);
+        if (is_boundary_edge(ei))
+            boundary_edge_indices.push_back(ei);
+    }
+    return boundary_edge_indices;
+}
+
+std::vector<vertex_t> tetrahedron_set_t::boundary_vertices() const
+{
+    std::vector<vertex_t> boundary_vertex_list{};
+    for (vertex_t const& v : vertices())
+    {
+        if (is_boundary_vertex(v))
+            boundary_vertex_list.push_back(v);
+    }
+    return boundary_vertex_list;
+}
+
+std::vector<index_type> tetrahedron_set_t::boundary_vertex_indices() const
+{
+    std::vector<index_type> boundary_vertex_indices{};
+    for (std::size_t i = 0u; i < vertices().size(); ++i)
+    {
+        index_type const vi = static_cast<index_type>(i);
+        if (is_boundary_vertex(vi))
+            boundary_vertex_indices.push_back(vi);
+    }
+    return boundary_vertex_indices;
+}
+
 bool tetrahedron_set_t::operator==(tetrahedron_set_t const& other) const
 {
     bool const are_triangle_sets_equal = triangle_set_t::operator==(other);

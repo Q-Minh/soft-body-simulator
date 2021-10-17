@@ -24,16 +24,18 @@ int main(int argc, char** argv)
     simulation.simulation_parameters().poisson_ratio     = 0.3;
     simulation.simulation_parameters().young_modulus     = 1e6;
 
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(5u, 5u, 20u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(10u, 4u, 10u);
     beam_geometry.set_color(255, 255, 0);
-    sbs::scalar_type constexpr h = 1.;
+    sbs::scalar_type constexpr h = 2.;
     auto const beam_idx          = static_cast<sbs::index_type>(simulation.bodies().size());
     simulation.add_body();
+    std::array<unsigned int, 3u> const particle_grid_resolution{11u, 5u, 11u};
     simulation.bodies()[beam_idx] = std::make_unique<sbs::physics::mechanics::meshless_sph_body_t>(
         simulation,
         beam_idx,
         beam_geometry,
-        h);
+        h,
+        particle_grid_resolution);
 
     sbs::physics::mechanics::meshless_sph_body_t& beam =
         *dynamic_cast<sbs::physics::mechanics::meshless_sph_body_t*>(
@@ -41,7 +43,7 @@ int main(int argc, char** argv)
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 5., -1.)};
     beam_transform.rotate(
         Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{0.2, 0.2, 0.5});
+    beam_transform.scale(Eigen::Vector3d{1, 0.4, 1});
     beam.transform(beam_transform);
     beam.initialize_physical_model();
     beam.initialize_visual_model();

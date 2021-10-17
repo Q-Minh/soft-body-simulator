@@ -1,3 +1,6 @@
+#include <Discregrid/cubic_lagrange_discrete_grid.hpp>
+#include <Discregrid/geometry/mesh_distance.hpp>
+#include <Discregrid/mesh/triangle_mesh.hpp>
 #include <algorithm>
 #include <sbs/common/geometry.h>
 #include <sbs/physics/mechanics/meshless_sph_body.h>
@@ -13,14 +16,15 @@ meshless_sph_body_t::meshless_sph_body_t(
     simulation_t& simulation,
     index_type id,
     common::geometry_t const& geometry,
-    scalar_type const h)
+    scalar_type const h,
+    std::array<unsigned int, 3u> const& resolution)
     : body_t(simulation, id),
       physical_model_(),
       material_space_range_query_(),
       volumetric_topology_(),
       visual_model_(),
       collision_model_(),
-      h_(h)
+      h_()
 {
     assert(geometry.geometry_type == common::geometry_t::geometry_type_t::tetrahedron);
     assert(geometry.has_indices());
@@ -38,6 +42,8 @@ meshless_sph_body_t::meshless_sph_body_t(
 
         volumetric_topology_.add_tetrahedron(tetrahedron);
     }
+    std::vector<Eigen::Vector3d> vertices{};
+    vertices.reserve(volumetric_topology_.vertex_count());
     for (std::size_t i = 0u; i < volumetric_topology_.vertex_count(); ++i)
     {
         auto const idx      = i * 3u;
@@ -45,24 +51,79 @@ meshless_sph_body_t::meshless_sph_body_t(
         scalar_type const y = static_cast<scalar_type>(geometry.positions[idx + 1u]);
         scalar_type const z = static_cast<scalar_type>(geometry.positions[idx + 2u]);
         Eigen::Vector3d const pos{x, y, z};
+        vertices.push_back(pos);
+    }
+    std::vector<std::array<unsigned int, 3u>> faces{};
+    std::vector<triangle_t> const boundary_triangles = volumetric_topology_.boundary_triangles();
+    faces.reserve(boundary_triangles.size());
+    for (triangle_t const& f : boundary_triangles)
+        faces.push_back({f.v1(), f.v2(), f.v3()});
 
-        particle_t const p{pos};
-        simulation.add_particle(p, this->id());
+    Discregrid::TriangleMesh mesh(vertices, faces);
+    Eigen::AlignedBox3d domain{};
+    for (auto const& x : mesh.vertices())
+    {
+        for (auto const& x : mesh.vertices())
+        {
+            domain.extend(x);
+        }
+    }
+
+    domain.min() -= Eigen::Vector3d{1e-3, 1e-3, 1e-3};
+    domain.max() += Eigen::Vector3d{1e-3, 1e-3, 1e-3};
+
+    Discregrid::MeshDistance md(mesh);
+
+    auto const sdf = [&md](Eigen::Vector3d const& xi) {
+        return md.signedDistanceCached(xi);
+    };
+
+    Discregrid::CubicLagrangeDiscreteGrid grid(domain, resolution);
+    auto const sdf_id = grid.addFunction(sdf);
+
+    scalar_type const dx =
+        (domain.max().x() - domain.min().x()) / static_cast<scalar_type>(resolution[0]);
+    scalar_type const dy =
+        (domain.max().y() - domain.min().y()) / static_cast<scalar_type>(resolution[1]);
+    scalar_type const dz =
+        (domain.max().z() - domain.min().z()) / static_cast<scalar_type>(resolution[2]);
+
+    h_ = h * std::max({dx, dy, dz});
+    h_ += std::numeric_limits<scalar_type>::epsilon();
+
+    for (unsigned int i = 0u; i <= resolution[0]; ++i)
+    {
+        for (unsigned int j = 0u; j <= resolution[1]; ++j)
+        {
+            for (unsigned int k = 0u; k <= resolution[2]; ++k)
+            {
+                scalar_type const x = domain.min().x() + static_cast<scalar_type>(i) * dx;
+                scalar_type const y = domain.min().y() + static_cast<scalar_type>(j) * dy;
+                scalar_type const z = domain.min().z() + static_cast<scalar_type>(k) * dz;
+                Eigen::Vector3d const& grid_node_position{x, y, z};
+                scalar_type const signed_distance = grid.interpolate(sdf_id, grid_node_position);
+                bool const is_grid_node_inside_surface = signed_distance < 0.;
+                if (!is_grid_node_inside_surface)
+                    continue;
+
+                particle_t const p{grid_node_position};
+                simulation.add_particle(p, this->id());
+            }
+        }
     }
 
     visual_model_ = meshless_sph_surface_t(this);
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
     {
-        auto const particle_index = visual_model_.from_surface_vertex(i);
+        auto const tet_mesh_vertex_index = visual_model_.from_surface_vertex(i);
 
         auto const idx = i * 3u;
         float const r  = static_cast<float>(geometry.colors[idx] / 255.f);
         float const g  = static_cast<float>(geometry.colors[idx + 1u] / 255.f);
         float const b  = static_cast<float>(geometry.colors[idx + 2u] / 255.f);
 
-        visual_model_.material_space_vertex(i).position =
-            simulation.particles()[this->id()][particle_index].x();
-        visual_model_.material_space_vertex(i).color = Eigen::Vector3f{r, g, b};
+        visual_model_.material_space_vertex(i).position = vertices[tet_mesh_vertex_index];
+        visual_model_.material_space_vertex(i).color    = Eigen::Vector3f{r, g, b};
     }
 }
 
@@ -122,10 +183,10 @@ void meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
 
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
     {
-        auto const particle_index = visual_model_.from_surface_vertex(i);
-
         visual_model_.material_space_vertex(i).position =
-            simulation().particles()[id()][particle_index].x();
+            affine * visual_model_.material_space_vertex(i).position.homogeneous();
+        visual_model_.world_space_vertex(i).position =
+            affine * visual_model_.world_space_vertex(i).position.homogeneous();
     }
 }
 

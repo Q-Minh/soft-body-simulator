@@ -39,7 +39,7 @@ class vertex_t
 class edge_t
 {
   public:
-    edge_t()                    = default;
+    edge_t() = default;
     edge_t(index_type v1, index_type v2);
     edge_t(vertex_t const& v1, vertex_t const& v2);
     std::array<index_type, 2u> const& vertex_indices() const;
@@ -258,6 +258,25 @@ class tetrahedron_set_t : public triangle_set_t
     void create_triangle_to_tetrahedron_incidency(index_type const ti);
 
     void collect_garbage();
+
+    bool is_boundary_tetrahedron(index_type const ti) const;
+    bool is_boundary_triangle(index_type const fi) const;
+    bool is_boundary_edge(index_type const ei) const;
+    bool is_boundary_vertex(index_type const vi) const;
+
+    bool is_boundary_tetrahedron(tetrahedron_t const& t) const;
+    bool is_boundary_triangle(triangle_t const& f) const;
+    bool is_boundary_edge(edge_t const& e) const;
+    bool is_boundary_vertex(vertex_t const& v) const;
+
+    std::vector<tetrahedron_t> boundary_tetrahedra() const;
+    std::vector<index_type> boundary_tetrahedron_indices() const;
+    std::vector<triangle_t> boundary_triangles() const;
+    std::vector<index_type> boundary_triangle_indices() const;
+    std::vector<edge_t> boundary_edges() const;
+    std::vector<index_type> boundary_edge_indices() const;
+    std::vector<vertex_t> boundary_vertices() const;
+    std::vector<index_type> boundary_vertex_indices() const;
 
     bool operator==(tetrahedron_set_t const& other) const;
 

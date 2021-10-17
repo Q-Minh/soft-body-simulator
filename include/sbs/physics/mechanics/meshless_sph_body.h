@@ -49,11 +49,27 @@ class range_searcher_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
 class meshless_sph_body_t : public physics::body_t
 {
   public:
+    /**
+     * @brief
+     * Constructs a meshless sph model by taking in an initial
+     * tetrahedral geometry, extracting its boundary surface,
+     * and then sampling meshless particles of the axis-aligned
+     * grid englobing this boundary surface. The grid's resolution
+     * is given by the resolution parameter. This determines the
+     * sampling rate of the particles inside the boundary surface.
+     *
+     * @param simulation
+     * @param id
+     * @param geometry The initial tetrahedral geometry
+     * @param h The support (or smoothing length) of meshless nodes
+     * @param resolution The resolution of the particle sampling grid
+     */
     meshless_sph_body_t(
         simulation_t& simulation,
         index_type id,
         common::geometry_t const& geometry,
-        scalar_type const h);
+        scalar_type const h,
+        std::array<unsigned int, 3u> const& resolution);
 
     virtual visual_model_type const& visual_model() const override;
     virtual collision_model_type const& collision_model() const override;

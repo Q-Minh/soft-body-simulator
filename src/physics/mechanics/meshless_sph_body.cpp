@@ -30,6 +30,9 @@ meshless_sph_body_t::meshless_sph_body_t(
     assert(geometry.has_indices());
     assert(geometry.has_positions());
 
+    /**
+     * Compute topology of the given tetrahedral mesh geometry
+     */
     volumetric_topology_.reserve_vertices(geometry.positions.size() / 3u);
 
     for (std::size_t i = 0u; i < geometry.indices.size(); i += 4u)
@@ -42,6 +45,9 @@ meshless_sph_body_t::meshless_sph_body_t(
 
         volumetric_topology_.add_tetrahedron(tetrahedron);
     }
+    /**
+     * Compute boundary surface mesh of the given tetrahedral mesh geometry
+     */
     std::vector<Eigen::Vector3d> vertices{};
     vertices.reserve(volumetric_topology_.vertex_count());
     for (std::size_t i = 0u; i < volumetric_topology_.vertex_count(); ++i)
@@ -59,6 +65,10 @@ meshless_sph_body_t::meshless_sph_body_t(
     for (triangle_t const& f : boundary_triangles)
         faces.push_back({f.v1(), f.v2(), f.v3()});
 
+    /**
+     * Compute the SDF of that boundary surface to obtain an inside/outside predicate
+     * for our particle sampling
+     */
     Discregrid::TriangleMesh mesh(vertices, faces);
     Eigen::AlignedBox3d domain{};
     for (auto const& x : mesh.vertices())
@@ -69,6 +79,7 @@ meshless_sph_body_t::meshless_sph_body_t(
         }
     }
 
+    // add a bit of tolerance to the domain to fully enclose the mesh
     domain.min() -= Eigen::Vector3d{1e-3, 1e-3, 1e-3};
     domain.max() += Eigen::Vector3d{1e-3, 1e-3, 1e-3};
 
@@ -81,6 +92,7 @@ meshless_sph_body_t::meshless_sph_body_t(
     Discregrid::CubicLagrangeDiscreteGrid grid(domain, resolution);
     auto const sdf_id = grid.addFunction(sdf);
 
+    // Compute grid cell dimensions for the grid enclosing the boundary surface mesh
     scalar_type const dx =
         (domain.max().x() - domain.min().x()) / static_cast<scalar_type>(resolution[0]);
     scalar_type const dy =
@@ -88,9 +100,13 @@ meshless_sph_body_t::meshless_sph_body_t(
     scalar_type const dz =
         (domain.max().z() - domain.min().z()) / static_cast<scalar_type>(resolution[2]);
 
+    // The support radius of the meshless nodes is a multiple h times the largest grid cell
+    // dimension
     h_ = h * std::max({dx, dy, dz});
     h_ += std::numeric_limits<scalar_type>::epsilon();
 
+    // Create a meshless node/particle for each grid cell center position
+    // that lies inside the boundary surface using its SDF
     for (unsigned int i = 0u; i < resolution[0]; ++i)
     {
         for (unsigned int j = 0u; j < resolution[1]; ++j)
@@ -117,6 +133,7 @@ meshless_sph_body_t::meshless_sph_body_t(
         }
     }
 
+    // Compute the initial visual mesh as the boundary surface mesh of the given geometry
     visual_model_ = meshless_sph_surface_t(this);
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
     {
@@ -244,6 +261,7 @@ void meshless_sph_body_t::initialize_physical_model()
 {
     physical_model_.clear();
 
+    // Create a meshless node for each XPBD particle centered around the particle's rest position
     std::vector<particle_t> const& particles = simulation().particles()[this->id()];
     physical_model_.reserve(particles.size());
     for (std::size_t i = 0u; i < particles.size(); ++i)
@@ -255,6 +273,9 @@ void meshless_sph_body_t::initialize_physical_model()
         node.xi() = kernel.xi();
         physical_model_.push_back(node);
     }
+
+    // Get a spatial acceleration query object to obtain neighbours of
+    // each meshless node in material space
     material_space_range_query_ = range_searcher_t(&physical_model_);
     std::vector<std::vector<Eigen::Vector3d const*>> Xjs{};
     std::vector<std::vector<index_type>> node_neighbour_indices{};
@@ -266,6 +287,7 @@ void meshless_sph_body_t::initialize_physical_model()
     node_neighbours.resize(physical_model_.size());
     node_kernels.resize(physical_model_.size());
 
+    // precompute all quantities that depend only on material space
     for (std::size_t i = 0u; i < physical_model_.size(); ++i)
     {
         meshless_sph_node_t const& node = physical_model_[i];
@@ -289,6 +311,7 @@ void meshless_sph_body_t::initialize_physical_model()
             node_neighbours[i].push_back(&neighbour);
         }
     }
+    // update meshless nodes using precomputed neighbour information
     for (std::size_t i = 0u; i < physical_model_.size(); ++i)
     {
         auto const ni  = static_cast<index_type>(i);
@@ -296,6 +319,7 @@ void meshless_sph_body_t::initialize_physical_model()
         physical_model_[i] =
             meshless_sph_node_t(ni, xi, Xjs[i], node_neighbour_indices[i], node_kernels[i]);
     }
+    // precompute the correction matrix Li for each meshless node
     for (std::size_t i = 0u; i < physical_model_.size(); ++i)
     {
         physical_model_[i].cache_Li_Vj(node_neighbours[i]);

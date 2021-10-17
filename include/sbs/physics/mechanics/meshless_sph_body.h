@@ -61,7 +61,10 @@ class meshless_sph_body_t : public physics::body_t
      * @param simulation
      * @param id
      * @param geometry The initial tetrahedral geometry
-     * @param h The support (or smoothing length) of meshless nodes
+     * @param h The support (or smoothing length) of meshless nodes as a multiplier of the grid's
+     * cells' dimensions. For example, if the grid's resolution is 10x10x10 in a 10x10x10 domain.
+     * The grid's cells' dimensions will be 1x1x1. The smoothing length will be computed as h*1.
+     * Increase h to include more neighbours.
      * @param resolution The resolution of the particle sampling grid
      */
     meshless_sph_body_t(

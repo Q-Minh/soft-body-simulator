@@ -91,15 +91,20 @@ meshless_sph_body_t::meshless_sph_body_t(
     h_ = h * std::max({dx, dy, dz});
     h_ += std::numeric_limits<scalar_type>::epsilon();
 
-    for (unsigned int i = 0u; i <= resolution[0]; ++i)
+    for (unsigned int i = 0u; i < resolution[0]; ++i)
     {
-        for (unsigned int j = 0u; j <= resolution[1]; ++j)
+        for (unsigned int j = 0u; j < resolution[1]; ++j)
         {
-            for (unsigned int k = 0u; k <= resolution[2]; ++k)
+            for (unsigned int k = 0u; k < resolution[2]; ++k)
             {
-                scalar_type const x = domain.min().x() + static_cast<scalar_type>(i) * dx;
-                scalar_type const y = domain.min().y() + static_cast<scalar_type>(j) * dy;
-                scalar_type const z = domain.min().z() + static_cast<scalar_type>(k) * dz;
+                // Place grid node at the center of grid cells
+                scalar_type const x =
+                    domain.min().x() + static_cast<scalar_type>(i) * dx + 0.5 * dx;
+                scalar_type const y =
+                    domain.min().y() + static_cast<scalar_type>(j) * dy + 0.5 * dy;
+                scalar_type const z =
+                    domain.min().z() + static_cast<scalar_type>(k) * dz + 0.5 * dz;
+
                 Eigen::Vector3d const& grid_node_position{x, y, z};
                 scalar_type const signed_distance = grid.interpolate(sdf_id, grid_node_position);
                 bool const is_grid_node_inside_surface = signed_distance < 0.;

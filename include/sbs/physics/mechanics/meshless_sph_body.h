@@ -21,19 +21,19 @@ namespace mechanics {
 
 class meshless_sph_node_t;
 
-class range_searcher_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
+class meshless_sph_body_range_searcher_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
 {
   public:
     using base_type = Discregrid::KDTree<Discregrid::BoundingSphere>;
 
-    range_searcher_t();
-    range_searcher_t(std::vector<meshless_sph_node_t> const* nodes);
+    meshless_sph_body_range_searcher_t();
+    meshless_sph_body_range_searcher_t(std::vector<meshless_sph_node_t> const* nodes);
 
-    range_searcher_t(range_searcher_t const& other) = default;
-    range_searcher_t(range_searcher_t&& other)      = default;
+    meshless_sph_body_range_searcher_t(meshless_sph_body_range_searcher_t const& other) = default;
+    meshless_sph_body_range_searcher_t(meshless_sph_body_range_searcher_t&& other)      = default;
 
-    range_searcher_t& operator=(range_searcher_t const& other) = default;
-    range_searcher_t& operator=(range_searcher_t&& other) noexcept = default;
+    meshless_sph_body_range_searcher_t& operator=(meshless_sph_body_range_searcher_t const& other) = default;
+    meshless_sph_body_range_searcher_t& operator=(meshless_sph_body_range_searcher_t&& other) noexcept = default;
 
     std::vector<index_type> neighbours_of(index_type const ni) const;
     std::vector<index_type> neighbours_of(Eigen::Vector3d const& p, scalar_type const h) const;
@@ -61,7 +61,7 @@ class meshless_sph_body_t : public physics::body_t
      * @param simulation
      * @param id
      * @param geometry The initial tetrahedral geometry
-     * @param h The support (or smoothing length) of meshless nodes as a multiplier of the grid's
+     * @param h The support (or smoothing length) of meshless meshless_nodes as a multiplier of the grid's
      * cells' dimensions. For example, if the grid's resolution is 10x10x10 in a 10x10x10 domain.
      * The grid's cells' dimensions will be 1x1x1. The smoothing length will be computed as h*1.
      * Increase h to include more neighbours.
@@ -89,7 +89,7 @@ class meshless_sph_body_t : public physics::body_t
     meshless_sph_surface_t& surface_mesh();
     collision::point_bvh_model_t const& bvh() const;
 
-    range_searcher_t const& range_searcher() const;
+    meshless_sph_body_range_searcher_t const& range_searcher() const;
     tetrahedron_set_t const& topology() const;
     tetrahedron_set_t& topology();
     scalar_type h() const;
@@ -100,14 +100,14 @@ class meshless_sph_body_t : public physics::body_t
 
   private:
     std::vector<meshless_sph_node_t> physical_model_;
-    range_searcher_t
+    meshless_sph_body_range_searcher_t
         material_space_range_query_; ///< Used for querying neighbours in material space
     tetrahedron_set_t
         volumetric_topology_; ///< Only used for boundary surface extraction, the mechanical
-                              ///< representation is still just a set of meshless nodes
+                              ///< representation is still just a set of meshless meshless_nodes
     meshless_sph_surface_t visual_model_;
     collision::point_bvh_model_t collision_model_;
-    scalar_type h_; ///< Support radius of meshless nodes
+    scalar_type h_; ///< Support radius of meshless meshless_nodes
 };
 
 } // namespace mechanics

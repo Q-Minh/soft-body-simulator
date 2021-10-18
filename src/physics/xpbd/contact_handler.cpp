@@ -11,6 +11,16 @@ namespace xpbd {
 
 contact_handler_t::contact_handler_t(simulation_t& simulation) : simulation_(simulation) {}
 
+void contact_handler_t::on_cd_starting()
+{
+    // no-op
+}
+
+void contact_handler_t::on_cd_ending()
+{
+    // no-op
+}
+
 void contact_handler_t::handle(collision::contact_t const& contact)
 {
     auto const contact_type = contact.type();

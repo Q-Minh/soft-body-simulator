@@ -100,7 +100,7 @@ meshless_sph_body_t::meshless_sph_body_t(
     scalar_type const dz =
         (domain.max().z() - domain.min().z()) / static_cast<scalar_type>(resolution[2]);
 
-    // The support radius of the meshless nodes is a multiple h times the largest grid cell
+    // The support radius of the meshless meshless_nodes is a multiple h times the largest grid cell
     // dimension
     h_ = h * std::max({dx, dy, dz});
     h_ += std::numeric_limits<scalar_type>::epsilon();
@@ -237,7 +237,7 @@ collision::point_bvh_model_t const& meshless_sph_body_t::bvh() const
     return collision_model_;
 }
 
-range_searcher_t const& meshless_sph_body_t::range_searcher() const
+meshless_sph_body_range_searcher_t const& meshless_sph_body_t::range_searcher() const
 {
     return material_space_range_query_;
 }
@@ -276,16 +276,14 @@ void meshless_sph_body_t::initialize_physical_model()
 
     // Get a spatial acceleration query object to obtain neighbours of
     // each meshless node in material space
-    material_space_range_query_ = range_searcher_t(&physical_model_);
+    material_space_range_query_ = meshless_sph_body_range_searcher_t(&physical_model_);
     std::vector<std::vector<Eigen::Vector3d const*>> Xjs{};
     std::vector<std::vector<index_type>> node_neighbour_indices{};
     std::vector<std::vector<meshless_sph_node_t const*>> node_neighbours{};
-    std::vector<functions::poly6_kernel_t> node_kernels{};
 
     Xjs.resize(physical_model_.size());
     node_neighbour_indices.resize(physical_model_.size());
     node_neighbours.resize(physical_model_.size());
-    node_kernels.resize(physical_model_.size());
 
     // precompute all quantities that depend only on material space
     for (std::size_t i = 0u; i < physical_model_.size(); ++i)
@@ -294,8 +292,6 @@ void meshless_sph_body_t::initialize_physical_model()
         auto const ni                   = static_cast<index_type>(i);
         std::vector<index_type> const neighbours_in_domain =
             material_space_range_query_.neighbours_of(ni);
-
-        node_kernels[i] = node.kernel();
 
         // precompute all neighbour information required to initialize our meshless nodes
         for (std::size_t k = 0u; k < neighbours_in_domain.size(); ++k)
@@ -314,10 +310,8 @@ void meshless_sph_body_t::initialize_physical_model()
     // update meshless nodes using precomputed neighbour information
     for (std::size_t i = 0u; i < physical_model_.size(); ++i)
     {
-        auto const ni  = static_cast<index_type>(i);
         auto const& xi = physical_model_[i].xi();
-        physical_model_[i] =
-            meshless_sph_node_t(ni, xi, Xjs[i], node_neighbour_indices[i], node_kernels[i]);
+        physical_model_[i].initialize(xi, Xjs[i], node_neighbour_indices[i]);
     }
     // precompute the correction matrix Li for each meshless node
     for (std::size_t i = 0u; i < physical_model_.size(); ++i)
@@ -338,15 +332,18 @@ void meshless_sph_body_t::initialize_collision_model()
     collision_model_.id() = id();
 }
 
-range_searcher_t::range_searcher_t() : base_type(0u), nodes_() {}
+meshless_sph_body_range_searcher_t::meshless_sph_body_range_searcher_t() : base_type(0u), nodes_()
+{
+}
 
-range_searcher_t::range_searcher_t(std::vector<meshless_sph_node_t> const* nodes)
+meshless_sph_body_range_searcher_t::meshless_sph_body_range_searcher_t(
+    std::vector<meshless_sph_node_t> const* nodes)
     : base_type(nodes->size()), nodes_(nodes)
 {
     this->construct();
 }
 
-std::vector<index_type> range_searcher_t::neighbours_of(index_type const ni) const
+std::vector<index_type> meshless_sph_body_range_searcher_t::neighbours_of(index_type const ni) const
 {
     meshless_sph_node_t const& node = (*nodes_)[ni];
     scalar_type const r             = node.kernel().h();
@@ -386,8 +383,9 @@ std::vector<index_type> range_searcher_t::neighbours_of(index_type const ni) con
     return neighbours;
 }
 
-std::vector<index_type>
-range_searcher_t::neighbours_of(Eigen::Vector3d const& p, scalar_type const h) const
+std::vector<index_type> meshless_sph_body_range_searcher_t::neighbours_of(
+    Eigen::Vector3d const& p,
+    scalar_type const h) const
 {
     Discregrid::BoundingSphere const range{p, h};
     auto const intersects = [this, range](unsigned int node_idx, unsigned int depth) -> bool {
@@ -418,13 +416,15 @@ range_searcher_t::neighbours_of(Eigen::Vector3d const& p, scalar_type const h) c
     return neighbours;
 }
 
-Eigen::Vector3d range_searcher_t::entityPosition(unsigned int i) const
+Eigen::Vector3d meshless_sph_body_range_searcher_t::entityPosition(unsigned int i) const
 {
     return (*nodes_)[i].Xi();
 }
 
-void range_searcher_t::computeHull(unsigned int b, unsigned int n, Discregrid::BoundingSphere& hull)
-    const
+void meshless_sph_body_range_searcher_t::computeHull(
+    unsigned int b,
+    unsigned int n,
+    Discregrid::BoundingSphere& hull) const
 {
     auto vertices_of_sphere = std::vector<Eigen::Vector3d>(n);
     for (unsigned int i = b; i < n + b; ++i)

@@ -1203,11 +1203,11 @@ bool tetrahedron_set_t::is_boundary_vertex(index_type const vi) const
 
 bool tetrahedron_set_t::is_boundary_tetrahedron(tetrahedron_t const& t) const
 {
-    auto const num_boundary_triangles = std::count_if(
-        t.face_indices().begin(),
-        t.face_indices().end(),
-        [this](index_type const fi) { return is_boundary_triangle(fi); });
-    return num_boundary_triangles > 0u;
+    auto const num_boundary_vertices = std::count_if(
+        t.vertex_indices().begin(),
+        t.vertex_indices().end(),
+        [this](index_type const vi) { return is_boundary_vertex(vi); });
+    return num_boundary_vertices > 0u;
 }
 
 bool tetrahedron_set_t::is_boundary_triangle(triangle_t const& f) const

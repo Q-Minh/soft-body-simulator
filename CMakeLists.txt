@@ -213,10 +213,16 @@ set(_sbs_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/functions/kernel.cpp"
 
     # physics/mechanics
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_body.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_node.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_surface.h"
 
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_sph_body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_sph_node.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_sph_surface.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_body.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_node.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_surface.cpp"
@@ -226,6 +232,7 @@ set(_sbs_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_sph_stvk_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_stvk_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/simulation_parameters.h"
 
@@ -233,6 +240,7 @@ set(_sbs_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_sph_stvk_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_stvk_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/simulation_parameters.cpp"
 

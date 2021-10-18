@@ -22,12 +22,11 @@ class meshless_sph_node_t
   public:
     meshless_sph_node_t() = default;
     meshless_sph_node_t(index_type const i, functions::poly6_kernel_t const& kernel);
-    meshless_sph_node_t(
-        index_type const i,
+
+    void initialize(
         Eigen::Vector3d const& xi,
         std::vector<Eigen::Vector3d const*> const& pj,
-        std::vector<index_type> const& neighbours,
-        functions::poly6_kernel_t const& kernel);
+        std::vector<index_type> const& neighbours);
 
     index_type Ni() const;
     std::vector<index_type> const& neighbours() const;
@@ -74,7 +73,7 @@ class meshless_sph_node_t
      * @brief
      * @param dPsidFi
      * @return All non-zero gradients of this nodal shape function's contribution to the total
-     * strain energy w.r.t. all implicated nodes xk \in neighbours_of(ni) (this includes ni, this
+     * strain energy w.r.t. all implicated meshless_nodes xk \in neighbours_of(ni) (this includes ni, this
      * shape function, itself).
      */
     std::vector<Eigen::Vector3d> dEdxk(Eigen::Matrix3d const& dPsidFi) const;
@@ -91,8 +90,7 @@ class meshless_sph_node_t
     Eigen::Matrix3d Ci_;
     functions::poly6_kernel_t kernel_;
     Eigen::Matrix3d Fi_;
-    Eigen::Vector3d xi_; ///< This is the interpolation coefficient, not the actual world space
-                         ///< position of the meshless
+    Eigen::Vector3d xi_;
 };
 
 } // namespace mechanics

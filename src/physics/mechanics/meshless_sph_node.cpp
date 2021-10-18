@@ -12,30 +12,20 @@ namespace mechanics {
 meshless_sph_node_t::meshless_sph_node_t(
     index_type const i,
     functions::poly6_kernel_t const& kernel)
-    : ni_(i), neighbours_(), Wij_(), gradWij_(), Vjs_(), Vi_(), Ci_(), kernel_(kernel), Fi_(), xi_()
+    : ni_(i), neighbours_(), Wij_(), gradWij_(), Vjs_(), Vi_(0.), Ci_(), kernel_(kernel), Fi_(), xi_()
 {
     Fi_.setIdentity();
     xi_.setZero();
 }
 
-meshless_sph_node_t::meshless_sph_node_t(
-    index_type const i,
+void meshless_sph_node_t::initialize(
     Eigen::Vector3d const& xi,
     std::vector<Eigen::Vector3d const*> const& pj,
-    std::vector<index_type> const& neighbours,
-    functions::poly6_kernel_t const& kernel)
-    : ni_(i),
-      neighbours_(neighbours),
-      Wij_(),
-      gradWij_(),
-      Vjs_(),
-      Vi_(0.),
-      Ci_(),
-      kernel_(kernel),
-      Fi_(),
-      xi_(xi)
+    std::vector<index_type> const& neighbours)
 {
     assert(pj.size() == neighbours.size());
+
+    neighbours_ = neighbours;
 
     functions::poly6_kernel_t& W = kernel_;
 
@@ -57,6 +47,7 @@ meshless_sph_node_t::meshless_sph_node_t(
     Vi_ = 1. / Vi_;
 
     Fi_.setIdentity();
+    xi_ = xi;
 }
 
 index_type meshless_sph_node_t::Ni() const

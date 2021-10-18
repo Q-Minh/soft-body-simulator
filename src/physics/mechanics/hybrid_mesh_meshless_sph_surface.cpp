@@ -1,12 +1,13 @@
-#include <sbs/physics/mechanics/meshless_sph_body.h>
-#include <sbs/physics/mechanics/meshless_sph_node.h>
-#include <sbs/physics/mechanics/meshless_sph_surface.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h>
 
 namespace sbs {
 namespace physics {
 namespace mechanics {
 
-meshless_sph_surface_t::meshless_sph_surface_t(meshless_sph_body_t* mechanical_model)
+hybrid_mesh_meshless_sph_surface_t::hybrid_mesh_meshless_sph_surface_t(
+    hybrid_mesh_meshless_sph_body_t* mechanical_model)
     : tetrahedral_mesh_boundary_t(&mechanical_model->topology()),
       world_space_vertices_(vertex_count()),
       Xkjs_(),
@@ -17,7 +18,7 @@ meshless_sph_surface_t::meshless_sph_surface_t(meshless_sph_body_t* mechanical_m
 {
 }
 
-void meshless_sph_surface_t::initialize_interpolation_scheme()
+void hybrid_mesh_meshless_sph_surface_t::initialize_interpolation_scheme()
 {
     Xkjs_.clear();
     Wkjs_.clear();
@@ -28,14 +29,16 @@ void meshless_sph_surface_t::initialize_interpolation_scheme()
     sks_.resize(vertex_count());
     neighbours_.resize(vertex_count());
 
-    meshless_sph_body_range_searcher_t const& range_searcher        = mechanical_model_->range_searcher();
-    std::vector<meshless_sph_node_t> const& nodes = mechanical_model_->nodes();
-    scalar_type const h                           = mechanical_model_->h();
+    detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t const&
+        meshless_range_searcher = mechanical_model_->meshless_node_range_searcher();
+    std::vector<hybrid_mesh_meshless_sph_node_t> const& nodes = mechanical_model_->meshless_nodes();
+    scalar_type const h                                       = mechanical_model_->h();
 
     for (std::size_t i = 0u; i < vertex_count(); ++i)
     {
-        Eigen::Vector3d const& Xk                        = material_space_vertex(i).position;
-        std::vector<index_type> const& neighbour_indices = range_searcher.neighbours_of(Xk, h);
+        Eigen::Vector3d const& Xk = material_space_vertex(i).position;
+        std::vector<index_type> const& neighbour_indices =
+            meshless_range_searcher.neighbours_of(Xk, h);
 
         scalar_type sk{0.};
         for (std::size_t a = 0u; a < neighbour_indices.size(); ++a)
@@ -61,29 +64,47 @@ void meshless_sph_surface_t::initialize_interpolation_scheme()
     }
 }
 
-meshless_sph_surface_t::vertex_type meshless_sph_surface_t::vertex(std::size_t vi) const
+hybrid_mesh_meshless_sph_surface_t::vertex_type
+hybrid_mesh_meshless_sph_surface_t::vertex(std::size_t vi) const
 {
     return world_space_vertices_[vi];
 }
 
-void meshless_sph_surface_t::prepare_vertices_for_rendering()
+void hybrid_mesh_meshless_sph_surface_t::prepare_vertices_for_rendering()
 {
     prepare_vertices_for_surface_rendering();
 }
 
-meshless_sph_surface_t::vertex_type& meshless_sph_surface_t::world_space_vertex(std::size_t vi)
+hybrid_mesh_meshless_sph_surface_t::vertex_type&
+hybrid_mesh_meshless_sph_surface_t::world_space_vertex(std::size_t vi)
 {
     return world_space_vertices_[vi];
 }
 
-meshless_sph_surface_t::vertex_type& meshless_sph_surface_t::material_space_vertex(std::size_t vi)
+hybrid_mesh_meshless_sph_surface_t::vertex_type&
+hybrid_mesh_meshless_sph_surface_t::material_space_vertex(std::size_t vi)
 {
     return mutable_vertex(vi);
 }
 
-void meshless_sph_surface_t::compute_positions()
+void hybrid_mesh_meshless_sph_surface_t::compute_positions()
 {
-    auto const& nodes = mechanical_model_->nodes();
+    /**
+     * IMPORTANT NOTE:
+     * Because the surface vertices correspond exactly to boundary vertices of
+     * the initial tetrahedral mesh, then the mesh nodes' shape functions all evaluate
+     * to 0 at these surface vertices (remember, no boundary vertex has a shape function
+     * in the hybrid model). Because of this, the interpolation to compute positions is
+     * not affected by the mesh nodes' shape functions that overlap with the mixed domain
+     * of particles and mesh nodes. This is why we only compute positions using neighboring
+     * meshless nodes. However, if we choose this embedded surface to be any other way,
+     * we would have to also add the contributions of the mesh nodes' shape functions
+     * to this interpolation to find surface mesh vertex positions. This should be done
+     * in the future, since we want to be able to embed high resolution surfaces into
+     * this hybrid mesh/meshless model instead of always using the initial tetrahedral
+     * mesh's boundary.
+     */
+    auto const& meshless_nodes = mechanical_model_->meshless_nodes();
     for (std::size_t i = 0u; i < vertex_count(); ++i)
     {
         Eigen::Vector3d& xk = world_space_vertices_[i].position;
@@ -92,13 +113,13 @@ void meshless_sph_surface_t::compute_positions()
         auto const num_neighbours = Xkjs_[i].size();
         for (std::size_t b = 0u; b < num_neighbours; ++b)
         {
-            index_type const j            = neighbours_[i][b];
-            meshless_sph_node_t const& nj = nodes[j];
-            Eigen::Vector3d const& Xkj    = Xkjs_[i][b];
-            scalar_type const Wkj         = Wkjs_[i][b];
-            scalar_type const Vj          = nj.Vi();
-            Eigen::Matrix3d const& Fj     = nj.Fi();
-            Eigen::Vector3d const& xj     = nj.xi();
+            index_type const j                        = neighbours_[i][b];
+            hybrid_mesh_meshless_sph_node_t const& nj = meshless_nodes[j];
+            Eigen::Vector3d const& Xkj                = Xkjs_[i][b];
+            scalar_type const Wkj                     = Wkjs_[i][b];
+            scalar_type const Vj                      = nj.Vi();
+            Eigen::Matrix3d const& Fj                 = nj.Fi();
+            Eigen::Vector3d const& xj                 = nj.xi();
             xk += Vj * (Fj * Xkj + xj) * Wkj;
         }
 
@@ -107,7 +128,7 @@ void meshless_sph_surface_t::compute_positions()
     }
 }
 
-void meshless_sph_surface_t::compute_normals()
+void hybrid_mesh_meshless_sph_surface_t::compute_normals()
 {
     for (std::size_t i = 0u; i < triangle_count(); ++i)
     {
@@ -133,7 +154,7 @@ void meshless_sph_surface_t::compute_normals()
     }
 }
 
-void meshless_sph_surface_t::prepare_vertices_for_surface_rendering()
+void hybrid_mesh_meshless_sph_surface_t::prepare_vertices_for_surface_rendering()
 {
     std::size_t constexpr num_attributes_per_vertex = 9u;
     std::size_t const vertex_count                  = world_space_vertices_.size();

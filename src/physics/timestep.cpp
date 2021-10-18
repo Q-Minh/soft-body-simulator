@@ -1,3 +1,4 @@
+#include <execution>
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/cd_system.h>
 #include <sbs/physics/collision/collision_model.h>
@@ -26,19 +27,20 @@ void timestep_t::step(simulation_t& simulation)
     // cut(simulation);
     // body->update_physical_model();
     auto const& cd_system = simulation.collision_detection_system();
+    cd_system->contact_handler()->on_cd_starting();
     cd_system->execute();
+    cd_system->contact_handler()->on_cd_ending();
 
     for (std::size_t s = 0u; s < substeps_; ++s)
     {
         // move particles using semi-implicit integration
         for (std::vector<particle_t>& body_particles : particles)
         {
-            for (particle_t& p : body_particles)
-            {
+            std::for_each(body_particles.begin(), body_particles.end(), [dt](particle_t& p) {
                 p.f().y() -= scalar_type{9.81};
                 p.v()  = p.v() + p.a() * dt;
                 p.xi() = p.x() + p.v() * dt;
-            }
+            });
         }
 
         solver_->solve(simulation, dt, iterations_);
@@ -46,13 +48,12 @@ void timestep_t::step(simulation_t& simulation)
         // set solution
         for (std::vector<particle_t>& body_particles : particles)
         {
-            for (particle_t& p : body_particles)
-            {
+            std::for_each(body_particles.begin(), body_particles.end(), [dt](particle_t& p) {
                 p.x()  = p.xi();
                 p.v()  = (p.x() - p.xn()) / dt;
                 p.xn() = p.x();
                 p.f().setZero();
-            }
+            });
         }
     }
 

@@ -15,6 +15,8 @@ class contact_handler_t : public collision::contact_handler_t
   public:
     contact_handler_t(simulation_t& simulation);
 
+    virtual void on_cd_starting() override;
+    virtual void on_cd_ending() override;
     virtual void handle(collision::contact_t const& contact) override;
 
   private:

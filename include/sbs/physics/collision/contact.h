@@ -60,6 +60,8 @@ class surface_mesh_particle_to_sdf_contact_t : public contact_t
 class contact_handler_t
 {
   public:
+    virtual void on_cd_starting()                 = 0;
+    virtual void on_cd_ending()                   = 0;
     virtual void handle(contact_t const& contact) = 0;
 };
 

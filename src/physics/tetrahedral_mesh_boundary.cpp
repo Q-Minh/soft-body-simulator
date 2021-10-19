@@ -1,5 +1,3 @@
-#include "..\..\include\sbs\physics\tetrahedral_mesh_boundary.h"
-#include "..\..\include\sbs\physics\tetrahedral_mesh_boundary.h"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <numeric>

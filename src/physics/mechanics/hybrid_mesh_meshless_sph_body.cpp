@@ -99,14 +99,14 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
         interior_tetrahedral_topology.remove_tetrahedron(ti);
     }
     interior_tetrahedral_topology.collect_garbage();
+
+    std::vector<Eigen::Vector3d> interior_mesh_vertices{};
     std::vector<std::array<unsigned int, 3u>> interior_boundary_faces{};
     std::vector<triangle_t> const interior_layer_boundary_triangles =
-        interior_tetrahedral_topology.boundary_triangles();
+        interior_tetrahedral_topology.oriented_boundary_triangles();
     interior_boundary_faces.reserve(interior_layer_boundary_triangles.size());
     for (triangle_t const& f : interior_layer_boundary_triangles)
-    {
         interior_boundary_faces.push_back({f.v1(), f.v2(), f.v3()});
-    }
 
     /**
      * Compute the SDF of the exterior boundary surface and of the interior boundary surface to
@@ -251,7 +251,8 @@ void hybrid_mesh_meshless_sph_body_t::update_physical_model()
     }
     for (std::size_t i = mesh_nodes_.size(); i < particles.size(); ++i)
     {
-        hybrid_mesh_meshless_sph_node_t& node = meshless_nodes_[i];
+        index_type const ni                   = i - mesh_nodes_.size();
+        hybrid_mesh_meshless_sph_node_t& node = meshless_nodes_[ni];
         particle_t const& p                   = particles[i];
         node.xi()                             = p.x();
     }
@@ -268,6 +269,11 @@ void hybrid_mesh_meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
         p.x()  = affine * p.x().homogeneous();
     }
 
+    for (std::size_t i = 0u; i < world_space_positions_.size(); ++i)
+    {
+        world_space_positions_[i] = affine * world_space_positions_[i].homogeneous();
+        mesh_nodes_[i]            = affine * mesh_nodes_[i].homogeneous();
+    }
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
     {
         visual_model_.material_space_vertex(i).position =
@@ -310,14 +316,19 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
         Ainv_.push_back(Ainv);
     }
 
+    world_space_positions_ = mesh_nodes_;
+
     // Create a meshless node for each XPBD particle centered around the particle's rest position
-    meshless_nodes_.reserve(particles.size());
-    for (std::size_t i = 0u; i < particles.size(); ++i)
+    auto const meshless_node_count = particles.size() - mesh_nodes_.size();
+    auto const index_offset        = mesh_nodes_.size();
+    meshless_nodes_.reserve(meshless_node_count);
+    for (std::size_t i = 0u; i < meshless_node_count; ++i)
     {
-        particle_t const& p = particles[i];
+        particle_t const& p = particles[index_offset + i];
         functions::poly6_kernel_t kernel(p.x0(), h_);
         auto const ni = static_cast<index_type>(i);
         hybrid_mesh_meshless_sph_node_t node(ni, kernel, *this);
+        node.xi() = p.x0();
         meshless_nodes_.push_back(node);
     }
 
@@ -357,7 +368,7 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
     }
 
     material_space_mesh_node_searcher_ =
-        detail::hybrid_mesh_meshless_sph::mesh_node_range_searcher_t(
+        detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t(
             &volumetric_topology_,
             &mesh_nodes_,
             &Ainv_);
@@ -365,9 +376,16 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
     // update meshless meshless_nodes using precomputed neighbour information
     for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
-        auto const& xi      = meshless_nodes_[i].xi();
-        index_type const ti = material_space_mesh_node_searcher_.in_tetrahedron(xi);
-        assert(ti != std::numeric_limits<index_type>::max());
+        auto const& Xi      = meshless_nodes_[i].Xi();
+        index_type const ti = material_space_mesh_node_searcher_.in_tetrahedron(Xi);
+
+        // Used for debugging purposes only. Since we are testing inside/outside against
+        // the cubic lagrange interpolated SDF at the SDF grid's resolution, some points
+        // might be evaluated as "inside" the SDF, but are not actually exactly inside the
+        // mesh.
+        bool const has_found_parent = ti != std::numeric_limits<index_type>::max();
+
+        auto const& xi = meshless_nodes_[i].xi();
         meshless_nodes_[i].initialize(xi, Xjs[i], node_neighbour_indices[i], ti);
     }
     // precompute the correction matrix Li for each meshless node
@@ -400,9 +418,53 @@ std::vector<hybrid_mesh_meshless_sph_node_t>& hybrid_mesh_meshless_sph_body_t::m
     return meshless_nodes_;
 }
 
+std::size_t hybrid_mesh_meshless_sph_body_t::mesh_node_count() const
+{
+    return mesh_nodes_.size();
+}
+
+std::size_t hybrid_mesh_meshless_sph_body_t::meshless_node_count() const
+{
+    return meshless_nodes_.size();
+}
+
+hybrid_mesh_meshless_sph_surface_t const& hybrid_mesh_meshless_sph_body_t::surface_mesh() const
+{
+    return visual_model_;
+}
+
+hybrid_mesh_meshless_sph_surface_t& hybrid_mesh_meshless_sph_body_t::surface_mesh()
+{
+    return visual_model_;
+}
+
 collision::point_bvh_model_t const& hybrid_mesh_meshless_sph_body_t::bvh() const
 {
     return collision_model_;
+}
+
+std::size_t hybrid_mesh_meshless_sph_body_t::mixed_meshless_node_count() const
+{
+    auto const count = std::count_if(
+        meshless_nodes_.begin(),
+        meshless_nodes_.end(),
+        [](hybrid_mesh_meshless_sph_node_t const& meshless_node) {
+            return meshless_node.is_mixed_particle();
+        });
+    return count;
+}
+
+std::size_t hybrid_mesh_meshless_sph_body_t::interior_tetrahedron_count() const
+{
+    auto const count =
+        std::count(is_boundary_tetrahedron_.begin(), is_boundary_tetrahedron_.end(), false);
+    return count;
+}
+
+std::size_t hybrid_mesh_meshless_sph_body_t::mesh_shape_function_count() const
+{
+    auto const count = std::count(is_boundary_vertex_.begin(), is_boundary_vertex_.end(), false);
+    return count;
 }
 
 tetrahedron_set_t const& hybrid_mesh_meshless_sph_body_t::topology() const
@@ -420,7 +482,7 @@ scalar_type hybrid_mesh_meshless_sph_body_t::h() const
     return h_;
 }
 
-detail::hybrid_mesh_meshless_sph::mesh_node_range_searcher_t const&
+detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t const&
 hybrid_mesh_meshless_sph_body_t::mesh_node_range_searcher() const
 {
     return material_space_mesh_node_searcher_;
@@ -463,7 +525,7 @@ Eigen::Vector3d
 hybrid_mesh_meshless_sph_body_t::grad_phi_i(index_type const ti, std::uint8_t v) const
 {
     Eigen::Matrix4d const& Ainv = Ainv_[ti];
-    Eigen::Vector3d const grad  = Ainv.block(v, 1u, 1u, 3u);
+    Eigen::Vector3d const grad  = Ainv.block(v, 1u, 1u, 3u).transpose();
     return grad;
 }
 
@@ -575,90 +637,138 @@ void meshless_node_range_searcher_t::computeHull(
     hull.r() = s.r();
 }
 
-mesh_node_range_searcher_t::mesh_node_range_searcher_t()
+mesh_tetrahedron_range_searcher_t::mesh_tetrahedron_range_searcher_t()
     : base_type(0u), topology_(), mesh_nodes_(), Ainv_()
 {
 }
 
-mesh_node_range_searcher_t::mesh_node_range_searcher_t(
+mesh_tetrahedron_range_searcher_t::mesh_tetrahedron_range_searcher_t(
     tetrahedron_set_t const* topology,
     std::vector<Eigen::Vector3d> const* mesh_nodes,
     std::vector<Eigen::Matrix4d> const* Ainv)
-    : base_type(mesh_nodes->size()), topology_(topology), mesh_nodes_(mesh_nodes), Ainv_(Ainv)
+    : base_type(topology->tetrahedron_count()),
+      topology_(topology),
+      mesh_nodes_(mesh_nodes),
+      Ainv_(Ainv)
 {
+    tetrahedron_centers_.reserve(topology_->tetrahedron_count());
+    for (auto const& t : topology_->tetrahedra())
+    {
+        Eigen::Vector3d const& p1 = (*mesh_nodes)[t.v1()];
+        Eigen::Vector3d const& p2 = (*mesh_nodes)[t.v2()];
+        Eigen::Vector3d const& p3 = (*mesh_nodes)[t.v3()];
+        Eigen::Vector3d const& p4 = (*mesh_nodes)[t.v4()];
+
+        Eigen::Vector3d const center = 0.25 * (p1 + p2 + p3 + p4);
+        tetrahedron_centers_.push_back(center);
+    }
     this->construct();
 }
 
-index_type mesh_node_range_searcher_t::in_tetrahedron(Eigen::Vector3d const& p) const
+index_type mesh_tetrahedron_range_searcher_t::in_tetrahedron(Eigen::Vector3d const& p) const
 {
     auto const intersects = [this, p](unsigned int node_idx, unsigned int depth) -> bool {
         Discregrid::BoundingSphere const& s = this->hull(node_idx);
         return s.contains(p);
     };
 
-    index_type ti                                 = std::numeric_limits<index_type>::max();
-    scalar_type min_distance                      = std::numeric_limits<scalar_type>::max();
-    index_type closest_mesh_node_to_meshless_node = std::numeric_limits<index_type>::max();
-    auto const get_ti = [this, p, &ti, &min_distance, &closest_mesh_node_to_meshless_node](
+    auto const is_point_in_tetrahedron =
+        [this](Eigen::Vector3d const& point, tetrahedron_t const& t) {
+            auto const& face_copies = t.faces_copy();
+            std::array<bool, 4u> is_inside{false, false, false, false};
+            for (std::uint8_t i = 0u; i < 4u; ++i)
+            {
+                auto const& f             = face_copies[i];
+                Eigen::Vector3d const& p1 = (*mesh_nodes_)[f.v1()];
+                Eigen::Vector3d const& p2 = (*mesh_nodes_)[f.v2()];
+                Eigen::Vector3d const& p3 = (*mesh_nodes_)[f.v3()];
+
+                Eigen::Vector3d const n           = (p2 - p1).cross(p3 - p1).normalized();
+                scalar_type const signed_distance = (point - p1).dot(n);
+                bool const is_outside             = signed_distance > 0.;
+                is_inside[i]                      = !is_outside;
+            }
+            bool const is_p_in_t = is_inside[0] && is_inside[1] && is_inside[2] && is_inside[3];
+            return is_p_in_t;
+        };
+
+    index_type parent_ti = std::numeric_limits<index_type>::max();
+    bool found{false};
+    auto const get_ti = [this, p, &parent_ti, is_point_in_tetrahedron, &found](
                             unsigned int node_idx,
                             unsigned int depth) {
+        if (found)
+            return;
+
         base_type::Node const& node = this->node(node_idx);
         if (!node.isLeaf())
             return;
 
         for (auto j = node.begin; j < node.begin + node.n; ++j)
         {
-            index_type const i = m_lst[j];
+            index_type const ti    = static_cast<index_type>(m_lst[j]);
+            tetrahedron_t const& t = topology_->tetrahedron(ti);
 
-            Eigen::Vector3d const& xi = (*mesh_nodes_)[i];
-            scalar_type const dist2   = (xi - p).squaredNorm();
-            if (dist2 < min_distance)
+            Eigen::Vector3d const& p1 = (*mesh_nodes_)[t.v1()];
+            Eigen::Vector3d const& p2 = (*mesh_nodes_)[t.v2()];
+            Eigen::Vector3d const& p3 = (*mesh_nodes_)[t.v3()];
+            Eigen::Vector3d const& p4 = (*mesh_nodes_)[t.v4()];
+
+            Eigen::Matrix4d const& Ainv = (*Ainv_)[ti];
+
+            Eigen::Vector4d const alpha = Ainv * Eigen::Vector4d{1., p.x(), p.y(), p.z()};
+
+            scalar_type const a1 = alpha(0u);
+            scalar_type const a2 = alpha(1u);
+            scalar_type const a3 = alpha(2u);
+            scalar_type const a4 = alpha(3u);
+
+            scalar_type const alpha_sum = alpha.array().sum();
+
+            if (is_point_in_tetrahedron(p, t))
             {
-                min_distance                       = dist2;
-                closest_mesh_node_to_meshless_node = i;
+                // IMPORTANT NOTE:
+                // Use this variable for debugging purposes.
+                // It is possible that a point lies exactly in 2 tetrahedra or more.
+                // For example, a point lying on a shared face of 2 tetrahedra will
+                // belong in both tets. In this implementation, for the moment,
+                // we will choose to associate a point with the first tetrahedra
+                // that we find.
+                bool const is_point_shared_between_multiple_tetrahedra =
+                    (parent_ti != std::numeric_limits<index_type>::max());
+                parent_ti = ti;
+                found     = true;
             }
         }
     };
 
     traverseBreadthFirst(intersects, get_ti);
 
-    vertex_t const& closest_vertex = topology_->vertex(closest_mesh_node_to_meshless_node);
-    for (index_type const tj : closest_vertex.incident_tetrahedron_indices())
-    {
-        Eigen::Matrix4d const& Ainv = (*Ainv_)[tj];
-        Eigen::Vector4d const barycentric_coordinates =
-            Ainv * Eigen::Vector4d{1., p.x(), p.y(), p.z()};
-
-        scalar_type const a0 = barycentric_coordinates.x();
-        scalar_type const a1 = barycentric_coordinates.y();
-        scalar_type const a2 = barycentric_coordinates.z();
-        scalar_type const a3 = barycentric_coordinates.w();
-        bool const is_meshless_node_in_tetrahedron =
-            std::abs(a0) <= 1. && std::abs(a1) <= 1. && std::abs(a2) <= 1. && std::abs(a3) <= 1.;
-
-        if (is_meshless_node_in_tetrahedron)
-        {
-            assert(ti == std::numeric_limits<index_type>::max());
-            ti = tj;
-        }
-    }
-
-    return ti;
+    return parent_ti;
 }
 
-Eigen::Vector3d mesh_node_range_searcher_t::entityPosition(unsigned int i) const
+Eigen::Vector3d mesh_tetrahedron_range_searcher_t::entityPosition(unsigned int i) const
 {
-    return (*mesh_nodes_)[i];
+    return tetrahedron_centers_[i];
 }
 
-void mesh_node_range_searcher_t::computeHull(
+void mesh_tetrahedron_range_searcher_t::computeHull(
     unsigned int b,
     unsigned int n,
     Discregrid::BoundingSphere& hull) const
 {
-    auto vertices_of_sphere = std::vector<Eigen::Vector3d>(n);
+    std::vector<Eigen::Vector3d> vertices_of_sphere{};
+    vertices_of_sphere.reserve(n * 4);
     for (unsigned int i = b; i < n + b; ++i)
-        vertices_of_sphere[i - b] = (*mesh_nodes_)[m_lst[i]];
+    {
+        index_type const ti    = static_cast<index_type>(m_lst[i]);
+        tetrahedron_t const& t = topology_->tetrahedron(ti);
+        for (index_type const vi : t.vertex_indices())
+        {
+            Eigen::Vector3d const& pi = (*mesh_nodes_)[vi];
+            vertices_of_sphere.push_back(pi);
+        }
+    }
 
     Discregrid::BoundingSphere const s(vertices_of_sphere);
 

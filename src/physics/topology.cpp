@@ -1203,11 +1203,11 @@ bool tetrahedron_set_t::is_boundary_vertex(index_type const vi) const
 
 bool tetrahedron_set_t::is_boundary_tetrahedron(tetrahedron_t const& t) const
 {
-    auto const num_boundary_vertices = std::count_if(
+    auto const num_boundary_vertices = std::find_if(
         t.vertex_indices().begin(),
         t.vertex_indices().end(),
         [this](index_type const vi) { return is_boundary_vertex(vi); });
-    return num_boundary_vertices > 0u;
+    return num_boundary_vertices != t.vertex_indices().end();
 }
 
 bool tetrahedron_set_t::is_boundary_triangle(triangle_t const& f) const
@@ -1323,6 +1323,26 @@ std::vector<index_type> tetrahedron_set_t::boundary_vertex_indices() const
             boundary_vertex_indices.push_back(vi);
     }
     return boundary_vertex_indices;
+}
+
+std::vector<triangle_t> tetrahedron_set_t::oriented_boundary_triangles() const
+{
+    std::vector<triangle_t> oriented_boundary_tris{};
+    for (std::size_t i = 0u; i < triangles().size(); ++i)
+    {
+        index_type const fi = static_cast<index_type>(i);
+        if (is_boundary_triangle(fi))
+        {
+            triangle_t const& f = triangle(fi);
+            // boundary triangles only have one incident tet
+            index_type const ti         = f.incident_tetrahedron_indices().front();
+            tetrahedron_t const& t      = tetrahedron(ti);
+            std::uint8_t const f_idx    = t.id_of_face(fi);
+            triangle_t const f_oriented = t.faces_copy()[f_idx];
+            oriented_boundary_tris.push_back(f_oriented);
+        }
+    }
+    return oriented_boundary_tris;
 }
 
 bool tetrahedron_set_t::operator==(tetrahedron_set_t const& other) const

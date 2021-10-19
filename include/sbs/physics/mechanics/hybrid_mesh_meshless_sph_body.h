@@ -49,22 +49,24 @@ class meshless_node_range_searcher_t : public Discregrid::KDTree<Discregrid::Bou
     std::vector<hybrid_mesh_meshless_sph_node_t> const* nodes_;
 };
 
-class mesh_node_range_searcher_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
+class mesh_tetrahedron_range_searcher_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
 {
   public:
     using base_type = Discregrid::KDTree<Discregrid::BoundingSphere>;
 
-    mesh_node_range_searcher_t();
-    mesh_node_range_searcher_t(
+    mesh_tetrahedron_range_searcher_t();
+    mesh_tetrahedron_range_searcher_t(
         tetrahedron_set_t const* topology,
         std::vector<Eigen::Vector3d> const* mesh_nodes,
         std::vector<Eigen::Matrix4d> const* Ainv);
 
-    mesh_node_range_searcher_t(mesh_node_range_searcher_t const& other) = default;
-    mesh_node_range_searcher_t(mesh_node_range_searcher_t&& other)      = default;
+    mesh_tetrahedron_range_searcher_t(mesh_tetrahedron_range_searcher_t const& other) = default;
+    mesh_tetrahedron_range_searcher_t(mesh_tetrahedron_range_searcher_t&& other)      = default;
 
-    mesh_node_range_searcher_t& operator=(mesh_node_range_searcher_t const& other) = default;
-    mesh_node_range_searcher_t& operator=(mesh_node_range_searcher_t&& other) noexcept = default;
+    mesh_tetrahedron_range_searcher_t&
+    operator=(mesh_tetrahedron_range_searcher_t const& other) = default;
+    mesh_tetrahedron_range_searcher_t&
+    operator=(mesh_tetrahedron_range_searcher_t&& other) noexcept = default;
 
     index_type in_tetrahedron(Eigen::Vector3d const& p) const;
 
@@ -76,6 +78,7 @@ class mesh_node_range_searcher_t : public Discregrid::KDTree<Discregrid::Boundin
     tetrahedron_set_t const* topology_;
     std::vector<Eigen::Vector3d> const* mesh_nodes_;
     std::vector<Eigen::Matrix4d> const* Ainv_;
+    std::vector<Eigen::Vector3d> tetrahedron_centers_;
 };
 
 } // namespace hybrid_mesh_meshless_sph
@@ -122,9 +125,15 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
 
     std::vector<hybrid_mesh_meshless_sph_node_t> const& meshless_nodes() const;
     std::vector<hybrid_mesh_meshless_sph_node_t>& meshless_nodes();
-    // meshless_sph_surface_t const& surface_mesh() const;
-    // meshless_sph_surface_t& surface_mesh();
+    std::size_t mesh_node_count() const;
+    std::size_t meshless_node_count() const;
+    hybrid_mesh_meshless_sph_surface_t const& surface_mesh() const;
+    hybrid_mesh_meshless_sph_surface_t& surface_mesh();
     collision::point_bvh_model_t const& bvh() const;
+
+    std::size_t mixed_meshless_node_count() const;
+    std::size_t interior_tetrahedron_count() const;
+    std::size_t mesh_shape_function_count() const;
 
     tetrahedron_set_t const& topology() const;
     tetrahedron_set_t& topology();
@@ -135,7 +144,7 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
      * detail namespace, but for the moment, this will do.
      */
 
-    detail::hybrid_mesh_meshless_sph::mesh_node_range_searcher_t const&
+    detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t const&
     mesh_node_range_searcher() const;
 
     detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t const&
@@ -159,7 +168,8 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
     std::vector<hybrid_mesh_meshless_sph_node_t> meshless_nodes_;
     detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t
         material_space_meshless_node_searcher_; ///< Used for querying neighbours in material space
-    detail::hybrid_mesh_meshless_sph::mesh_node_range_searcher_t material_space_mesh_node_searcher_;
+    detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t
+        material_space_mesh_node_searcher_;
     tetrahedron_set_t volumetric_topology_; ///< Is not the topology of the mechanical model.
     std::vector<bool>
         is_boundary_vertex_; ///< vi is a boundary vertex if is_boundary_vertex_ == true

@@ -4,11 +4,13 @@
 #include <sbs/physics/collision/brute_force_cd_system.h>
 #include <sbs/physics/environment_body.h>
 #include <sbs/physics/gauss_seidel_solver.h>
-#include <sbs/physics/mechanics/meshless_sph_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
 #include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
 #include <sbs/physics/xpbd/contact_handler.h>
-#include <sbs/physics/xpbd/meshless_sph_stvk_constraint.h>
+#include <sbs/physics/xpbd/green_constraint.h>
+#include <sbs/physics/xpbd/hybrid_mesh_meshless_sph_stvk_constraint.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -19,53 +21,77 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::simulation_t simulation{};
-    simulation.simulation_parameters().compliance        = 1e-15;
     simulation.simulation_parameters().collision_damping = 0.01;
     simulation.simulation_parameters().poisson_ratio     = 0.3;
     simulation.simulation_parameters().young_modulus     = 1e6;
 
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(20u, 5u, 20u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
-    sbs::scalar_type constexpr h = 1.1;
+    sbs::scalar_type constexpr h = 2.1;
     auto const beam_idx          = static_cast<sbs::index_type>(simulation.bodies().size());
     simulation.add_body();
-    std::array<unsigned int, 3u> const particle_grid_resolution{20u, 5u, 20u};
-    simulation.bodies()[beam_idx] = std::make_unique<sbs::physics::mechanics::meshless_sph_body_t>(
-        simulation,
-        beam_idx,
-        beam_geometry,
-        h,
-        particle_grid_resolution);
+    std::array<unsigned int, 3u> const particle_grid_resolution{8u, 8u, 24u};
+    simulation.bodies()[beam_idx] =
+        std::make_unique<sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t>(
+            simulation,
+            beam_idx,
+            beam_geometry,
+            h,
+            particle_grid_resolution);
 
-    sbs::physics::mechanics::meshless_sph_body_t& beam =
-        *dynamic_cast<sbs::physics::mechanics::meshless_sph_body_t*>(
+    sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t& beam =
+        *dynamic_cast<sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t*>(
             simulation.bodies()[beam_idx].get());
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 5., -1.)};
-    beam_transform.rotate(
-        Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1, 0.4, 1});
+    // beam_transform.rotate(
+    //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    // beam_transform.scale(Eigen::Vector3d{1, 0.4, 1});
     beam.transform(beam_transform);
     beam.initialize_physical_model();
     beam.initialize_visual_model();
     beam.initialize_collision_model();
 
-    for (std::size_t i = 0u; i < beam.nodes().size(); ++i)
+    for (sbs::physics::tetrahedron_t const& t : beam.topology().tetrahedra())
+    {
+        // Only constrain interior tets
+        if (beam.topology().is_boundary_tetrahedron(t))
+            continue;
+
+        auto const alpha = simulation.simulation_parameters().compliance;
+        auto const beta  = simulation.simulation_parameters().damping;
+        auto const nu    = simulation.simulation_parameters().poisson_ratio;
+        auto const E     = simulation.simulation_parameters().young_modulus;
+        simulation.add_constraint(std::make_unique<sbs::physics::xpbd::green_constraint_t>(
+            alpha,
+            beta,
+            simulation,
+            beam_idx,
+            t.v1(),
+            t.v2(),
+            t.v3(),
+            t.v4(),
+            E,
+            nu));
+    }
+
+    for (std::size_t i = 0u; i < beam.meshless_nodes().size(); ++i)
     {
         auto const alpha = simulation.simulation_parameters().compliance;
         auto const beta  = simulation.simulation_parameters().damping;
         auto const E     = simulation.simulation_parameters().young_modulus;
         auto const nu    = simulation.simulation_parameters().poisson_ratio;
-        sbs::physics::mechanics::meshless_sph_node_t& node = beam.nodes()[i];
-        auto const ni                                      = static_cast<sbs::index_type>(i);
-        auto constraint = std::make_unique<sbs::physics::xpbd::meshless_sph_stvk_constraint_t>(
-            alpha,
-            beta,
-            simulation,
-            beam_idx,
-            ni,
-            E,
-            nu,
-            node);
+        sbs::physics::mechanics::hybrid_mesh_meshless_sph_node_t& node = beam.meshless_nodes()[i];
+        auto const ni = static_cast<sbs::index_type>(i);
+        auto constraint =
+            std::make_unique<sbs::physics::xpbd::hybrid_mesh_meshless_sph_constraint_t>(
+                alpha,
+                beta,
+                simulation,
+                beam_idx,
+                ni,
+                E,
+                nu,
+                node);
         simulation.add_constraint(std::move(constraint));
     }
 
@@ -247,8 +273,23 @@ int main(int argc, char** argv)
             ImGui::Text(fps_str.c_str());
             std::string const fps_avg_str = "Mean FPS: " + std::to_string(windowed_average_fps);
             ImGui::Text(fps_avg_str.c_str());
-            std::string const particle_count = "Particles: " + std::to_string(beam.nodes().size());
+            std::string const mesh_node_count = "Nodes: " + std::to_string(beam.mesh_node_count());
+            ImGui::Text(mesh_node_count.c_str());
+            std::string const tet_count =
+                "Tetrahedra: " + std::to_string(beam.topology().tetrahedron_count());
+            ImGui::Text(tet_count.c_str());
+            std::string const particle_count =
+                "Particles: " + std::to_string(beam.meshless_nodes().size());
             ImGui::Text(particle_count.c_str());
+            std::string const interior_tet_count =
+                "Interior tets: " + std::to_string(beam.interior_tetrahedron_count());
+            ImGui::Text(interior_tet_count.c_str());
+            std::string const mesh_shape_function_count =
+                "Mesh shape functions: " + std::to_string(beam.mesh_shape_function_count());
+            ImGui::Text(mesh_shape_function_count.c_str());
+            std::string const mixed_meshless_node_count =
+                "Mixed particles: " + std::to_string(beam.mixed_meshless_node_count());
+            ImGui::Text(mixed_meshless_node_count.c_str());
         }
 
         ImGui::End();

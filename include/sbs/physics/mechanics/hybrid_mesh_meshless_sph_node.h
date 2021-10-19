@@ -25,6 +25,9 @@ class hybrid_mesh_meshless_sph_node_t : public meshless_sph_node_t
 
     bool is_mixed_particle() const;
 
+    hybrid_mesh_meshless_sph_body_t const& body() const;
+    index_type ti() const;
+
   private:
     hybrid_mesh_meshless_sph_body_t& body_;
     index_type ti_; ///< Boundary tetrahedron in which this meshless node lives

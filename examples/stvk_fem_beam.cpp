@@ -34,6 +34,12 @@ int main(int argc, char** argv)
         Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
     beam_transform.scale(Eigen::Vector3d{1.0, 0.8, 2.});
     beam.transform(beam_transform);
+    for (auto const& x0 : beam.x0())
+    {
+        sbs::physics::particle_t p{x0};
+        p.mass() = 1.;
+        simulation.add_particle(p, beam_idx);
+    }
     for (auto const& tetrahedron : beam.physical_model().tetrahedra())
     {
         auto const alpha = simulation.simulation_parameters().compliance;

@@ -10,26 +10,6 @@ namespace physics {
 tetrahedral_body_t::tetrahedral_body_t(
     simulation_t& simulation,
     index_type id,
-    std::vector<Eigen::Vector3d> const& positions,
-    tetrahedron_set_t const& topology)
-    : body_t(simulation, id),
-      physical_model_(topology),
-      visual_model_(&physical_model_),
-      collision_model_()
-{
-    for (auto const& x : positions)
-    {
-        particle_t const p{x};
-        simulation.add_particle(p, this->id());
-    }
-    update_visual_model(simulation.particles().at(this->id()));
-    collision_model_      = collision::point_bvh_model_t(&visual_model_);
-    collision_model_.id() = this->id();
-}
-
-tetrahedral_body_t::tetrahedral_body_t(
-    simulation_t& simulation,
-    index_type id,
     common::geometry_t const& geometry)
     : body_t(simulation, id), physical_model_(), visual_model_(), collision_model_()
 {
@@ -58,9 +38,7 @@ tetrahedral_body_t::tetrahedral_body_t(
         scalar_type const y = static_cast<scalar_type>(geometry.positions[idx + 1u]);
         scalar_type const z = static_cast<scalar_type>(geometry.positions[idx + 2u]);
         Eigen::Vector3d const pos{x, y, z};
-
-        particle_t const p{pos};
-        simulation.add_particle(p, this->id());
+        x0_.push_back(pos);
     }
 
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
@@ -72,9 +50,8 @@ tetrahedral_body_t::tetrahedral_body_t(
         float const g  = static_cast<float>(geometry.colors[idx + 1u] / 255.f);
         float const b  = static_cast<float>(geometry.colors[idx + 2u] / 255.f);
 
-        visual_model_.mutable_vertex(i).position =
-            simulation.particles()[this->id()][particle_index].x();
-        visual_model_.mutable_vertex(i).color = Eigen::Vector3f{r, g, b};
+        visual_model_.mutable_vertex(i).position = x0_[particle_index];
+        visual_model_.mutable_vertex(i).color    = Eigen::Vector3f{r, g, b};
     }
     visual_model_.compute_normals();
 
@@ -120,15 +97,16 @@ void tetrahedral_body_t::update_physical_model()
 
 void tetrahedral_body_t::transform(Eigen::Affine3d const& affine)
 {
-    auto& particles = simulation().particles().at(id());
-    for (auto& p : particles)
+    for (auto& x0 : x0_)
     {
-        p.x0() = affine * p.x0().homogeneous();
-        p.xi() = affine * p.xi().homogeneous();
-        p.xn() = affine * p.xn().homogeneous();
-        p.x()  = affine * p.x().homogeneous();
+        x0 = affine * x0.homogeneous();
     }
-    update_visual_model(particles);
+    for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
+    {
+        auto const particle_index                = visual_model_.from_surface_vertex(i);
+        visual_model_.mutable_vertex(i).position = x0_[particle_index];
+    }
+    visual_model_.compute_normals();
 }
 
 tetrahedron_set_t const& tetrahedral_body_t::physical_model() const
@@ -152,6 +130,11 @@ collision::point_bvh_model_t const& tetrahedral_body_t::bvh() const
 collision::point_bvh_model_t& tetrahedral_body_t::bvh()
 {
     return collision_model_;
+}
+
+std::vector<Eigen::Vector3d> const& tetrahedral_body_t::x0() const
+{
+    return x0_;
 }
 
 void tetrahedral_body_t::update_visual_model(std::vector<particle_t> const& particles)

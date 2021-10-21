@@ -11,7 +11,17 @@ scalar_type kernel_t::h() const
     return h_;
 }
 
+scalar_type& kernel_t::h()
+{
+    return h_;
+}
+
 Eigen::Vector3d const& kernel_t::xi() const
+{
+    return xi_;
+}
+
+Eigen::Vector3d& kernel_t::xi()
 {
     return xi_;
 }

@@ -102,7 +102,7 @@ class meshless_sph_body_t : public physics::body_t
     void initialize_collision_model();
 
   private:
-    std::vector<meshless_sph_node_t> physical_model_;
+    std::vector<meshless_sph_node_t> meshless_nodes_;
     meshless_sph_body_range_searcher_t
         material_space_range_query_; ///< Used for querying neighbours in material space
     tetrahedron_set_t

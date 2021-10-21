@@ -37,6 +37,7 @@ class meshless_sph_node_t
     Eigen::Matrix3d const& Li() const;
     functions::poly6_kernel_t const& kernel() const;
     Eigen::Vector3d const& Xi() const;
+    Eigen::Vector3d& Xi();
     Eigen::Matrix3d const& Fi() const;
     Eigen::Matrix3d& Fi();
     Eigen::Vector3d const& xi() const;
@@ -73,8 +74,8 @@ class meshless_sph_node_t
      * @brief
      * @param dPsidFi
      * @return All non-zero gradients of this nodal shape function's contribution to the total
-     * strain energy w.r.t. all implicated meshless_nodes xk \in neighbours_of(ni) (this includes ni, this
-     * shape function, itself).
+     * strain energy w.r.t. all implicated meshless_nodes xk \in neighbours_of(ni) (this includes
+     * ni, this shape function, itself).
      */
     std::vector<Eigen::Vector3d> dEdxk(Eigen::Matrix3d const& dPsidFi) const;
 

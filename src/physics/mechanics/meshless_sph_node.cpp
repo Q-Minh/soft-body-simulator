@@ -95,6 +95,11 @@ Eigen::Vector3d const& meshless_sph_node_t::Xi() const
     return kernel_.xi();
 }
 
+Eigen::Vector3d& meshless_sph_node_t::Xi()
+{
+    return kernel_.xi();
+}
+
 Eigen::Matrix3d const& meshless_sph_node_t::Fi() const
 {
     return Fi_;

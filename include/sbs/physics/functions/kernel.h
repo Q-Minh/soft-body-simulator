@@ -15,7 +15,9 @@ class kernel_t
     kernel_t(Eigen::Vector3d const& xi, scalar_type const h);
 
     scalar_type h() const;
+    scalar_type& h();
     Eigen::Vector3d const& xi() const;
+    Eigen::Vector3d& xi();
 
     virtual scalar_type operator()(Eigen::Vector3d const& xj) const = 0;
     virtual Eigen::Vector3d grad(Eigen::Vector3d const& xj) const   = 0;

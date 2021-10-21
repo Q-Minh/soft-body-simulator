@@ -19,7 +19,7 @@ meshless_sph_body_t::meshless_sph_body_t(
     scalar_type const h,
     std::array<unsigned int, 3u> const& resolution)
     : body_t(simulation, id),
-      physical_model_(),
+      meshless_nodes_(),
       material_space_range_query_(),
       volumetric_topology_(),
       visual_model_(),
@@ -128,8 +128,11 @@ meshless_sph_body_t::meshless_sph_body_t(
                 if (!is_grid_node_inside_surface)
                     continue;
 
-                particle_t const p{grid_node_position};
-                simulation.add_particle(p, this->id());
+                functions::poly6_kernel_t kernel(grid_node_position, h_);
+                auto const ni = static_cast<index_type>(meshless_nodes_.size());
+                meshless_sph_node_t node(ni, kernel);
+                node.xi() = kernel.xi();
+                meshless_nodes_.push_back(node);
             }
         }
     }
@@ -221,10 +224,10 @@ void meshless_sph_body_t::update_collision_model()
 void meshless_sph_body_t::update_physical_model()
 {
     auto const& particles = simulation().particles()[id()];
-    assert(particles.size() == physical_model_.size());
+    assert(particles.size() == meshless_nodes_.size());
     for (std::size_t i = 0u; i < particles.size(); ++i)
     {
-        meshless_sph_node_t& node = physical_model_[i];
+        meshless_sph_node_t& node = meshless_nodes_[i];
         particle_t const& p       = particles[i];
         node.xi()                 = p.x();
     }
@@ -232,13 +235,10 @@ void meshless_sph_body_t::update_physical_model()
 
 void meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
 {
-    auto& particles = simulation().particles().at(id());
-    for (auto& p : particles)
+    for (auto& meshless_node : meshless_nodes_)
     {
-        p.x0() = affine * p.x0().homogeneous();
-        p.xi() = affine * p.xi().homogeneous();
-        p.xn() = affine * p.xn().homogeneous();
-        p.x()  = affine * p.x().homogeneous();
+        meshless_node.Xi() = affine * meshless_node.Xi().homogeneous();
+        meshless_node.xi() = affine * meshless_node.xi().homogeneous();
     }
 
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
@@ -257,12 +257,12 @@ void meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
 
 std::vector<meshless_sph_node_t> const& meshless_sph_body_t::nodes() const
 {
-    return physical_model_;
+    return meshless_nodes_;
 }
 
 std::vector<meshless_sph_node_t>& meshless_sph_body_t::nodes()
 {
-    return physical_model_;
+    return meshless_nodes_;
 }
 
 meshless_sph_surface_t const& meshless_sph_body_t::surface_mesh() const
@@ -302,36 +302,21 @@ scalar_type meshless_sph_body_t::h() const
 
 void meshless_sph_body_t::initialize_physical_model()
 {
-    physical_model_.clear();
-
-    // Create a meshless node for each XPBD particle centered around the particle's rest position
-    std::vector<particle_t> const& particles = simulation().particles()[this->id()];
-    physical_model_.reserve(particles.size());
-    for (std::size_t i = 0u; i < particles.size(); ++i)
-    {
-        particle_t const& p = particles[i];
-        functions::poly6_kernel_t kernel(p.x0(), h_);
-        auto const ni = static_cast<index_type>(i);
-        meshless_sph_node_t node(ni, kernel);
-        node.xi() = kernel.xi();
-        physical_model_.push_back(node);
-    }
-
     // Get a spatial acceleration query object to obtain neighbours of
     // each meshless node in material space
-    material_space_range_query_ = meshless_sph_body_range_searcher_t(&physical_model_);
+    material_space_range_query_ = meshless_sph_body_range_searcher_t(&meshless_nodes_);
     std::vector<std::vector<Eigen::Vector3d const*>> Xjs{};
     std::vector<std::vector<index_type>> node_neighbour_indices{};
     std::vector<std::vector<meshless_sph_node_t const*>> node_neighbours{};
 
-    Xjs.resize(physical_model_.size());
-    node_neighbour_indices.resize(physical_model_.size());
-    node_neighbours.resize(physical_model_.size());
+    Xjs.resize(meshless_nodes_.size());
+    node_neighbour_indices.resize(meshless_nodes_.size());
+    node_neighbours.resize(meshless_nodes_.size());
 
     // precompute all quantities that depend only on material space
-    for (std::size_t i = 0u; i < physical_model_.size(); ++i)
+    for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
-        meshless_sph_node_t const& node = physical_model_[i];
+        meshless_sph_node_t const& node = meshless_nodes_[i];
         auto const ni                   = static_cast<index_type>(i);
         std::vector<index_type> const neighbours_in_domain =
             material_space_range_query_.neighbours_of(ni);
@@ -340,7 +325,7 @@ void meshless_sph_body_t::initialize_physical_model()
         for (std::size_t k = 0u; k < neighbours_in_domain.size(); ++k)
         {
             index_type const j                   = neighbours_in_domain[k];
-            meshless_sph_node_t const& neighbour = physical_model_[j];
+            meshless_sph_node_t const& neighbour = meshless_nodes_[j];
             // neighbour positions
             Eigen::Vector3d const* Xj = &neighbour.Xi();
             Xjs[i].push_back(Xj);
@@ -351,15 +336,15 @@ void meshless_sph_body_t::initialize_physical_model()
         }
     }
     // update meshless nodes using precomputed neighbour information
-    for (std::size_t i = 0u; i < physical_model_.size(); ++i)
+    for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
-        auto const& xi = physical_model_[i].xi();
-        physical_model_[i].initialize(xi, Xjs[i], node_neighbour_indices[i]);
+        auto const& xi = meshless_nodes_[i].xi();
+        meshless_nodes_[i].initialize(xi, Xjs[i], node_neighbour_indices[i]);
     }
     // precompute the correction matrix Li for each meshless node
-    for (std::size_t i = 0u; i < physical_model_.size(); ++i)
+    for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
-        physical_model_[i].cache_Li_Vj(node_neighbours[i]);
+        meshless_nodes_[i].cache_Li_Vj(node_neighbours[i]);
     }
 }
 

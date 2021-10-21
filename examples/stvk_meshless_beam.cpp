@@ -21,12 +21,12 @@ int main(int argc, char** argv)
      */
     sbs::physics::simulation_t simulation{};
     simulation.simulation_parameters().compliance                  = 1e-10;
-    simulation.simulation_parameters().damping                     = 1e-3;
-    simulation.simulation_parameters().collision_compliance        = 1e-3;
-    simulation.simulation_parameters().collision_damping           = 1e-3;
+    simulation.simulation_parameters().damping                     = 1e-2;
+    simulation.simulation_parameters().collision_compliance        = 1e-4;
+    simulation.simulation_parameters().collision_damping           = 1e-5;
     simulation.simulation_parameters().poisson_ratio               = 0.45;
     simulation.simulation_parameters().young_modulus               = 1e6;
-    simulation.simulation_parameters().positional_penalty_strength = 8.;
+    simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
@@ -44,7 +44,7 @@ int main(int argc, char** argv)
     sbs::physics::mechanics::meshless_sph_body_t& beam =
         *dynamic_cast<sbs::physics::mechanics::meshless_sph_body_t*>(
             simulation.bodies()[beam_idx].get());
-    Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 5., -1.)};
+    Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 4., 2.)};
     beam_transform.rotate(
         Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
     beam_transform.scale(Eigen::Vector3d{1, 0.4, 1});
@@ -53,6 +53,13 @@ int main(int argc, char** argv)
     beam.initialize_visual_model();
     beam.initialize_collision_model();
 
+    auto constexpr mass_density = 1.;
+    for (auto const& meshless_node : beam.nodes())
+    {
+        sbs::physics::particle_t p{meshless_node.Xi()};
+        p.mass() = mass_density * meshless_node.Vi();
+        simulation.add_particle(p, beam_idx);
+    }
     for (std::size_t i = 0u; i < beam.nodes().size(); ++i)
     {
         auto const alpha = simulation.simulation_parameters().compliance;
@@ -273,6 +280,9 @@ int main(int argc, char** argv)
             ImGui::Text(fps_avg_str.c_str());
             std::string const particle_count = "Particles: " + std::to_string(beam.nodes().size());
             ImGui::Text(particle_count.c_str());
+            std::string const element_count =
+                "Elements: " + std::to_string(beam.topology().tetrahedron_count());
+            ImGui::Text(element_count.c_str());
         }
 
         ImGui::End();

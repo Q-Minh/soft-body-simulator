@@ -25,6 +25,11 @@ struct simulation_parameters_t
 
     scalar_type collision_compliance = 1e-8;
     scalar_type collision_damping    = 0.;
+
+    /**
+     * Meshless parameters
+     */
+    scalar_type positional_penalty_strength = 1.;
 };
 
 } // namespace xpbd

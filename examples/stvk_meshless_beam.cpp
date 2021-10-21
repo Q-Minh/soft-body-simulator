@@ -7,6 +7,7 @@
 #include <sbs/physics/mechanics/meshless_sph_body.h>
 #include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
+#include <sbs/physics/xpbd/meshless_sph_positional_constraint.h>
 #include <sbs/physics/xpbd/meshless_sph_stvk_constraint.h>
 #include <sbs/physics/xpbd/meshless_sph_surface_contact_handler.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
@@ -19,12 +20,13 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::simulation_t simulation{};
-    simulation.simulation_parameters().compliance           = 1e-10;
-    simulation.simulation_parameters().damping              = 1e-3;
-    simulation.simulation_parameters().collision_compliance = 1e-3;
-    simulation.simulation_parameters().collision_damping    = 1e-3;
-    simulation.simulation_parameters().poisson_ratio        = 0.45;
-    simulation.simulation_parameters().young_modulus        = 1e6;
+    simulation.simulation_parameters().compliance                  = 1e-10;
+    simulation.simulation_parameters().damping                     = 1e-3;
+    simulation.simulation_parameters().collision_compliance        = 1e-3;
+    simulation.simulation_parameters().collision_damping           = 1e-3;
+    simulation.simulation_parameters().poisson_ratio               = 0.45;
+    simulation.simulation_parameters().young_modulus               = 1e6;
+    simulation.simulation_parameters().positional_penalty_strength = 8.;
 
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
@@ -157,33 +159,52 @@ int main(int argc, char** argv)
     surfaces_to_pick.push_back(
         reinterpret_cast<sbs::common::shared_vertex_surface_mesh_i*>(&beam.surface_mesh()));
 
-    // sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
-    // fix_picker.should_picking_start = [](int button, int action, int mods) {
-    //     return (
-    //         button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action ==
-    //         GLFW_PRESS);
-    // };
-    // fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
-    //                                     bool right_mouse_button_pressed,
-    //                                     bool middle_mouse_button_pressed,
-    //                                     bool alt_key_pressed,
-    //                                     bool ctrl_key_pressed,
-    //                                     bool shift_key_pressed) {
-    //     return !ctrl_key_pressed;
-    // };
-    // fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
-    //     return true;
-    // };
-    // fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
-    //     auto* tet_mesh_boundary =
-    //         reinterpret_cast<sbs::physics::tetrahedral_mesh_boundary_t*>(node);
-    //     auto const tvi              = tet_mesh_boundary->from_surface_vertex(vi);
-    //     auto const tet_mesh         = tet_mesh_boundary->tetrahedral_mesh();
-    //     sbs::physics::particle_t& p = simulation.particles()[beam_idx][tvi];
-    //     p.mass()                    = p.fixed() ? 1. : 0.;
-    // };
+    std::unordered_map<sbs::index_type, Eigen::Vector3d> fixed_vertices{};
+    sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
+    fix_picker.should_picking_start = [](int button, int action, int mods) {
+        return (
+            button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action == GLFW_PRESS);
+    };
+    fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
+                                        bool right_mouse_button_pressed,
+                                        bool middle_mouse_button_pressed,
+                                        bool alt_key_pressed,
+                                        bool ctrl_key_pressed,
+                                        bool shift_key_pressed) {
+        return !ctrl_key_pressed;
+    };
+    fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
+        return true;
+    };
+    fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
+        if (fixed_vertices.find(vi) != fixed_vertices.end())
+            return;
 
-    // renderer.pickers.push_back(fix_picker);
+        auto* surface_mesh =
+            reinterpret_cast<sbs::physics::mechanics::meshless_sph_surface_t*>(node);
+        auto* mechanical_model = surface_mesh->mechanical_model();
+
+        sbs::physics::mechanics::meshless_sph_surface_vertex_t const& meshless_surface_vertex =
+            surface_mesh->embedded_surface_vertices()[vi];
+        Eigen::Vector3d const target_position   = surface_mesh->vertex(vi).position;
+        Eigen::Vector3d const& current_position = target_position;
+
+        auto positional_constraint =
+            std::make_unique<sbs::physics::xpbd::meshless_sph_positional_constraint_t>(
+                simulation.simulation_parameters().collision_compliance,
+                simulation.simulation_parameters().collision_damping,
+                beam_idx,
+                mechanical_model,
+                meshless_surface_vertex,
+                current_position,
+                simulation.simulation_parameters().positional_penalty_strength,
+                target_position);
+        simulation.add_constraint(std::move(positional_constraint));
+
+        fixed_vertices.insert({vi, target_position});
+    };
+
+    renderer.pickers.push_back(fix_picker);
     renderer.on_new_imgui_frame = [&](sbs::physics::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 
@@ -259,25 +280,19 @@ int main(int argc, char** argv)
 
     renderer.on_pre_render = [&](sbs::physics::simulation_t& s) {
         renderer.clear_points();
-        for (auto const& particles : s.particles())
+        for (auto const [vi, p] : fixed_vertices)
         {
-            for (auto const& p : particles)
-            {
-                if (p.fixed())
-                {
-                    std::array<float, 9u> const vertex_attributes{
-                        static_cast<float>(p.x().x()),
-                        static_cast<float>(p.x().y()),
-                        static_cast<float>(p.x().z()),
-                        0.f,
-                        0.f,
-                        0.f,
-                        1.f,
-                        0.f,
-                        0.f};
-                    renderer.add_point(vertex_attributes);
-                }
-            }
+            std::array<float, 9u> const vertex_attributes{
+                static_cast<float>(p.x()),
+                static_cast<float>(p.y()),
+                static_cast<float>(p.z()),
+                0.f,
+                0.f,
+                0.f,
+                1.f,
+                0.f,
+                0.f};
+            renderer.add_point(vertex_attributes);
         }
     };
 

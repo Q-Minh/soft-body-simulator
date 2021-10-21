@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     // beam_transform.rotate(
     //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
     // beam_transform.scale(Eigen::Vector3d{1, 0.4, 1});
-    beam.transform(beam_transform);
+    // beam.transform(beam_transform);
     beam.initialize_physical_model();
     beam.initialize_visual_model();
     beam.initialize_collision_model();

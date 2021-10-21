@@ -42,7 +42,7 @@ class hybrid_mesh_meshless_sph_surface_t : public tetrahedral_mesh_boundary_t
     std::vector<vertex_type>
         world_space_vertices_; ///< The vertices_ member of tetrahedral_mesh_boundary_t will be
                                ///< considered as vertex positions in material space, while the
-                               ///< world_space_vertices_ are the world space vertex positions
+                               ///< render_vertices_ are the world space vertex positions
 
     std::vector<std::vector<Eigen::Vector3d>> Xkjs_;
     std::vector<std::vector<scalar_type>> Wkjs_;

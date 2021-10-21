@@ -7,8 +7,8 @@
 #include <sbs/physics/mechanics/meshless_sph_body.h>
 #include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
-#include <sbs/physics/xpbd/contact_handler.h>
 #include <sbs/physics/xpbd/meshless_sph_stvk_constraint.h>
+#include <sbs/physics/xpbd/meshless_sph_surface_contact_handler.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -99,7 +99,7 @@ int main(int argc, char** argv)
     simulation.use_collision_detection_system(
         std::make_unique<sbs::physics::collision::brute_force_cd_system_t>(collision_objects));
     simulation.collision_detection_system()->use_contact_handler(
-        std::make_unique<sbs::physics::xpbd::contact_handler_t>(simulation));
+        std::make_unique<sbs::physics::xpbd::meshless_sph_surface_contact_handler_t>(simulation));
 
     /**
      * Setup renderer
@@ -155,32 +155,33 @@ int main(int argc, char** argv)
     surfaces_to_pick.push_back(
         reinterpret_cast<sbs::common::shared_vertex_surface_mesh_i*>(&beam.surface_mesh()));
 
-    sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
-    fix_picker.should_picking_start = [](int button, int action, int mods) {
-        return (
-            button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action == GLFW_PRESS);
-    };
-    fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
-                                        bool right_mouse_button_pressed,
-                                        bool middle_mouse_button_pressed,
-                                        bool alt_key_pressed,
-                                        bool ctrl_key_pressed,
-                                        bool shift_key_pressed) {
-        return !ctrl_key_pressed;
-    };
-    fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
-        return true;
-    };
-    fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
-        auto* tet_mesh_boundary =
-            reinterpret_cast<sbs::physics::tetrahedral_mesh_boundary_t*>(node);
-        auto const tvi              = tet_mesh_boundary->from_surface_vertex(vi);
-        auto const tet_mesh         = tet_mesh_boundary->tetrahedral_mesh();
-        sbs::physics::particle_t& p = simulation.particles()[beam_idx][tvi];
-        p.mass()                    = p.fixed() ? 1. : 0.;
-    };
+    // sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
+    // fix_picker.should_picking_start = [](int button, int action, int mods) {
+    //     return (
+    //         button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action ==
+    //         GLFW_PRESS);
+    // };
+    // fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
+    //                                     bool right_mouse_button_pressed,
+    //                                     bool middle_mouse_button_pressed,
+    //                                     bool alt_key_pressed,
+    //                                     bool ctrl_key_pressed,
+    //                                     bool shift_key_pressed) {
+    //     return !ctrl_key_pressed;
+    // };
+    // fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
+    //     return true;
+    // };
+    // fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
+    //     auto* tet_mesh_boundary =
+    //         reinterpret_cast<sbs::physics::tetrahedral_mesh_boundary_t*>(node);
+    //     auto const tvi              = tet_mesh_boundary->from_surface_vertex(vi);
+    //     auto const tet_mesh         = tet_mesh_boundary->tetrahedral_mesh();
+    //     sbs::physics::particle_t& p = simulation.particles()[beam_idx][tvi];
+    //     p.mass()                    = p.fixed() ? 1. : 0.;
+    // };
 
-    renderer.pickers.push_back(fix_picker);
+    // renderer.pickers.push_back(fix_picker);
     renderer.on_new_imgui_frame = [&](sbs::physics::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 

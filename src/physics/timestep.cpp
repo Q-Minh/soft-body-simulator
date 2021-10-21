@@ -1,4 +1,5 @@
 #include <execution>
+//#include <iostream>
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/cd_system.h>
 #include <sbs/physics/collision/collision_model.h>
@@ -30,6 +31,11 @@ void timestep_t::step(simulation_t& simulation)
     cd_system->contact_handler()->on_cd_starting();
     cd_system->execute();
     cd_system->contact_handler()->on_cd_ending();
+
+    //if (!simulation.collision_constraints().empty())
+    //{
+    //    std::cout << "Collisions: " << simulation.collision_constraints().size() << "\n";
+    //}
 
     for (std::size_t s = 0u; s < substeps_; ++s)
     {

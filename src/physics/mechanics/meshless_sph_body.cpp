@@ -60,7 +60,8 @@ meshless_sph_body_t::meshless_sph_body_t(
         vertices.push_back(pos);
     }
     std::vector<std::array<unsigned int, 3u>> faces{};
-    std::vector<triangle_t> const boundary_triangles = volumetric_topology_.boundary_triangles();
+    std::vector<triangle_t> const boundary_triangles =
+        volumetric_topology_.oriented_boundary_triangles();
     faces.reserve(boundary_triangles.size());
     for (triangle_t const& f : boundary_triangles)
         faces.push_back({f.v1(), f.v2(), f.v3()});
@@ -133,19 +134,52 @@ meshless_sph_body_t::meshless_sph_body_t(
         }
     }
 
-    // Compute the initial visual mesh as the boundary surface mesh of the given geometry
-    visual_model_ = meshless_sph_surface_t(this);
-    for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
+    std::unordered_map<index_type, index_type> tet_vertex_to_surface_vertex{};
+    std::vector<Eigen::Vector3d> surface_vertices{};
+    std::vector<triangle_t> surface_triangles{};
+    for (auto const& f : boundary_triangles)
     {
-        auto const tet_mesh_vertex_index = visual_model_.from_surface_vertex(i);
+        if (tet_vertex_to_surface_vertex.find(f.v1()) == tet_vertex_to_surface_vertex.end())
+        {
+            auto const index                     = tet_vertex_to_surface_vertex.size();
+            tet_vertex_to_surface_vertex[f.v1()] = static_cast<index_type>(index);
+            surface_vertices.push_back(vertices[f.v1()]);
+        }
+        if (tet_vertex_to_surface_vertex.find(f.v2()) == tet_vertex_to_surface_vertex.end())
+        {
+            auto const index                     = tet_vertex_to_surface_vertex.size();
+            tet_vertex_to_surface_vertex[f.v2()] = static_cast<index_type>(index);
+            surface_vertices.push_back(vertices[f.v2()]);
+        }
+        if (tet_vertex_to_surface_vertex.find(f.v3()) == tet_vertex_to_surface_vertex.end())
+        {
+            auto const index                     = tet_vertex_to_surface_vertex.size();
+            tet_vertex_to_surface_vertex[f.v3()] = static_cast<index_type>(index);
+            surface_vertices.push_back(vertices[f.v3()]);
+        }
+
+        auto const v1 = tet_vertex_to_surface_vertex[f.v1()];
+        auto const v2 = tet_vertex_to_surface_vertex[f.v2()];
+        auto const v3 = tet_vertex_to_surface_vertex[f.v3()];
+        triangle_t const triangle{v1, v2, v3};
+        surface_triangles.push_back(triangle);
+    }
+
+    // Compute the initial visual mesh as the boundary surface mesh of the given geometry
+    visual_model_ = meshless_sph_surface_t(this, surface_vertices, surface_triangles);
+    for (std::size_t i = 0u; i < vertices.size(); ++i)
+    {
+        if (tet_vertex_to_surface_vertex.find(static_cast<index_type>(i)) ==
+            tet_vertex_to_surface_vertex.end())
+            continue;
 
         auto const idx = i * 3u;
         float const r  = static_cast<float>(geometry.colors[idx] / 255.f);
         float const g  = static_cast<float>(geometry.colors[idx + 1u] / 255.f);
         float const b  = static_cast<float>(geometry.colors[idx + 2u] / 255.f);
 
-        visual_model_.material_space_vertex(i).position = vertices[tet_mesh_vertex_index];
-        visual_model_.material_space_vertex(i).color    = Eigen::Vector3f{r, g, b};
+        auto const vi = tet_vertex_to_surface_vertex[static_cast<index_type>(i)];
+        visual_model_.world_space_vertex(vi).color = Eigen::Vector3f{r, g, b};
     }
 }
 
@@ -205,10 +239,10 @@ void meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
 
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
     {
-        visual_model_.material_space_vertex(i).position =
-            affine * visual_model_.material_space_vertex(i).position.homogeneous();
         visual_model_.world_space_vertex(i).position =
             affine * visual_model_.world_space_vertex(i).position.homogeneous();
+        visual_model_.material_space_position(i) =
+            affine * visual_model_.material_space_position(i).homogeneous();
     }
 }
 

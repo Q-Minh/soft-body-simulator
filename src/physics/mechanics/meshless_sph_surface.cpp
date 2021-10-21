@@ -6,35 +6,52 @@ namespace sbs {
 namespace physics {
 namespace mechanics {
 
-meshless_sph_surface_t::meshless_sph_surface_t(meshless_sph_body_t* mechanical_model)
-    : tetrahedral_mesh_boundary_t(&mechanical_model->topology()),
-      world_space_vertices_(vertex_count()),
-      Xkjs_(),
-      Wkjs_(),
-      sks_(),
-      neighbours_(),
+meshless_sph_surface_t::meshless_sph_surface_t(
+    meshless_sph_body_t* mechanical_model,
+    std::vector<Eigen::Vector3d> const& vertices,
+    std::vector<triangle_t> const& triangles)
+    : material_space_vertices_(),
+      render_vertices_(),
+      triangles_(),
+      vertices_(),
       mechanical_model_(mechanical_model)
 {
+    material_space_vertices_ = vertices;
+    render_vertices_.reserve(vertices.size());
+    for (auto const& p : vertices)
+    {
+        vertex_type v{};
+        v.position = p;
+        render_vertices_.push_back(v);
+    }
+    triangles_.reserve(triangles.size());
+    for (auto const& triangle : triangles)
+    {
+        triangle_type f{};
+        std::copy(
+            triangle.vertex_indices().begin(),
+            triangle.vertex_indices().end(),
+            f.vertices.begin());
+
+        triangles_.push_back(f);
+    }
 }
 
 void meshless_sph_surface_t::initialize_interpolation_scheme()
 {
-    Xkjs_.clear();
-    Wkjs_.clear();
-    sks_.clear();
-    neighbours_.clear();
-    Xkjs_.resize(vertex_count());
-    Wkjs_.resize(vertex_count());
-    sks_.resize(vertex_count());
-    neighbours_.resize(vertex_count());
+    meshless_sph_body_range_searcher_t const& range_searcher = mechanical_model_->range_searcher();
+    std::vector<meshless_sph_node_t> const& nodes            = mechanical_model_->nodes();
+    scalar_type const h                                      = mechanical_model_->h();
 
-    meshless_sph_body_range_searcher_t const& range_searcher        = mechanical_model_->range_searcher();
-    std::vector<meshless_sph_node_t> const& nodes = mechanical_model_->nodes();
-    scalar_type const h                           = mechanical_model_->h();
-
+    vertices_.reserve(vertex_count());
     for (std::size_t i = 0u; i < vertex_count(); ++i)
     {
-        Eigen::Vector3d const& Xk                        = material_space_vertex(i).position;
+        std::vector<Eigen::Vector3d> Xkjs{};
+        std::vector<scalar_type> Wkjs{};
+        std::vector<scalar_type> Vjs{};
+        std::vector<index_type> neighbours{};
+
+        Eigen::Vector3d const& Xk                        = material_space_vertices_[i];
         std::vector<index_type> const& neighbour_indices = range_searcher.neighbours_of(Xk, h);
 
         scalar_type sk{0.};
@@ -47,23 +64,39 @@ void meshless_sph_surface_t::initialize_interpolation_scheme()
             Eigen::Vector3d const& Xkj    = Xk - Xj;
             scalar_type const Wkj         = nj.kernel()(Xk);
 
-            Xkjs_[i].push_back(Xkj);
-            Wkjs_[i].push_back(Wkj);
-            neighbours_[i].push_back(j);
+            Xkjs.push_back(Xkj);
+            Wkjs.push_back(Wkj);
+            Vjs.push_back(Vj);
+            neighbours.push_back(j);
 
             sk += Vj * Wkj;
         }
-        sk      = 1. / sk;
-        sks_[i] = sk;
+        sk = 1. / sk;
 
-        world_space_vertices_[i].position = material_space_vertex(i).position;
-        world_space_vertices_[i].color    = material_space_vertex(i).color;
+        vertices_.push_back(meshless_sph_surface_vertex_t(Xk, Xk, Xkjs, Wkjs, Vjs, sk, neighbours));
+
+        render_vertices_[i].position = material_space_vertices_[i];
     }
 }
 
 meshless_sph_surface_t::vertex_type meshless_sph_surface_t::vertex(std::size_t vi) const
 {
-    return world_space_vertices_[vi];
+    return render_vertices_[vi];
+}
+
+meshless_sph_surface_t::triangle_type meshless_sph_surface_t::triangle(std::size_t f) const
+{
+    return triangles_[f];
+}
+
+std::size_t meshless_sph_surface_t::triangle_count() const
+{
+    return triangles_.size();
+}
+
+std::size_t meshless_sph_surface_t::vertex_count() const
+{
+    return render_vertices_.size();
 }
 
 void meshless_sph_surface_t::prepare_vertices_for_rendering()
@@ -71,14 +104,29 @@ void meshless_sph_surface_t::prepare_vertices_for_rendering()
     prepare_vertices_for_surface_rendering();
 }
 
-meshless_sph_surface_t::vertex_type& meshless_sph_surface_t::world_space_vertex(std::size_t vi)
+void meshless_sph_surface_t::prepare_indices_for_rendering()
 {
-    return world_space_vertices_[vi];
+    std::size_t const index_count = triangles_.size() * 3u;
+    std::vector<std::uint32_t> index_buffer{};
+    index_buffer.reserve(index_count);
+    for (triangle_type const& f : triangles_)
+    {
+        index_buffer.push_back(f.vertices[0]);
+        index_buffer.push_back(f.vertices[1]);
+        index_buffer.push_back(f.vertices[2]);
+    }
+
+    transfer_indices_for_rendering(std::move(index_buffer));
 }
 
-meshless_sph_surface_t::vertex_type& meshless_sph_surface_t::material_space_vertex(std::size_t vi)
+meshless_sph_surface_t::vertex_type& meshless_sph_surface_t::world_space_vertex(std::size_t vi)
 {
-    return mutable_vertex(vi);
+    return render_vertices_[vi];
+}
+
+Eigen::Vector3d& meshless_sph_surface_t::material_space_position(std::size_t vi)
+{
+    return material_space_vertices_[vi];
 }
 
 void meshless_sph_surface_t::compute_positions()
@@ -86,24 +134,27 @@ void meshless_sph_surface_t::compute_positions()
     auto const& nodes = mechanical_model_->nodes();
     for (std::size_t i = 0u; i < vertex_count(); ++i)
     {
-        Eigen::Vector3d& xk = world_space_vertices_[i].position;
+        Eigen::Vector3d& xk = render_vertices_[i].position;
         xk.setZero();
 
-        auto const num_neighbours = Xkjs_[i].size();
-        for (std::size_t b = 0u; b < num_neighbours; ++b)
+        auto const& neighbours = vertices_[i].neighbours();
+        auto const& Xkjs       = vertices_[i].Xkjs();
+        auto const& Wkjs       = vertices_[i].Wkjs();
+        auto const& Vjs        = vertices_[i].Vjs();
+        auto const& sk         = vertices_[i].sk();
+        for (std::size_t b = 0u; b < neighbours.size(); ++b)
         {
-            index_type const j            = neighbours_[i][b];
+            index_type const j            = neighbours[b];
             meshless_sph_node_t const& nj = nodes[j];
-            Eigen::Vector3d const& Xkj    = Xkjs_[i][b];
-            scalar_type const Wkj         = Wkjs_[i][b];
-            scalar_type const Vj          = nj.Vi();
+            Eigen::Vector3d const& Xkj    = Xkjs[b];
+            scalar_type const Wkj         = Wkjs[b];
+            scalar_type const Vj          = Vjs[b];
             Eigen::Matrix3d const& Fj     = nj.Fi();
             Eigen::Vector3d const& xj     = nj.xi();
             xk += Vj * (Fj * Xkj + xj) * Wkj;
         }
-
-        scalar_type const sk = sks_[i];
-        xk                   = sk * xk;
+        xk               = sk * xk;
+        vertices_[i].x() = xk;
     }
 }
 
@@ -116,31 +167,52 @@ void meshless_sph_surface_t::compute_normals()
         auto const v2          = f.vertices[1u];
         auto const v3          = f.vertices[2u];
 
-        Eigen::Vector3d const& p1 = world_space_vertices_[v1].position;
-        Eigen::Vector3d const& p2 = world_space_vertices_[v2].position;
-        Eigen::Vector3d const& p3 = world_space_vertices_[v3].position;
+        Eigen::Vector3d const& p1 = render_vertices_[v1].position;
+        Eigen::Vector3d const& p2 = render_vertices_[v2].position;
+        Eigen::Vector3d const& p3 = render_vertices_[v3].position;
 
         Eigen::Vector3d const n = (p2 - p1).cross(p3 - p1);
 
-        world_space_vertices_[v1].normal += n;
-        world_space_vertices_[v2].normal += n;
-        world_space_vertices_[v3].normal += n;
+        render_vertices_[v1].normal += n;
+        render_vertices_[v2].normal += n;
+        render_vertices_[v3].normal += n;
     }
 
-    for (std::size_t i = 0u; i < world_space_vertices_.size(); ++i)
+    for (std::size_t i = 0u; i < render_vertices_.size(); ++i)
     {
-        world_space_vertices_[i].normal.normalize();
+        render_vertices_[i].normal.normalize();
     }
+}
+
+std::vector<meshless_sph_surface_vertex_t> const&
+meshless_sph_surface_t::embedded_surface_vertices() const
+{
+    return vertices_;
+}
+
+std::vector<meshless_sph_surface_vertex_t>& meshless_sph_surface_t::embedded_surface_vertices()
+{
+    return vertices_;
+}
+
+meshless_sph_body_t* meshless_sph_surface_t::mechanical_model()
+{
+    return mechanical_model_;
+}
+
+meshless_sph_body_t const* meshless_sph_surface_t::mechanical_model() const
+{
+    return mechanical_model_;
 }
 
 void meshless_sph_surface_t::prepare_vertices_for_surface_rendering()
 {
     std::size_t constexpr num_attributes_per_vertex = 9u;
-    std::size_t const vertex_count                  = world_space_vertices_.size();
+    std::size_t const vertex_count                  = render_vertices_.size();
     std::vector<float> vertex_buffer{};
     vertex_buffer.reserve(vertex_count * num_attributes_per_vertex);
 
-    for (vertex_type const& vertex : world_space_vertices_)
+    for (vertex_type const& vertex : render_vertices_)
     {
         vertex_buffer.push_back(static_cast<float>(vertex.position.x()));
         vertex_buffer.push_back(static_cast<float>(vertex.position.y()));

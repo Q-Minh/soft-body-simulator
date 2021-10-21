@@ -64,7 +64,7 @@ class meshless_sph_surface_t : public common::shared_vertex_surface_mesh_i
     meshless_sph_surface_t& operator=(meshless_sph_surface_t const& other) = default;
     meshless_sph_surface_t& operator=(meshless_sph_surface_t&& other) = default;
 
-    void initialize_interpolation_scheme();
+    void initialize_interpolation_scheme(scalar_type const h);
 
     virtual std::size_t triangle_count() const override;
     virtual std::size_t vertex_count() const override;

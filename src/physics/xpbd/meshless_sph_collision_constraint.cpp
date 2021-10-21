@@ -45,7 +45,8 @@ void sbs::physics::xpbd::meshless_sph_collision_constraint_t::project_positions(
 
     std::vector<Eigen::Vector3d> gradC{};
     gradC.reserve(neighbours.size());
-    scalar_type weighted_sum_of_gradients = 0.;
+    scalar_type weighted_sum_of_gradients{0.};
+    scalar_type gradC_dot_displacement{0.};
     for (std::size_t a = 0u; a < neighbours.size(); ++a)
     {
         index_type const j         = neighbours[a];
@@ -55,11 +56,18 @@ void sbs::physics::xpbd::meshless_sph_collision_constraint_t::project_positions(
         particle_t const& p        = particles[j];
         weighted_sum_of_gradients += p.invmass() * grad.squaredNorm();
         gradC.push_back(grad);
+        gradC_dot_displacement += gradC[a].dot(p.xi() - p.xn());
     }
 
-    scalar_type const alpha_tilde = alpha_ / (dt * dt);
-    scalar_type const delta_lagrange =
-        -(C + alpha_tilde * lagrange_) / (weighted_sum_of_gradients + alpha_tilde);
+    scalar_type const dt2         = dt * dt;
+    scalar_type const alpha_tilde = alpha() / dt2;
+    scalar_type const beta_tilde  = beta() * dt2;
+    scalar_type const gamma       = alpha_tilde * beta_tilde / dt;
+
+    scalar_type const delta_lagrange_num =
+        -(C + alpha_tilde * lagrange_) - gamma * gradC_dot_displacement;
+    scalar_type const delta_lagrange_den = (1. + gamma) * weighted_sum_of_gradients + alpha_tilde;
+    scalar_type const delta_lagrange     = delta_lagrange_num / delta_lagrange_den;
 
     vi_.setZero();
     for (std::size_t a = 0u; a < neighbours.size(); ++a)

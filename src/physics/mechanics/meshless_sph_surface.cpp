@@ -37,11 +37,10 @@ meshless_sph_surface_t::meshless_sph_surface_t(
     }
 }
 
-void meshless_sph_surface_t::initialize_interpolation_scheme()
+void meshless_sph_surface_t::initialize_interpolation_scheme(scalar_type const h)
 {
     meshless_sph_body_range_searcher_t const& range_searcher = mechanical_model_->range_searcher();
     std::vector<meshless_sph_node_t> const& nodes            = mechanical_model_->nodes();
-    scalar_type const h                                      = mechanical_model_->h();
 
     vertices_.reserve(vertex_count());
     for (std::size_t i = 0u; i < vertex_count(); ++i)

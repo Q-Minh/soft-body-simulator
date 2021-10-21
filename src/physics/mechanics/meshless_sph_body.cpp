@@ -134,6 +134,9 @@ meshless_sph_body_t::meshless_sph_body_t(
         }
     }
 
+    // Compress the mesh (vertices, faces) into a more compact mesh (surface_vertices,
+    // surface_triangles) where the surface_vertices vector only contains elements in vertices that
+    // are actually referenced by faces
     std::unordered_map<index_type, index_type> tet_vertex_to_surface_vertex{};
     std::vector<Eigen::Vector3d> surface_vertices{};
     std::vector<triangle_t> surface_triangles{};
@@ -166,6 +169,7 @@ meshless_sph_body_t::meshless_sph_body_t(
     }
 
     // Compute the initial visual mesh as the boundary surface mesh of the given geometry
+    // and assign colors to its vertices
     visual_model_ = meshless_sph_surface_t(this, surface_vertices, surface_triangles);
     for (std::size_t i = 0u; i < vertices.size(); ++i)
     {
@@ -244,6 +248,11 @@ void meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
         visual_model_.material_space_position(i) =
             affine * visual_model_.material_space_position(i).homogeneous();
     }
+
+    auto const v             = Eigen::Vector3d{1., 1., 1.}.normalized();
+    auto const vp            = affine * Eigen::Vector4d{v.x(), v.y(), v.z(), 0.};
+    auto const length_change = vp.norm();
+    h_ *= length_change;
 }
 
 std::vector<meshless_sph_node_t> const& meshless_sph_body_t::nodes() const
@@ -356,7 +365,7 @@ void meshless_sph_body_t::initialize_physical_model()
 
 void meshless_sph_body_t::initialize_visual_model()
 {
-    visual_model_.initialize_interpolation_scheme();
+    visual_model_.initialize_interpolation_scheme(h_ * 2.);
     visual_model_.compute_normals();
 }
 
@@ -448,6 +457,38 @@ std::vector<index_type> meshless_sph_body_range_searcher_t::neighbours_of(
 
     traverseBreadthFirst(intersects, get_neighbours);
     return neighbours;
+}
+
+std::vector<index_type>
+meshless_sph_body_range_searcher_t::is_in_node_domains(Eigen::Vector3d const& p) const
+{
+    auto const intersects = [this, p](unsigned int node_idx, unsigned int depth) -> bool {
+        Discregrid::BoundingSphere const& s = this->hull(node_idx);
+        return s.contains(p);
+    };
+
+    std::vector<index_type> meshless_nodes{};
+    auto const get_nodes = [this, p, &meshless_nodes](unsigned int node_idx, unsigned int depth) {
+        base_type::Node const& node = this->node(node_idx);
+        if (!node.isLeaf())
+            return;
+
+        for (auto j = node.begin; j < node.begin + node.n; ++j)
+        {
+            index_type const nj = m_lst[j];
+
+            Eigen::Vector3d const& xj = (*nodes_)[nj].Xi();
+            scalar_type const h       = (*nodes_)[nj].kernel().h();
+            Discregrid::BoundingSphere const s(xj, h);
+            if (s.contains(p))
+            {
+                meshless_nodes.push_back(nj);
+            }
+        }
+    };
+
+    traverseBreadthFirst(intersects, get_nodes);
+    return meshless_nodes;
 }
 
 Eigen::Vector3d meshless_sph_body_range_searcher_t::entityPosition(unsigned int i) const

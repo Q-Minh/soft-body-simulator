@@ -19,17 +19,19 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::simulation_t simulation{};
-    simulation.simulation_parameters().compliance        = 1e-15;
-    simulation.simulation_parameters().collision_damping = 0.01;
-    simulation.simulation_parameters().poisson_ratio     = 0.3;
-    simulation.simulation_parameters().young_modulus     = 1e6;
+    simulation.simulation_parameters().compliance           = 1e-10;
+    simulation.simulation_parameters().damping              = 1e-3;
+    simulation.simulation_parameters().collision_compliance = 1e-3;
+    simulation.simulation_parameters().collision_damping    = 1e-3;
+    simulation.simulation_parameters().poisson_ratio        = 0.45;
+    simulation.simulation_parameters().young_modulus        = 1e6;
 
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(20u, 5u, 20u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
-    sbs::scalar_type constexpr h = 1.1;
+    sbs::scalar_type constexpr h = 2.;
     auto const beam_idx          = static_cast<sbs::index_type>(simulation.bodies().size());
     simulation.add_body();
-    std::array<unsigned int, 3u> const particle_grid_resolution{20u, 5u, 20u};
+    std::array<unsigned int, 3u> const particle_grid_resolution{12u, 4u, 12u};
     simulation.bodies()[beam_idx] = std::make_unique<sbs::physics::mechanics::meshless_sph_body_t>(
         simulation,
         beam_idx,

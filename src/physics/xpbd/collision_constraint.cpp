@@ -27,8 +27,15 @@ void collision_constraint_t::project_positions(simulation_t& simulation, scalar_
     if (C >= static_cast<scalar_type>(0.))
         return;
 
-    scalar_type const alpha_tilde    = alpha_ / (dt * dt);
-    scalar_type const delta_lagrange = -(C + alpha_tilde * lagrange_) / (w + alpha_tilde);
+    scalar_type const dt2                    = dt * dt;
+    scalar_type const alpha_tilde            = alpha() / dt2;
+    scalar_type const beta_tilde             = beta() * dt2;
+    scalar_type const gamma                  = alpha_tilde * beta_tilde / dt;
+    scalar_type const gradC_dot_displacement = n_.dot(p.xi() - p.xn());
+    scalar_type const delta_lagrange_num =
+        -(C + alpha_tilde * lagrange_) - gamma * gradC_dot_displacement;
+    scalar_type const delta_lagrange_den = (1. + gamma) * w + alpha_tilde;
+    scalar_type const delta_lagrange     = delta_lagrange_num / delta_lagrange_den;
 
     lagrange_ += delta_lagrange;
 

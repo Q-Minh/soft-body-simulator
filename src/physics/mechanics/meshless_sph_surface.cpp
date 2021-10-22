@@ -10,19 +10,17 @@ meshless_sph_surface_t::meshless_sph_surface_t(
     meshless_sph_body_t* mechanical_model,
     std::vector<Eigen::Vector3d> const& vertices,
     std::vector<triangle_t> const& triangles)
-    : material_space_vertices_(),
-      render_vertices_(),
-      triangles_(),
-      vertices_(),
-      mechanical_model_(mechanical_model)
+    : render_vertices_(), triangles_(), vertices_(), mechanical_model_(mechanical_model)
 {
-    material_space_vertices_ = vertices;
     render_vertices_.reserve(vertices.size());
+    vertices_.reserve(vertices.size());
     for (auto const& p : vertices)
     {
         vertex_type v{};
         v.position = p;
         render_vertices_.push_back(v);
+        meshless_sph_surface_vertex_t mv(p);
+        vertices_.push_back(mv);
     }
     triangles_.reserve(triangles.size());
     for (auto const& triangle : triangles)
@@ -42,15 +40,14 @@ void meshless_sph_surface_t::initialize_interpolation_scheme(scalar_type const h
     meshless_sph_body_range_searcher_t const& range_searcher = mechanical_model_->range_searcher();
     std::vector<meshless_sph_node_t> const& nodes            = mechanical_model_->nodes();
 
-    vertices_.reserve(vertex_count());
-    for (std::size_t i = 0u; i < vertex_count(); ++i)
+    for (std::size_t i = 0u; i < vertices_.size(); ++i)
     {
         std::vector<Eigen::Vector3d> Xkjs{};
         std::vector<scalar_type> Wkjs{};
         std::vector<scalar_type> Vjs{};
         std::vector<index_type> neighbours{};
 
-        Eigen::Vector3d const& Xk                        = material_space_vertices_[i];
+        Eigen::Vector3d const& Xk                        = vertices_[i].x0();
         std::vector<index_type> const& neighbour_indices = range_searcher.neighbours_of(Xk, h);
 
         scalar_type sk{0.};
@@ -72,9 +69,8 @@ void meshless_sph_surface_t::initialize_interpolation_scheme(scalar_type const h
         }
         sk = 1. / sk;
 
-        vertices_.push_back(meshless_sph_surface_vertex_t(Xk, Xk, Xkjs, Wkjs, Vjs, sk, neighbours));
-
-        render_vertices_[i].position = material_space_vertices_[i];
+        vertices_[i] = meshless_sph_surface_vertex_t(Xk, Xk, Xkjs, Wkjs, Vjs, sk, neighbours);
+        render_vertices_[i].position = Xk;
     }
 }
 
@@ -125,7 +121,7 @@ meshless_sph_surface_t::vertex_type& meshless_sph_surface_t::world_space_vertex(
 
 Eigen::Vector3d& meshless_sph_surface_t::material_space_position(std::size_t vi)
 {
-    return material_space_vertices_[vi];
+    return vertices_[vi].x0();
 }
 
 void meshless_sph_surface_t::compute_positions()

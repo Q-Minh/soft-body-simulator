@@ -235,10 +235,16 @@ void meshless_sph_body_t::update_physical_model()
 
 void meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
 {
+    auto const v             = Eigen::Vector3d{1., 1., 1.}.normalized();
+    auto const vp            = affine * Eigen::Vector4d{v.x(), v.y(), v.z(), 0.};
+    auto const length_change = vp.norm();
+    h_ *= length_change;
+
     for (auto& meshless_node : meshless_nodes_)
     {
-        meshless_node.Xi() = affine * meshless_node.Xi().homogeneous();
-        meshless_node.xi() = affine * meshless_node.xi().homogeneous();
+        meshless_node.Xi()         = affine * meshless_node.Xi().homogeneous();
+        meshless_node.xi()         = affine * meshless_node.xi().homogeneous();
+        meshless_node.kernel().h() = h_;
     }
 
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
@@ -248,11 +254,6 @@ void meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
         visual_model_.material_space_position(i) =
             affine * visual_model_.material_space_position(i).homogeneous();
     }
-
-    auto const v             = Eigen::Vector3d{1., 1., 1.}.normalized();
-    auto const vp            = affine * Eigen::Vector4d{v.x(), v.y(), v.z(), 0.};
-    auto const length_change = vp.norm();
-    h_ *= length_change;
 }
 
 std::vector<meshless_sph_node_t> const& meshless_sph_body_t::nodes() const
@@ -305,6 +306,7 @@ void meshless_sph_body_t::initialize_physical_model()
     // Get a spatial acceleration query object to obtain neighbours of
     // each meshless node in material space
     material_space_range_query_ = meshless_sph_body_range_searcher_t(&meshless_nodes_);
+
     std::vector<std::vector<Eigen::Vector3d const*>> Xjs{};
     std::vector<std::vector<index_type>> node_neighbour_indices{};
     std::vector<std::vector<meshless_sph_node_t const*>> node_neighbours{};

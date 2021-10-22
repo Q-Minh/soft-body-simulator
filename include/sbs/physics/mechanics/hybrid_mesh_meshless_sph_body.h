@@ -139,13 +139,16 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
     tetrahedron_set_t& topology();
     scalar_type h() const;
 
+    std::vector<Eigen::Vector3d> const& x0() const;
+    std::vector<Eigen::Vector3d> const& x() const;
+
     /**
      *  I would like not to have to expose these range searchers that are in the
      * detail namespace, but for the moment, this will do.
      */
 
     detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t const&
-    mesh_node_range_searcher() const;
+    mesh_tetrahedron_range_searcher() const;
 
     detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t const&
     meshless_node_range_searcher() const;
@@ -153,6 +156,7 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
     bool is_boundary_mesh_tetrahedron(index_type const ti) const;
     bool is_boundary_mesh_vertex(index_type const vi) const;
     Eigen::Matrix4d const& phi_i(index_type const ti) const;
+    Eigen::Vector4d phi_i(index_type const ti, std::uint8_t v) const;
     Eigen::Matrix<scalar_type, 4, 3> grad_phi_i(index_type const ti) const;
     Eigen::Vector3d grad_phi_i(index_type const ti, std::uint8_t v) const;
 
@@ -160,11 +164,16 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
     void initialize_visual_model();
     void initialize_collision_model();
 
+    void set_mesh_particles_index_offset(index_type offset);
+    void set_meshless_particles_index_offset(index_type offset);
+
+    index_type get_mesh_particles_index_offset() const;
+    index_type get_meshless_particles_index_offset() const;
+
   private:
     std::vector<Eigen::Vector3d>
-        mesh_nodes_; ///< Material space positions of the initial tetrahedral geometry
-    std::vector<Eigen::Vector3d>
-        world_space_positions_; ///< Positions of each mesh node in world space
+        mesh_x0_; ///< Material space positions of the initial tetrahedral geometry
+    std::vector<Eigen::Vector3d> mesh_x_; ///< Positions of each mesh node in world space
     std::vector<hybrid_mesh_meshless_sph_node_t> meshless_nodes_;
     detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t
         material_space_meshless_node_searcher_; ///< Used for querying neighbours in material space
@@ -183,6 +192,9 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
     hybrid_mesh_meshless_sph_surface_t visual_model_;
     collision::point_bvh_model_t collision_model_;
     scalar_type h_; ///< Support radius of meshless meshless_nodes
+
+    index_type mesh_particles_index_offset_;
+    index_type meshless_particles_index_offset_;
 };
 
 } // namespace mechanics

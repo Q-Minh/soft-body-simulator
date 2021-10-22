@@ -58,7 +58,7 @@ void meshless_sph_stvk_constraint_t::project_positions(simulation_t& simulation,
     scalar_type const gamma       = alpha_tilde * beta_tilde / dt;
 
     scalar_type const delta_lagrange_num =
-        -(C + alpha_tilde * lagrange_) + gamma * gradC_dot_displacement;
+        -(C + alpha_tilde * lagrange_) - gamma * gradC_dot_displacement;
     scalar_type const delta_lagrange_den = (1. + gamma) * (weighted_sum_of_gradients) + alpha_tilde;
     scalar_type const delta_lagrange     = delta_lagrange_num / delta_lagrange_den;
 

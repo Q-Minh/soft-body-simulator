@@ -23,10 +23,13 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
       material_space_meshless_node_searcher_(),
       volumetric_topology_(),
       is_boundary_tetrahedron_(),
+      is_boundary_vertex_(),
       Ainv_(),
       visual_model_(),
       collision_model_(),
-      h_()
+      h_(),
+      mesh_particles_index_offset_(),
+      meshless_particles_index_offset_()
 {
     assert(geometry.geometry_type == common::geometry_t::geometry_type_t::tetrahedron);
     assert(geometry.has_indices());
@@ -51,7 +54,7 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
      * Create mesh meshless_nodes for fem shape functions. These mesh shape functions
      * will be precomputed in the initialize_physical_model() method
      */
-    mesh_nodes_.reserve(volumetric_topology_.vertex_count());
+    mesh_x0_.reserve(volumetric_topology_.vertex_count());
     is_boundary_vertex_.reserve(volumetric_topology_.vertex_count());
     for (std::size_t i = 0u; i < volumetric_topology_.vertex_count(); ++i)
     {
@@ -60,20 +63,14 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
         scalar_type const y = static_cast<scalar_type>(geometry.positions[idx + 1u]);
         scalar_type const z = static_cast<scalar_type>(geometry.positions[idx + 2u]);
         Eigen::Vector3d const pos{x, y, z};
-        mesh_nodes_.push_back(pos);
+        mesh_x0_.push_back(pos);
+        mesh_x_.push_back(pos);
 
         index_type const vi = static_cast<index_type>(i);
-        // boundary tet mesh mesh_nodes_ do not have associated shape functions,
+        // boundary tet mesh mesh_x0_ do not have associated shape functions,
         // so we do not create any XPBD particle for them
         bool const is_boundary_vertex = volumetric_topology_.is_boundary_vertex(vi);
         is_boundary_vertex_.push_back(is_boundary_vertex);
-
-        // We add the particle even if it will not be constrained/simulated in the case
-        // that it is a boundary vertex. This is done in order to preserve the correctness
-        // of the volumetric_topology_. The visual model will not be concerned with rendering
-        // these particles anyways.
-        particle_t const p{pos};
-        simulation.add_particle(p, this->id());
     }
 
     /**
@@ -81,7 +78,7 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
      */
     std::vector<std::array<unsigned int, 3u>> exterior_boundary_faces{};
     std::vector<triangle_t> const exterior_layer_boundary_triangles =
-        volumetric_topology_.boundary_triangles();
+        volumetric_topology_.oriented_boundary_triangles();
     exterior_boundary_faces.reserve(exterior_layer_boundary_triangles.size());
     for (triangle_t const& f : exterior_layer_boundary_triangles)
         exterior_boundary_faces.push_back({f.v1(), f.v2(), f.v3()});
@@ -100,7 +97,6 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
     }
     interior_tetrahedral_topology.collect_garbage();
 
-    std::vector<Eigen::Vector3d> interior_mesh_vertices{};
     std::vector<std::array<unsigned int, 3u>> interior_boundary_faces{};
     std::vector<triangle_t> const interior_layer_boundary_triangles =
         interior_tetrahedral_topology.oriented_boundary_triangles();
@@ -112,8 +108,8 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
      * Compute the SDF of the exterior boundary surface and of the interior boundary surface to
      * obtain an inside/outside predicate for our particle sampling
      */
-    Discregrid::TriangleMesh exterior_layer_mesh(mesh_nodes_, exterior_boundary_faces);
-    Discregrid::TriangleMesh interior_layer_mesh(mesh_nodes_, interior_boundary_faces);
+    Discregrid::TriangleMesh exterior_layer_mesh(mesh_x0_, exterior_boundary_faces);
+    Discregrid::TriangleMesh interior_layer_mesh(mesh_x0_, interior_boundary_faces);
     Eigen::AlignedBox3d domain{};
     for (auto const& x : exterior_layer_mesh.vertices())
     {
@@ -184,28 +180,65 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
                     interior_layer_signed_distance > 0.;
                 bool const should_sample_particle =
                     is_grid_node_inside_exterior_boundary && is_grid_node_outside_interior_boundary;
+
                 if (!should_sample_particle)
                     continue;
 
-                particle_t const p{grid_node_position};
-                simulation.add_particle(p, this->id());
+                functions::poly6_kernel_t kernel(grid_node_position, h_);
+                auto const ni = static_cast<index_type>(meshless_nodes_.size());
+                hybrid_mesh_meshless_sph_node_t node(ni, kernel, *this);
+                node.xi() = kernel.xi();
+                meshless_nodes_.push_back(node);
             }
         }
     }
 
-    // Compute the initial visual mesh as the boundary surface mesh of the given geometry
-    visual_model_ = hybrid_mesh_meshless_sph_surface_t(this);
-    for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
+    std::vector<Eigen::Vector3d> surface_vertices{};
+    std::vector<triangle_t> surface_triangles{};
+    std::unordered_map<index_type, index_type> tet_to_surface_vertex_map{};
+    for (auto const& f : exterior_layer_boundary_triangles)
     {
-        auto const tet_mesh_vertex_index = visual_model_.from_surface_vertex(i);
+        if (tet_to_surface_vertex_map.find(f.v1()) == tet_to_surface_vertex_map.end())
+        {
+            auto const index                  = tet_to_surface_vertex_map.size();
+            tet_to_surface_vertex_map[f.v1()] = static_cast<index_type>(index);
+            surface_vertices.push_back(mesh_x0_[f.v1()]);
+        }
+        if (tet_to_surface_vertex_map.find(f.v2()) == tet_to_surface_vertex_map.end())
+        {
+            auto const index                  = tet_to_surface_vertex_map.size();
+            tet_to_surface_vertex_map[f.v2()] = static_cast<index_type>(index);
+            surface_vertices.push_back(mesh_x0_[f.v2()]);
+        }
+        if (tet_to_surface_vertex_map.find(f.v3()) == tet_to_surface_vertex_map.end())
+        {
+            auto const index                  = tet_to_surface_vertex_map.size();
+            tet_to_surface_vertex_map[f.v3()] = static_cast<index_type>(index);
+            surface_vertices.push_back(mesh_x0_[f.v3()]);
+        }
+
+        auto const v1 = tet_to_surface_vertex_map[f.v1()];
+        auto const v2 = tet_to_surface_vertex_map[f.v2()];
+        auto const v3 = tet_to_surface_vertex_map[f.v3()];
+        triangle_t const triangle{v1, v2, v3};
+        surface_triangles.push_back(triangle);
+    }
+
+    // Compute the initial visual mesh as the boundary surface mesh of the given geometry
+    visual_model_ = hybrid_mesh_meshless_sph_surface_t(this, surface_vertices, surface_triangles);
+    for (std::size_t i = 0u; i < mesh_x0_.size(); ++i)
+    {
+        if (tet_to_surface_vertex_map.find(static_cast<index_type>(i)) ==
+            tet_to_surface_vertex_map.end())
+            continue;
 
         auto const idx = i * 3u;
         float const r  = static_cast<float>(geometry.colors[idx] / 255.f);
         float const g  = static_cast<float>(geometry.colors[idx + 1u] / 255.f);
         float const b  = static_cast<float>(geometry.colors[idx + 2u] / 255.f);
 
-        visual_model_.material_space_vertex(i).position = mesh_nodes_[tet_mesh_vertex_index];
-        visual_model_.material_space_vertex(i).color    = Eigen::Vector3f{r, g, b};
+        auto const vi = tet_to_surface_vertex_map[static_cast<index_type>(i)];
+        visual_model_.world_space_vertex(vi).color = Eigen::Vector3f{r, g, b};
     }
 }
 
@@ -243,51 +276,51 @@ void hybrid_mesh_meshless_sph_body_t::update_collision_model()
 void hybrid_mesh_meshless_sph_body_t::update_physical_model()
 {
     auto const& particles = simulation().particles()[id()];
-    assert(particles.size() == (mesh_nodes_.size() + meshless_nodes_.size()));
-    for (std::size_t i = 0u; i < mesh_nodes_.size(); ++i)
+    assert(particles.size() == (mesh_x0_.size() + meshless_nodes_.size()));
+    assert(mesh_x_.size() == mesh_x0_.size());
+    for (std::size_t i = 0u; i < mesh_x_.size(); ++i)
     {
-        particle_t const& p       = particles[i];
-        world_space_positions_[i] = p.x();
+        particle_t const& p = particles[mesh_particles_index_offset_ + i];
+        mesh_x_[i]          = p.x();
     }
-    for (std::size_t i = mesh_nodes_.size(); i < particles.size(); ++i)
+    for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
-        index_type const ni                   = i - mesh_nodes_.size();
+        index_type const ni                   = static_cast<index_type>(i);
         hybrid_mesh_meshless_sph_node_t& node = meshless_nodes_[ni];
-        particle_t const& p                   = particles[i];
+        particle_t const& p                   = particles[meshless_particles_index_offset_ + i];
         node.xi()                             = p.x();
     }
 }
 
 void hybrid_mesh_meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
 {
-    auto& particles = simulation().particles().at(id());
-    for (auto& p : particles)
-    {
-        p.x0() = affine * p.x0().homogeneous();
-        p.xi() = affine * p.xi().homogeneous();
-        p.xn() = affine * p.xn().homogeneous();
-        p.x()  = affine * p.x().homogeneous();
-    }
+    auto const v             = Eigen::Vector3d{1., 1., 1.}.normalized();
+    auto const vp            = affine * Eigen::Vector4d{v.x(), v.y(), v.z(), 0.};
+    auto const length_change = vp.norm();
+    h_ *= length_change;
 
-    for (std::size_t i = 0u; i < world_space_positions_.size(); ++i)
+    for (std::size_t i = 0u; i < mesh_x_.size(); ++i)
     {
-        world_space_positions_[i] = affine * world_space_positions_[i].homogeneous();
-        mesh_nodes_[i]            = affine * mesh_nodes_[i].homogeneous();
+        mesh_x_[i]  = affine * mesh_x_[i].homogeneous();
+        mesh_x0_[i] = affine * mesh_x0_[i].homogeneous();
     }
     for (std::size_t i = 0u; i < visual_model_.vertex_count(); ++i)
     {
-        visual_model_.material_space_vertex(i).position =
-            affine * visual_model_.material_space_vertex(i).position.homogeneous();
+        visual_model_.material_space_position(i) =
+            affine * visual_model_.material_space_position(i).homogeneous();
         visual_model_.world_space_vertex(i).position =
             affine * visual_model_.world_space_vertex(i).position.homogeneous();
+    }
+    for (auto& meshless_node : meshless_nodes_)
+    {
+        meshless_node.Xi()         = affine * meshless_node.Xi().homogeneous();
+        meshless_node.xi()         = affine * meshless_node.xi().homogeneous();
+        meshless_node.kernel().h() = h_;
     }
 }
 
 void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
 {
-    meshless_nodes_.clear();
-    auto const& particles = simulation().particles()[id()];
-
     // Precompute the mesh node shape functions as a function which maps
     // material space positions to barycentric coordinates. The barycentric
     // coordinates correspond to the shape functions of each tetrahedron vertex.
@@ -296,10 +329,10 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
     {
         index_type const ti       = static_cast<index_type>(i);
         tetrahedron_t const& t    = volumetric_topology_.tetrahedron(ti);
-        Eigen::Vector3d const& X0 = particles[t.v1()].x0();
-        Eigen::Vector3d const& X1 = particles[t.v2()].x0();
-        Eigen::Vector3d const& X2 = particles[t.v3()].x0();
-        Eigen::Vector3d const& X3 = particles[t.v4()].x0();
+        Eigen::Vector3d const& X0 = mesh_x0_[t.v1()];
+        Eigen::Vector3d const& X1 = mesh_x0_[t.v2()];
+        Eigen::Vector3d const& X2 = mesh_x0_[t.v3()];
+        Eigen::Vector3d const& X3 = mesh_x0_[t.v4()];
 
         Eigen::Matrix4d A{};
         A.row(0u).setOnes();
@@ -316,26 +349,11 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
         Ainv_.push_back(Ainv);
     }
 
-    world_space_positions_ = mesh_nodes_;
-
-    // Create a meshless node for each XPBD particle centered around the particle's rest position
-    auto const meshless_node_count = particles.size() - mesh_nodes_.size();
-    auto const index_offset        = mesh_nodes_.size();
-    meshless_nodes_.reserve(meshless_node_count);
-    for (std::size_t i = 0u; i < meshless_node_count; ++i)
-    {
-        particle_t const& p = particles[index_offset + i];
-        functions::poly6_kernel_t kernel(p.x0(), h_);
-        auto const ni = static_cast<index_type>(i);
-        hybrid_mesh_meshless_sph_node_t node(ni, kernel, *this);
-        node.xi() = p.x0();
-        meshless_nodes_.push_back(node);
-    }
-
     // Get a spatial acceleration query object to obtain neighbours of
     // each meshless node in material space
     material_space_meshless_node_searcher_ =
         detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t(&meshless_nodes_);
+
     std::vector<std::vector<Eigen::Vector3d const*>> Xjs{};
     std::vector<std::vector<index_type>> node_neighbour_indices{};
     std::vector<std::vector<meshless_sph_node_t const*>> node_neighbours{};
@@ -370,7 +388,7 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
     material_space_mesh_node_searcher_ =
         detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t(
             &volumetric_topology_,
-            &mesh_nodes_,
+            &mesh_x0_,
             &Ainv_);
 
     // update meshless meshless_nodes using precomputed neighbour information
@@ -397,7 +415,7 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
 
 void hybrid_mesh_meshless_sph_body_t::initialize_visual_model()
 {
-    visual_model_.initialize_interpolation_scheme();
+    visual_model_.initialize_interpolation_scheme(2. * h_);
     visual_model_.compute_normals();
 }
 
@@ -405,6 +423,26 @@ void hybrid_mesh_meshless_sph_body_t::initialize_collision_model()
 {
     collision_model_      = collision::point_bvh_model_t(&visual_model_);
     collision_model_.id() = id();
+}
+
+void hybrid_mesh_meshless_sph_body_t::set_mesh_particles_index_offset(index_type offset)
+{
+    mesh_particles_index_offset_ = offset;
+}
+
+void hybrid_mesh_meshless_sph_body_t::set_meshless_particles_index_offset(index_type offset)
+{
+    meshless_particles_index_offset_ = offset;
+}
+
+index_type hybrid_mesh_meshless_sph_body_t::get_mesh_particles_index_offset() const
+{
+    return mesh_particles_index_offset_;
+}
+
+index_type hybrid_mesh_meshless_sph_body_t::get_meshless_particles_index_offset() const
+{
+    return meshless_particles_index_offset_;
 }
 
 std::vector<hybrid_mesh_meshless_sph_node_t> const&
@@ -420,7 +458,7 @@ std::vector<hybrid_mesh_meshless_sph_node_t>& hybrid_mesh_meshless_sph_body_t::m
 
 std::size_t hybrid_mesh_meshless_sph_body_t::mesh_node_count() const
 {
-    return mesh_nodes_.size();
+    return mesh_x0_.size();
 }
 
 std::size_t hybrid_mesh_meshless_sph_body_t::meshless_node_count() const
@@ -482,8 +520,18 @@ scalar_type hybrid_mesh_meshless_sph_body_t::h() const
     return h_;
 }
 
+std::vector<Eigen::Vector3d> const& hybrid_mesh_meshless_sph_body_t::x0() const
+{
+    return mesh_x0_;
+}
+
+std::vector<Eigen::Vector3d> const& hybrid_mesh_meshless_sph_body_t::x() const
+{
+    return mesh_x_;
+}
+
 detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t const&
-hybrid_mesh_meshless_sph_body_t::mesh_node_range_searcher() const
+hybrid_mesh_meshless_sph_body_t::mesh_tetrahedron_range_searcher() const
 {
     return material_space_mesh_node_searcher_;
 }
@@ -507,6 +555,11 @@ bool hybrid_mesh_meshless_sph_body_t::is_boundary_mesh_vertex(index_type const v
 Eigen::Matrix4d const& hybrid_mesh_meshless_sph_body_t::phi_i(index_type const ti) const
 {
     return Ainv_[ti];
+}
+
+Eigen::Vector4d hybrid_mesh_meshless_sph_body_t::phi_i(index_type const ti, std::uint8_t v) const
+{
+    return Ainv_[ti].row(v);
 }
 
 Eigen::Matrix<scalar_type, 4, 3>
@@ -758,7 +811,7 @@ void mesh_tetrahedron_range_searcher_t::computeHull(
     Discregrid::BoundingSphere& hull) const
 {
     std::vector<Eigen::Vector3d> vertices_of_sphere{};
-    vertices_of_sphere.reserve(n * 4);
+    vertices_of_sphere.reserve(n * 4u);
     for (unsigned int i = b; i < n + b; ++i)
     {
         index_type const ti    = static_cast<index_type>(m_lst[i]);

@@ -36,6 +36,7 @@ class meshless_sph_node_t
     scalar_type Vi() const;
     Eigen::Matrix3d const& Li() const;
     functions::poly6_kernel_t const& kernel() const;
+    functions::poly6_kernel_t& kernel();
     Eigen::Vector3d const& Xi() const;
     Eigen::Vector3d& Xi();
     Eigen::Matrix3d const& Fi() const;

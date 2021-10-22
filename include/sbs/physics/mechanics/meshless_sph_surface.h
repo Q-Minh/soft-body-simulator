@@ -14,6 +14,17 @@ class meshless_sph_body_t;
 class meshless_sph_surface_vertex_t
 {
   public:
+    meshless_sph_surface_vertex_t(meshless_sph_surface_vertex_t const& other) = default;
+    meshless_sph_surface_vertex_t(meshless_sph_surface_vertex_t&& other)      = default;
+
+    meshless_sph_surface_vertex_t& operator=(meshless_sph_surface_vertex_t const& other) = default;
+    meshless_sph_surface_vertex_t& operator=(meshless_sph_surface_vertex_t&& other) = default;
+
+    meshless_sph_surface_vertex_t(Eigen::Vector3d const& x0)
+        : x0_(x0), x_(), Xkjs_(), Wkjs_(), Vjs_(), sk_(), neighbours_()
+    {
+    }
+
     meshless_sph_surface_vertex_t(
         Eigen::Vector3d const& x0,
         Eigen::Vector3d const& x,
@@ -27,15 +38,19 @@ class meshless_sph_surface_vertex_t
     }
 
     Eigen::Vector3d const& x0() const { return x0_; }
-    Eigen::Vector3d const& x() const { return x_; }
-    std::vector<Eigen::Vector3d> const& Xkjs() const { return Xkjs_; }
-    std::vector<scalar_type> const& Wkjs() const { return Wkjs_; }
-    std::vector<scalar_type> const& Vjs() const { return Vjs_; }
-    scalar_type sk() const { return sk_; }
-    std::vector<index_type> const& neighbours() const { return neighbours_; }
-
     Eigen::Vector3d& x0() { return x0_; }
+    Eigen::Vector3d const& x() const { return x_; }
     Eigen::Vector3d& x() { return x_; }
+    std::vector<Eigen::Vector3d> const& Xkjs() const { return Xkjs_; }
+    std::vector<Eigen::Vector3d>& Xkjs() { return Xkjs_; }
+    std::vector<scalar_type> const& Wkjs() const { return Wkjs_; }
+    std::vector<scalar_type>& Wkjs() { return Wkjs_; }
+    std::vector<scalar_type> const& Vjs() const { return Vjs_; }
+    std::vector<scalar_type>& Vjs() { return Vjs_; }
+    scalar_type sk() const { return sk_; }
+    scalar_type& sk() { return sk_; }
+    std::vector<index_type> const& neighbours() const { return neighbours_; }
+    std::vector<index_type>& neighbours() { return neighbours_; }
 
   private:
     Eigen::Vector3d x0_;
@@ -89,7 +104,6 @@ class meshless_sph_surface_t : public common::shared_vertex_surface_mesh_i
   private:
     void prepare_vertices_for_surface_rendering();
 
-    std::vector<Eigen::Vector3d> material_space_vertices_;
     std::vector<vertex_type>
         render_vertices_; ///< The vertices_ member of tetrahedral_mesh_boundary_t will be
                           ///< considered as vertex positions in material space, while the

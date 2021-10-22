@@ -25,7 +25,7 @@ class meshless_sph_collision_constraint_t : public constraint_t
         mechanics::meshless_sph_surface_vertex_t const& vk,
         Eigen::Vector3d const& vi,
         Eigen::Vector3d const& c,
-        Eigen::Vector3d const& cn);
+        Eigen::Vector3d const& n);
 
     virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
 

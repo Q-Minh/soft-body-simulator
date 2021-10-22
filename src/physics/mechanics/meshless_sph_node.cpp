@@ -12,7 +12,16 @@ namespace mechanics {
 meshless_sph_node_t::meshless_sph_node_t(
     index_type const i,
     functions::poly6_kernel_t const& kernel)
-    : ni_(i), neighbours_(), Wij_(), gradWij_(), Vjs_(), Vi_(0.), Ci_(), kernel_(kernel), Fi_(), xi_()
+    : ni_(i),
+      neighbours_(),
+      Wij_(),
+      gradWij_(),
+      Vjs_(),
+      Vi_(0.),
+      Ci_(),
+      kernel_(kernel),
+      Fi_(),
+      xi_()
 {
     Fi_.setIdentity();
     xi_.setZero();
@@ -86,6 +95,11 @@ Eigen::Matrix3d const& meshless_sph_node_t::Li() const
 }
 
 functions::poly6_kernel_t const& meshless_sph_node_t::kernel() const
+{
+    return kernel_;
+}
+
+functions::poly6_kernel_t& meshless_sph_node_t::kernel()
 {
     return kernel_;
 }

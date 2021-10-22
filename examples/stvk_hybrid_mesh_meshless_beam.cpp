@@ -6,11 +6,12 @@
 #include <sbs/physics/gauss_seidel_solver.h>
 #include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
 #include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h>
 #include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
-#include <sbs/physics/xpbd/contact_handler.h>
 #include <sbs/physics/xpbd/green_constraint.h>
 #include <sbs/physics/xpbd/hybrid_mesh_meshless_sph_stvk_constraint.h>
+#include <sbs/physics/xpbd/hybrid_mesh_meshless_sph_surface_contact_handler.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -25,12 +26,12 @@ int main(int argc, char** argv)
     simulation.simulation_parameters().poisson_ratio     = 0.3;
     simulation.simulation_parameters().young_modulus     = 1e6;
 
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(8u, 8u, 8u);
     beam_geometry.set_color(255, 255, 0);
     sbs::scalar_type constexpr h = 2.1;
     auto const beam_idx          = static_cast<sbs::index_type>(simulation.bodies().size());
     simulation.add_body();
-    std::array<unsigned int, 3u> const particle_grid_resolution{8u, 8u, 24u};
+    std::array<unsigned int, 3u> const particle_grid_resolution{16u, 16u, 16u};
     simulation.bodies()[beam_idx] =
         std::make_unique<sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t>(
             simulation,
@@ -43,14 +44,26 @@ int main(int argc, char** argv)
         *dynamic_cast<sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t*>(
             simulation.bodies()[beam_idx].get());
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 5., -1.)};
-    // beam_transform.rotate(
-    //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    // beam_transform.scale(Eigen::Vector3d{1, 0.4, 1});
-    // beam.transform(beam_transform);
+    beam_transform.rotate(
+        Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    beam_transform.scale(Eigen::Vector3d{1, 0.4, 1});
+    beam.transform(beam_transform);
     beam.initialize_physical_model();
     beam.initialize_visual_model();
     beam.initialize_collision_model();
 
+    beam.set_mesh_particles_index_offset(simulation.particles()[beam_idx].size());
+    for (auto const& mesh_x0 : beam.x0())
+    {
+        sbs::physics::particle_t p{mesh_x0};
+        simulation.add_particle(p, beam_idx);
+    }
+    beam.set_meshless_particles_index_offset(simulation.particles()[beam_idx].size());
+    for (auto const& meshless_node : beam.meshless_nodes())
+    {
+        sbs::physics::particle_t p{meshless_node.Xi()};
+        simulation.add_particle(p, beam_idx);
+    }
     for (sbs::physics::tetrahedron_t const& t : beam.topology().tetrahedra())
     {
         // Only constrain interior tets
@@ -61,7 +74,7 @@ int main(int argc, char** argv)
         auto const beta  = simulation.simulation_parameters().damping;
         auto const nu    = simulation.simulation_parameters().poisson_ratio;
         auto const E     = simulation.simulation_parameters().young_modulus;
-        simulation.add_constraint(std::make_unique<sbs::physics::xpbd::green_constraint_t>(
+        auto constraint  = std::make_unique<sbs::physics::xpbd::green_constraint_t>(
             alpha,
             beta,
             simulation,
@@ -71,9 +84,9 @@ int main(int argc, char** argv)
             t.v3(),
             t.v4(),
             E,
-            nu));
+            nu);
+        simulation.add_constraint(std::move(constraint));
     }
-
     for (std::size_t i = 0u; i < beam.meshless_nodes().size(); ++i)
     {
         auto const alpha = simulation.simulation_parameters().compliance;
@@ -125,7 +138,8 @@ int main(int argc, char** argv)
     simulation.use_collision_detection_system(
         std::make_unique<sbs::physics::collision::brute_force_cd_system_t>(collision_objects));
     simulation.collision_detection_system()->use_contact_handler(
-        std::make_unique<sbs::physics::xpbd::contact_handler_t>(simulation));
+        std::make_unique<sbs::physics::xpbd::hybrid_mesh_meshless_sph_surface_contact_handler_t>(
+            simulation));
 
     /**
      * Setup renderer
@@ -181,32 +195,29 @@ int main(int argc, char** argv)
     surfaces_to_pick.push_back(
         reinterpret_cast<sbs::common::shared_vertex_surface_mesh_i*>(&beam.surface_mesh()));
 
-    sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
-    fix_picker.should_picking_start = [](int button, int action, int mods) {
-        return (
-            button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action == GLFW_PRESS);
-    };
-    fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
-                                        bool right_mouse_button_pressed,
-                                        bool middle_mouse_button_pressed,
-                                        bool alt_key_pressed,
-                                        bool ctrl_key_pressed,
-                                        bool shift_key_pressed) {
-        return !ctrl_key_pressed;
-    };
-    fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
-        return true;
-    };
-    fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
-        auto* tet_mesh_boundary =
-            reinterpret_cast<sbs::physics::tetrahedral_mesh_boundary_t*>(node);
-        auto const tvi              = tet_mesh_boundary->from_surface_vertex(vi);
-        auto const tet_mesh         = tet_mesh_boundary->tetrahedral_mesh();
-        sbs::physics::particle_t& p = simulation.particles()[beam_idx][tvi];
-        p.mass()                    = p.fixed() ? 1. : 0.;
-    };
+    // sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
+    // fix_picker.should_picking_start = [](int button, int action, int mods) {
+    //     return (
+    //         button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action ==
+    //         GLFW_PRESS);
+    // };
+    // fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
+    //                                     bool right_mouse_button_pressed,
+    //                                     bool middle_mouse_button_pressed,
+    //                                     bool alt_key_pressed,
+    //                                     bool ctrl_key_pressed,
+    //                                     bool shift_key_pressed) {
+    //     return !ctrl_key_pressed;
+    // };
+    // fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
+    //     return true;
+    // };
+    // fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
+    //     auto* surface_mesh =
+    //         reinterpret_cast<sbs::physics::mechanics::hybrid_mesh_meshless_sph_surface_t*>(node);
+    // };
 
-    renderer.pickers.push_back(fix_picker);
+    // renderer.pickers.push_back(fix_picker);
     renderer.on_new_imgui_frame = [&](sbs::physics::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 
@@ -297,26 +308,23 @@ int main(int argc, char** argv)
 
     renderer.on_pre_render = [&](sbs::physics::simulation_t& s) {
         renderer.clear_points();
-        for (auto const& particles : s.particles())
-        {
-            for (auto const& p : particles)
-            {
-                if (p.fixed())
-                {
-                    std::array<float, 9u> const vertex_attributes{
-                        static_cast<float>(p.x().x()),
-                        static_cast<float>(p.x().y()),
-                        static_cast<float>(p.x().z()),
-                        0.f,
-                        0.f,
-                        0.f,
-                        1.f,
-                        0.f,
-                        0.f};
-                    renderer.add_point(vertex_attributes);
-                }
-            }
-        }
+        // auto const offset     = beam.get_meshless_particles_index_offset();
+        // auto const& particles = s.particles()[beam_idx];
+        // for (auto i = offset; i < particles.size(); ++i)
+        //{
+        //     sbs::physics::particle_t const& p = particles[i];
+        //     std::array<float, 9u> const vertex_attributes{
+        //         static_cast<float>(p.x().x()),
+        //         static_cast<float>(p.x().y()),
+        //         static_cast<float>(p.x().z()),
+        //         0.f,
+        //         0.f,
+        //         0.f,
+        //         1.f,
+        //         0.f,
+        //         0.f};
+        //     renderer.add_point(vertex_attributes);
+        // }
     };
 
     renderer.launch();

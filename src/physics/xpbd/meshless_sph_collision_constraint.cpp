@@ -1,5 +1,4 @@
-#include <iostream>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
+#include <sbs/physics/mechanics/meshless_sph_node.h>
 #include <sbs/physics/mechanics/meshless_sph_body.h>
 #include <sbs/physics/mechanics/meshless_sph_surface.h>
 #include <sbs/physics/simulation.h>

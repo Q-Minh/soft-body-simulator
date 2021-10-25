@@ -1,8 +1,8 @@
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
 #include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/hybrid_mesh_meshless_sph_collision_constraint.h>
-#include <sbs/physics/xpbd/hybrid_mesh_meshless_sph_surface_contact_handler.h>
+#include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_collision_constraint.h>
+#include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_surface_contact_handler.h>
 
 namespace sbs {
 namespace physics {

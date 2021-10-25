@@ -1,41 +1,57 @@
-#ifndef SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_SPH_SURFACE_H
-#define SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_SPH_SURFACE_H
+#ifndef SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_SURFACE_H
+#define SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_SURFACE_H
 
 #include <Eigen/Core>
+#include <array>
+#include <optional>
 #include <sbs/common/mesh.h>
-#include <sbs/physics/mechanics/meshless_sph_surface.h>
+#include <vector>
 
 namespace sbs {
 namespace physics {
+
+class triangle_t;
+
 namespace mechanics {
 
 class hybrid_mesh_meshless_mls_body_t;
+class hybrid_mesh_meshless_mls_node_t;
 
-class hybrid_mesh_meshless_mls_surface_vertex_t : public meshless_sph_surface_vertex_t
+class hybrid_mesh_meshless_mls_surface_vertex_t
 {
   public:
     hybrid_mesh_meshless_mls_surface_vertex_t(Eigen::Vector3d const& x0)
-        : meshless_sph_surface_vertex_t(x0), ti_(std::numeric_limits<index_type>::max())
+        : ti_(std::numeric_limits<index_type>::max()), Xi_(x0), xi_(x0)
     {
     }
-    hybrid_mesh_meshless_mls_surface_vertex_t(
-        Eigen::Vector3d const& x0,
-        Eigen::Vector3d const& x,
-        std::vector<Eigen::Vector3d> const& Xkjs,
-        std::vector<scalar_type> const& Wkjs,
-        std::vector<scalar_type> const& Vjs,
-        scalar_type const sk,
-        std::vector<index_type> const& neighbours,
-        index_type ti = std::numeric_limits<index_type>::max())
-        : meshless_sph_surface_vertex_t(x0, x, Xkjs, Wkjs, Vjs, sk, neighbours), ti_(ti)
-    {
-    }
+
+    void initialize(
+        std::vector<index_type> const& meshless_neighbours,
+        hybrid_mesh_meshless_mls_body_t const& mechanical_model,
+        index_type ti);
 
     index_type ti() const { return ti_; }
     index_type& ti() { return ti_; }
 
+    bool is_in_tetrahedron() const { return ti_ != std::numeric_limits<index_type>::max(); }
+
+    Eigen::Vector3d const& xi() const;
+    Eigen::Vector3d& xi();
+    Eigen::Vector3d const& Xi() const;
+    Eigen::Vector3d& Xi();
+
+    std::vector<scalar_type> const& phi_js() const;
+    std::array<std::optional<scalar_type>, 4u> const& mesh_phi_js() const;
+
+    std::vector<index_type> const& neighbours() const;
+
   private:
     index_type ti_;
+    Eigen::Vector3d Xi_;
+    Eigen::Vector3d xi_;
+    std::vector<scalar_type> phi_js_;
+    std::array<std::optional<scalar_type>, 4u> mesh_phi_js_;
+    std::vector<index_type> neighbours_;
 };
 
 class hybrid_mesh_meshless_sph_surface_t : public common::shared_vertex_surface_mesh_i
@@ -96,4 +112,4 @@ class hybrid_mesh_meshless_sph_surface_t : public common::shared_vertex_surface_
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_SPH_SURFACE_H
+#endif // SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_SURFACE_H

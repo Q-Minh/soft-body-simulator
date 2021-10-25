@@ -1,4 +1,5 @@
 #include <imgui/imgui.h>
+#include <implot/implot.h>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
@@ -287,6 +288,21 @@ int main(int argc, char** argv)
             ImGui::Text(element_count.c_str());
             std::string const total_mass_str = "Total mass: " + std::to_string(total_mass) + " g";
             ImGui::Text(total_mass_str.c_str());
+        }
+
+        static std::vector<sbs::scalar_type> Eis{};
+        Eis.clear();
+        Eis.reserve(beam.nodes().size());
+        if (ImPlot::BeginPlot("Strains"))
+        {
+            for (auto const& meshless_node : beam.nodes())
+            {
+                Eigen::Matrix3d const& Ei    = meshless_node.Ei();
+                sbs::scalar_type const Fnorm = Ei.squaredNorm();
+                Eis.push_back(Fnorm);
+            }
+            ImPlot::PlotBars("||Ei||^2", Eis.data(), Eis.size());
+            ImPlot::EndPlot();
         }
 
         ImGui::End();

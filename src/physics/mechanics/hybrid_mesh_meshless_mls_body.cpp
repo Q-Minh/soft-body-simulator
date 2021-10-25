@@ -3,8 +3,8 @@
 #include <Discregrid/mesh/triangle_mesh.hpp>
 #include <cassert>
 #include <sbs/common/geometry.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
 #include <sbs/physics/particle.h>
 #include <sbs/physics/simulation.h>
 
@@ -356,7 +356,7 @@ void hybrid_mesh_meshless_mls_body_t::initialize_physical_model()
 
     std::vector<std::vector<Eigen::Vector3d const*>> Xjs{};
     std::vector<std::vector<index_type>> node_neighbour_indices{};
-    std::vector<std::vector<meshless_sph_node_t const*>> node_neighbours{};
+    std::vector<std::vector<hybrid_mesh_meshless_mls_node_t const*>> node_neighbours{};
 
     Xjs.resize(meshless_nodes_.size());
     node_neighbour_indices.resize(meshless_nodes_.size());
@@ -365,16 +365,16 @@ void hybrid_mesh_meshless_mls_body_t::initialize_physical_model()
     // precompute all quantities that depend only on material space
     for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
-        meshless_sph_node_t const& node = meshless_nodes_[i];
-        auto const ni                   = static_cast<index_type>(i);
+        hybrid_mesh_meshless_mls_node_t const& node = meshless_nodes_[i];
+        auto const ni                               = static_cast<index_type>(i);
         std::vector<index_type> const neighbours_in_domain =
             material_space_meshless_node_searcher_.neighbours_of(ni);
 
         // precompute all neighbour information required to initialize our meshless meshless_nodes
         for (std::size_t k = 0u; k < neighbours_in_domain.size(); ++k)
         {
-            index_type const j                   = neighbours_in_domain[k];
-            meshless_sph_node_t const& neighbour = meshless_nodes_[j];
+            index_type const j                               = neighbours_in_domain[k];
+            hybrid_mesh_meshless_mls_node_t const& neighbour = meshless_nodes_[j];
             // neighbour positions
             Eigen::Vector3d const* Xj = &neighbour.Xi();
             Xjs[i].push_back(Xj);
@@ -407,10 +407,10 @@ void hybrid_mesh_meshless_mls_body_t::initialize_physical_model()
         meshless_nodes_[i].initialize(xi, Xjs[i], node_neighbour_indices[i], ti);
     }
     // precompute the correction matrix Li for each meshless node
-    for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
-    {
-        meshless_nodes_[i].cache_Li_Vj(node_neighbours[i]);
-    }
+    // for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
+    //{
+    //    meshless_nodes_[i].cache_Li_Vj(node_neighbours[i]);
+    //}
 }
 
 void hybrid_mesh_meshless_mls_body_t::initialize_visual_model()

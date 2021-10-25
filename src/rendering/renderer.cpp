@@ -5,6 +5,7 @@
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>
 #include <imgui/imgui.h>
+#include <implot/implot.h>
 #include <sbs/physics/simulation.h>
 
 namespace sbs {
@@ -70,6 +71,7 @@ bool renderer_t::initialize()
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
 
     ImGui::StyleColorsDark();
@@ -203,6 +205,9 @@ void renderer_t::close()
     mesh_shader_.destroy();
     wireframe_shader_.destroy();
     point_shader_.destroy();
+    
+    ImPlot::DestroyContext();
+    ImGui::DestroyContext();
     glfwTerminate();
 }
 

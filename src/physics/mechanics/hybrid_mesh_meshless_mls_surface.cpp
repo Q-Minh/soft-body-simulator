@@ -1,6 +1,6 @@
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
 
 namespace sbs {
 namespace physics {
@@ -46,37 +46,12 @@ void hybrid_mesh_meshless_sph_surface_t::initialize_interpolation_scheme(scalar_
 
     for (std::size_t i = 0u; i < vertices_.size(); ++i)
     {
-        std::vector<Eigen::Vector3d> Xkjs{};
-        std::vector<scalar_type> Wkjs{};
-        std::vector<scalar_type> Vjs{};
-        std::vector<index_type> neighbours{};
-
-        Eigen::Vector3d const& Xk = vertices_[i].x0();
+        Eigen::Vector3d const& Xk = vertices_[i].Xi();
         std::vector<index_type> const& neighbour_indices =
             meshless_range_searcher.neighbours_of(Xk, h);
 
-        scalar_type sk{0.};
-        for (std::size_t a = 0u; a < neighbour_indices.size(); ++a)
-        {
-            index_type const j            = neighbour_indices[a];
-            meshless_sph_node_t const& nj = nodes[j];
-            scalar_type const Vj          = nj.Vi();
-            Eigen::Vector3d const Xj      = nj.Xi();
-            Eigen::Vector3d const& Xkj    = Xk - Xj;
-            scalar_type const Wkj         = nj.kernel()(Xk);
-
-            Xkjs.push_back(Xkj);
-            Wkjs.push_back(Wkj);
-            Vjs.push_back(Vj);
-            neighbours.push_back(j);
-
-            sk += Vj * Wkj;
-        }
-        sk = 1. / sk;
-
         index_type const ti = mesh_tet_range_searcher.in_tetrahedron(Xk);
-        vertices_[i] =
-            hybrid_mesh_meshless_mls_surface_vertex_t(Xk, Xk, Xkjs, Wkjs, Vjs, sk, neighbours, ti);
+        vertices_[i].initialize(neighbour_indices, *mechanical_model_, ti);
         render_vertices_[i].position = Xk;
     }
 }
@@ -131,7 +106,7 @@ hybrid_mesh_meshless_sph_surface_t::world_space_vertex(std::size_t vi)
 
 Eigen::Vector3d& hybrid_mesh_meshless_sph_surface_t::material_space_position(std::size_t vi)
 {
-    return vertices_[vi].x0();
+    return vertices_[vi].Xi();
 }
 
 std::vector<hybrid_mesh_meshless_mls_surface_vertex_t> const&
@@ -155,48 +130,40 @@ void hybrid_mesh_meshless_sph_surface_t::compute_positions()
     auto const& nodes = mechanical_model_->meshless_nodes();
     for (std::size_t i = 0u; i < vertex_count(); ++i)
     {
-        Eigen::Vector3d& xk = render_vertices_[i].position;
-        xk.setZero();
+        Eigen::Vector3d xk{0., 0., 0.};
 
-        auto const& neighbours = vertices_[i].neighbours();
-        auto const& Xkjs       = vertices_[i].Xkjs();
-        auto const& Wkjs       = vertices_[i].Wkjs();
-        auto const& Vjs        = vertices_[i].Vjs();
-        auto const& sk         = vertices_[i].sk();
+        auto& meshless_surface_vertex = vertices_[i];
+        auto const& phi_js            = meshless_surface_vertex.phi_js();
+
+        auto const& neighbours = meshless_surface_vertex.neighbours();
         for (std::size_t b = 0u; b < neighbours.size(); ++b)
         {
-            index_type const j            = neighbours[b];
-            meshless_sph_node_t const& nj = nodes[j];
-            Eigen::Vector3d const& Xkj    = Xkjs[b];
-            scalar_type const Wkj         = Wkjs[b];
-            scalar_type const Vj          = Vjs[b];
-            Eigen::Matrix3d const& Fj     = nj.Fi();
-            Eigen::Vector3d const& xj     = nj.xi();
-            xk += Vj * (Fj * Xkj + xj) * Wkj;
+            index_type const j                        = neighbours[b];
+            hybrid_mesh_meshless_mls_node_t const& nj = nodes[j];
+            Eigen::Vector3d const& xj                 = nj.xi();
+            scalar_type const phi_j                   = phi_js[b];
+            xk += xj * phi_j;
         }
-        xk               = sk * xk;
-        vertices_[i].x() = xk;
+        if (meshless_surface_vertex.is_in_tetrahedron())
+        {
+            auto const& mesh_phi_js = meshless_surface_vertex.mesh_phi_js();
+            tetrahedron_t const& t =
+                mechanical_model_->topology().tetrahedron(meshless_surface_vertex.ti());
+            auto const& vis = t.vertex_indices();
+            for (std::uint8_t v = 0u; v < 4u; ++v)
+            {
+                if (!mesh_phi_js[v].has_value())
+                    continue;
 
-        // auto const ti                         = meshless_vertex.ti();
-        // bool const is_vertex_in_boundary_mesh = ti != std::numeric_limits<index_type>::max() &&
-        //                                         mechanical_model_->is_boundary_mesh_tetrahedron(ti);
-        // if (is_vertex_in_boundary_mesh)
-        //{
-        //     // Compute contribution of interpolation over mesh nodes
-        //     tetrahedron_t const& t = mechanical_model_->topology().tetrahedron(ti);
-        //     for (std::uint8_t v = 0u; v < 4u; ++v)
-        //     {
-        //         index_type const vi = t.vertex_indices()[v];
-        //         if (mechanical_model_->is_boundary_mesh_vertex(vi))
-        //             continue;
+                index_type const vi       = vis[v];
+                scalar_type const phi_j   = mesh_phi_js[v].value();
+                Eigen::Vector3d const& xj = mechanical_model_->x()[vi];
+                xk += xj * phi_j;
+            }
+        }
 
-        //        auto const& xi   = mechanical_model_->x()[vi];
-        //        auto const phi   = mechanical_model_->phi_i(ti, v);
-        //        auto const& Xi   = meshless_vertex.x0();
-        //        auto const phi_i = phi.dot(Eigen::Vector4d{1., Xi.x(), Xi.y(), Xi.z()});
-        //        xk += xi * phi_i;
-        //    }
-        //}
+        meshless_surface_vertex.xi() = xk;
+        render_vertices_[i].position = xk;
     }
 }
 
@@ -250,6 +217,121 @@ void hybrid_mesh_meshless_sph_surface_t::prepare_vertices_for_surface_rendering(
     }
 
     transfer_vertices_for_rendering(std::move(vertex_buffer));
+}
+
+void hybrid_mesh_meshless_mls_surface_vertex_t::initialize(
+    std::vector<index_type> const& meshless_neighbours,
+    hybrid_mesh_meshless_mls_body_t const& mechanical_model,
+    index_type ti)
+{
+    ti_ = ti;
+    bool const is_boundary_tet =
+        is_in_tetrahedron() && mechanical_model.is_boundary_mesh_tetrahedron(ti_);
+
+    neighbours_ = meshless_neighbours;
+
+    auto const& Xi = Xi_;
+    Eigen::Vector4d const PXi{1., Xi.x(), Xi.y(), Xi.z()};
+    phi_js_.clear();
+    mesh_phi_js_.fill({});
+
+    // First, compute moment matrix and our Ajs
+    Eigen::Matrix4d M{};
+    M.setZero();
+    std::vector<Eigen::RowVector4d> Ajs{};
+    Ajs.reserve(meshless_neighbours.size());
+    for (std::size_t a = 0u; a < meshless_neighbours.size(); ++a)
+    {
+        index_type const j                               = meshless_neighbours[a];
+        hybrid_mesh_meshless_mls_node_t const& neighbour = mechanical_model.meshless_nodes()[j];
+        Eigen::Vector3d const& Xj                        = neighbour.Xi();
+        auto const& W                                    = neighbour.kernel();
+        Eigen::Vector4d const PXj                        = neighbour.polynomial(Xj);
+        Eigen::RowVector4d const PXjT                    = PXj.transpose();
+        scalar_type const Wij                            = W(Xj);
+        Eigen::Matrix4d const Minc                       = PXj * PXjT * Wij;
+        M += Minc;
+
+        Eigen::RowVector4d const Aj = PXjT * Wij;
+        Ajs.push_back(Aj);
+    }
+
+    bool is_moment_matrix_invertible{false};
+    double constexpr eps = 1e-18;
+    Eigen::Matrix4d Minv{};
+    M.computeInverseWithCheck(Minv, is_moment_matrix_invertible, eps);
+    assert(is_moment_matrix_invertible);
+
+    // initialize rhs for solving for alpha
+    Eigen::Vector4d b{1., Xi.x(), Xi.y(), Xi.z()};
+
+    // update rhs if there are mesh shape functions
+    if (is_boundary_tet)
+    {
+        tetrahedron_t const& t = mechanical_model.topology().tetrahedron(ti_);
+        for (std::uint8_t i = 0u; i < 4u; ++i)
+        {
+            index_type const vi = t.vertex_indices()[i];
+            // boundary vertices have no shape function
+            if (mechanical_model.is_boundary_mesh_vertex(vi))
+                continue;
+
+            Eigen::Vector3d const& Xj = mechanical_model.x0()[vi];
+            Eigen::Vector4d const PXj{1., Xj.x(), Xj.y(), Xj.z()};
+            Eigen::Vector4d const& phi_i = mechanical_model.phi_i(ti_, i);
+            scalar_type const mesh_phi_j = phi_i.dot(PXi);
+            b -= PXj * mesh_phi_j;
+
+            // store these mesh shape functions for later use
+            mesh_phi_js_[i] = mesh_phi_j;
+        }
+    }
+
+    Eigen::Vector4d const alpha = Minv * b;
+
+    // Precompute meshless shape functions
+    for (std::size_t a = 0u; a < meshless_neighbours.size(); ++a)
+    {
+        Eigen::RowVector4d const& Aj = Ajs[a];
+        scalar_type const phi_j      = Aj.dot(alpha);
+        phi_js_.push_back(phi_j);
+    }
+}
+
+Eigen::Vector3d const& hybrid_mesh_meshless_mls_surface_vertex_t::xi() const
+{
+    return xi_;
+}
+
+Eigen::Vector3d& hybrid_mesh_meshless_mls_surface_vertex_t::xi()
+{
+    return xi_;
+}
+
+Eigen::Vector3d const& hybrid_mesh_meshless_mls_surface_vertex_t::Xi() const
+{
+    return Xi_;
+}
+
+Eigen::Vector3d& hybrid_mesh_meshless_mls_surface_vertex_t::Xi()
+{
+    return Xi_;
+}
+
+std::vector<scalar_type> const& hybrid_mesh_meshless_mls_surface_vertex_t::phi_js() const
+{
+    return phi_js_;
+}
+
+std::array<std::optional<scalar_type>, 4u> const&
+hybrid_mesh_meshless_mls_surface_vertex_t::mesh_phi_js() const
+{
+    return mesh_phi_js_;
+}
+
+std::vector<index_type> const& hybrid_mesh_meshless_mls_surface_vertex_t::neighbours() const
+{
+    return neighbours_;
 }
 
 } // namespace mechanics

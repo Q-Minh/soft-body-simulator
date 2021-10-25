@@ -1,17 +1,18 @@
 #include <imgui/imgui.h>
+#include <implot/implot.h>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
 #include <sbs/physics/environment_body.h>
 #include <sbs/physics/gauss_seidel_solver.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
 #include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
 #include <sbs/physics/xpbd/green_constraint.h>
-#include <sbs/physics/xpbd/hybrid_mesh_meshless_sph_stvk_constraint.h>
-#include <sbs/physics/xpbd/hybrid_mesh_meshless_sph_surface_contact_handler.h>
+#include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.h>
+#include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_surface_contact_handler.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -26,12 +27,12 @@ int main(int argc, char** argv)
     simulation.simulation_parameters().poisson_ratio     = 0.3;
     simulation.simulation_parameters().young_modulus     = 1e6;
 
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(8u, 8u, 8u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 4u);
     beam_geometry.set_color(255, 255, 0);
     sbs::scalar_type constexpr h = 2.1;
     auto const beam_idx          = static_cast<sbs::index_type>(simulation.bodies().size());
     simulation.add_body();
-    std::array<unsigned int, 3u> const particle_grid_resolution{16u, 16u, 16u};
+    std::array<unsigned int, 3u> const particle_grid_resolution{8u, 8u, 8u};
     simulation.bodies()[beam_idx] =
         std::make_unique<sbs::physics::mechanics::hybrid_mesh_meshless_mls_body_t>(
             simulation,
@@ -52,13 +53,17 @@ int main(int argc, char** argv)
     beam.initialize_visual_model();
     beam.initialize_collision_model();
 
-    beam.set_mesh_particles_index_offset(simulation.particles()[beam_idx].size());
+    auto const mesh_index_offset =
+        static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
+    beam.set_mesh_particles_index_offset(mesh_index_offset);
     for (auto const& mesh_x0 : beam.x0())
     {
         sbs::physics::particle_t p{mesh_x0};
         simulation.add_particle(p, beam_idx);
     }
-    beam.set_meshless_particles_index_offset(simulation.particles()[beam_idx].size());
+    auto const meshless_index_offset =
+        static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
+    beam.set_meshless_particles_index_offset(meshless_index_offset);
     for (auto const& meshless_node : beam.meshless_nodes())
     {
         sbs::physics::particle_t p{meshless_node.Xi()};
@@ -70,22 +75,22 @@ int main(int argc, char** argv)
         if (beam.topology().is_boundary_tetrahedron(t))
             continue;
 
-        auto const alpha = simulation.simulation_parameters().compliance;
-        auto const beta  = simulation.simulation_parameters().damping;
-        auto const nu    = simulation.simulation_parameters().poisson_ratio;
-        auto const E     = simulation.simulation_parameters().young_modulus;
-        auto constraint  = std::make_unique<sbs::physics::xpbd::green_constraint_t>(
-            alpha,
-            beta,
-            simulation,
-            beam_idx,
-            t.v1(),
-            t.v2(),
-            t.v3(),
-            t.v4(),
-            E,
-            nu);
-        simulation.add_constraint(std::move(constraint));
+        //auto const alpha = simulation.simulation_parameters().compliance;
+        //auto const beta  = simulation.simulation_parameters().damping;
+        //auto const nu    = simulation.simulation_parameters().poisson_ratio;
+        //auto const E     = simulation.simulation_parameters().young_modulus;
+        //auto constraint  = std::make_unique<sbs::physics::xpbd::green_constraint_t>(
+        //    alpha,
+        //    beta,
+        //    simulation,
+        //    beam_idx,
+        //    t.v1(),
+        //    t.v2(),
+        //    t.v3(),
+        //    t.v4(),
+        //    E,
+        //    nu);
+        //simulation.add_constraint(std::move(constraint));
     }
     for (std::size_t i = 0u; i < beam.meshless_nodes().size(); ++i)
     {
@@ -175,12 +180,12 @@ int main(int argc, char** argv)
      */
     sbs::physics::timestep_t timestep{};
     timestep.dt()         = 0.016;
-    timestep.iterations() = 5u;
+    timestep.iterations() = 25u;
     timestep.substeps()   = 1u;
     timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
-        timestep.dt(),
+        0. /*timestep.dt() / 4.*/,
         [&](sbs::rendering::physics_timestep_throttler_t& throttler,
             double dt,
             sbs::physics::simulation_t& simulation) { timestep.step(simulation); });
@@ -301,30 +306,44 @@ int main(int argc, char** argv)
             std::string const mixed_meshless_node_count =
                 "Mixed particles: " + std::to_string(beam.mixed_meshless_node_count());
             ImGui::Text(mixed_meshless_node_count.c_str());
+
+            static std::vector<sbs::scalar_type> Eis{};
+            Eis.clear();
+            Eis.reserve(beam.meshless_nodes().size());
+            if (ImPlot::BeginPlot("Strains"))
+            {
+                for (auto const& meshless_node : beam.meshless_nodes())
+                {
+                    Eigen::Matrix3d const Ei = meshless_node.Ei();
+                    Eis.push_back(Ei.squaredNorm());
+                }
+                ImPlot::PlotBars("||Ei||^2", Eis.data(), Eis.size());
+                ImPlot::EndPlot();
+            }
         }
 
         ImGui::End();
     };
 
     renderer.on_pre_render = [&](sbs::physics::simulation_t& s) {
-        renderer.clear_points();
+        // renderer.clear_points();
         // auto const offset     = beam.get_meshless_particles_index_offset();
         // auto const& particles = s.particles()[beam_idx];
         // for (auto i = offset; i < particles.size(); ++i)
         //{
-        //     sbs::physics::particle_t const& p = particles[i];
-        //     std::array<float, 9u> const vertex_attributes{
-        //         static_cast<float>(p.x().x()),
-        //         static_cast<float>(p.x().y()),
-        //         static_cast<float>(p.x().z()),
-        //         0.f,
-        //         0.f,
-        //         0.f,
-        //         1.f,
-        //         0.f,
-        //         0.f};
-        //     renderer.add_point(vertex_attributes);
-        // }
+        //    sbs::physics::particle_t const& p = particles[i];
+        //    std::array<float, 9u> const vertex_attributes{
+        //        static_cast<float>(p.x().x()),
+        //        static_cast<float>(p.x().y()),
+        //        static_cast<float>(p.x().z()),
+        //        0.f,
+        //        0.f,
+        //        0.f,
+        //        1.f,
+        //        0.f,
+        //        0.f};
+        //    renderer.add_point(vertex_attributes);
+        //}
     };
 
     renderer.launch();

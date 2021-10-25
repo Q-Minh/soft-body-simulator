@@ -19,19 +19,22 @@ physics_timestep_throttler_t::physics_timestep_throttler_t(
 
 void physics_timestep_throttler_t::operator()(double frame_dt, physics::simulation_t& simulation)
 {
-    tb_ += frame_dt;
-    auto const time_between_frames = tb_;
-
-    // If the elapsed time between the last physics update was less than
-    // the physics timestep, we don't update physics.
-    if (tb_ < timestep_)
-        return;
-
-    double const num_timesteps_elapsed = std::floor(tb_ / timestep_);
-    tb_ -= num_timesteps_elapsed * timestep_;
-
     if (!are_physics_active_)
         return;
+
+    if (timestep_ > 0.)
+    {
+        tb_ += frame_dt;
+        auto const time_between_frames = tb_;
+
+        // If the elapsed time between the last physics update was less than
+        // the physics timestep, we don't update physics.
+        if (tb_ < timestep_)
+            return;
+
+        double const num_timesteps_elapsed = std::floor(tb_ / timestep_);
+        tb_ -= num_timesteps_elapsed * timestep_;
+    }
 
     auto const begin = std::chrono::steady_clock::now();
 

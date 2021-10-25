@@ -1,5 +1,5 @@
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
 
 namespace sbs {
 namespace physics {
@@ -41,6 +41,7 @@ void hybrid_mesh_meshless_mls_node_t::initialize(
     ti_         = ti;
     Fi_.setIdentity();
     xi_ = xi;
+    Ei_.setZero();
 
     auto const& W = kernel_;
 
@@ -65,7 +66,7 @@ void hybrid_mesh_meshless_mls_node_t::initialize(
         auto const& neighbour         = body_.meshless_nodes()[j];
         Eigen::Vector3d const& Xj     = neighbour.Xi();
         Eigen::Vector4d const PXj     = polynomial(Xj);
-        Eigen::Vector4d const PXjT    = PXj.transpose();
+        Eigen::RowVector4d const PXjT = PXj.transpose();
         scalar_type const Wij         = W(Xj);
         Eigen::Matrix4d const PXjPXjT = PXj * PXjT;
         // precompute moment matrix
@@ -283,9 +284,25 @@ Eigen::Vector3d& hybrid_mesh_meshless_mls_node_t::xi()
     return xi_;
 }
 
+Eigen::Matrix3d const& hybrid_mesh_meshless_mls_node_t::Ei() const
+{
+    return Ei_;
+}
+
+Eigen::Matrix3d& hybrid_mesh_meshless_mls_node_t::Ei()
+{
+    return Ei_;
+}
+
 index_type hybrid_mesh_meshless_mls_node_t::ti() const
 {
     return ti_;
+}
+
+std::array<index_type, 4u> const& hybrid_mesh_meshless_mls_node_t::vis() const
+{
+    tetrahedron_t const& t = body_.topology().tetrahedron(ti_);
+    return t.vertex_indices();
 }
 
 Eigen::Vector4d hybrid_mesh_meshless_mls_node_t::polynomial(Eigen::Vector3d const& X) const

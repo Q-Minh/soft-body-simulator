@@ -4,6 +4,7 @@ project(sbs VERSION 0.0.1)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
+# Download imgui
 if (NOT EXISTS "thirdparty/imgui")
     execute_process(
         COMMAND "git" "clone" "https://github.com/ocornut/imgui" 
@@ -16,6 +17,20 @@ if (_imgui_clone_failure)
     message(STATUS "Failed to download imgui")
 endif()
 
+# Download implot
+if (NOT EXISTS "thirdparty/implot")
+    execute_process(
+        COMMAND "git" "clone" "https://github.com/epezent/implot"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/" 
+        RESULT_VARIABLE _implot_clone_failure
+    )
+endif()
+
+if (_implot_clone_failure)
+    message(STATUS "Failed to download implot")
+endif()
+
+# Download and create library target for glfw3
 include(FetchContent)
 FetchContent_Declare(
   glfw
@@ -28,6 +43,7 @@ PROPERTIES
     DEBUG_POSTFIX "_d"
 )
 
+# Create library target for glad
 add_library(glad)
 set_target_properties(glad 
 PROPERTIES
@@ -45,11 +61,13 @@ PUBLIC
         >
 )
 
+# Get dependencies
 find_package(nlohmann_json 3 CONFIG REQUIRED)
 find_package(Eigen3 3.3 CONFIG REQUIRED)
 find_package(glm 0.9.9 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
+# Create library target for imgui
 add_library(imgui)
 set_target_properties(imgui 
 PROPERTIES 
@@ -92,6 +110,33 @@ PUBLIC
     IMGUI_IMPL_OPENGL_LOADER_GLAD=1
 )
 
+# Create library target for implot
+add_library(implot)
+set_target_properties(implot 
+PROPERTIES 
+    FOLDER implot
+    DEBUG_POSTFIX "_d"    
+)
+target_sources(implot 
+PRIVATE 
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/implot/implot.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/implot/implot.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/implot/implot_demo.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/implot/implot_internal.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/implot/implot_items.cpp"
+)
+target_include_directories(implot 
+PUBLIC 
+    $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/implot
+        >
+)
+target_link_libraries(implot 
+PUBLIC
+    imgui
+)
+
 FetchContent_Declare(
   _discregrid
   GIT_REPOSITORY https://github.com/Q-Minh/Discregrid
@@ -118,6 +163,7 @@ PRIVATE
     nlohmann_json::nlohmann_json
 PUBLIC 
     imgui 
+    implot 
     Eigen3::Eigen 
     glm::glm
     Threads::Threads
@@ -213,16 +259,16 @@ set(_sbs_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/functions/kernel.cpp"
 
     # physics/mechanics
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_sph_body.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_sph_node.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_body.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_node.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_surface.h"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_sph_body.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_sph_node.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_sph_surface.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_mls_body.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_mls_node.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_mls_surface.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_body.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_node.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_surface.cpp"
@@ -232,10 +278,10 @@ set(_sbs_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_sph_collision_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_sph_positional_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_sph_stvk_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_sph_surface_contact_handler.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_collision_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_positional_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_surface_contact_handler.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_collision_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_positional_constraint.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_surface_contact_handler.h"
@@ -246,10 +292,10 @@ set(_sbs_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_sph_collision_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_sph_positional_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_sph_stvk_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_sph_surface_contact_handler.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_collision_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_positional_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_surface_contact_handler.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_collision_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_positional_constraint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_surface_contact_handler.cpp"
@@ -293,7 +339,7 @@ add_subdirectory(examples)
 include(GNUInstallDirs)
 
 install(
-    TARGETS sbs glad imgui glfw Discregrid
+    TARGETS sbs glad imgui implot glfw Discregrid
     EXPORT sbs_targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

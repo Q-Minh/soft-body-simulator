@@ -1,12 +1,12 @@
-#ifndef SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_SPH_BODY_H
-#define SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_SPH_BODY_H
+#ifndef SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_BODY_H
+#define SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_BODY_H
 
 #include <Discregrid/acceleration/bounding_sphere.hpp>
 #include <Discregrid/acceleration/kd_tree.hpp>
 #include <Eigen/Core>
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/bvh_model.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_sph_surface.h>
+#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
 #include <sbs/physics/topology.h>
 
 namespace sbs {
@@ -201,4 +201,4 @@ class hybrid_mesh_meshless_mls_body_t : public physics::body_t
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_SPH_BODY_H
+#endif // SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_BODY_H

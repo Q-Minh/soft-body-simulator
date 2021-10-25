@@ -2,6 +2,7 @@
 #define SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_NODE_H
 
 #include <Eigen/Core>
+#include <array>
 #include <optional>
 #include <sbs/physics/functions/kernel.h>
 
@@ -46,8 +47,11 @@ class hybrid_mesh_meshless_mls_node_t
     Eigen::Matrix3d& Fi();
     Eigen::Vector3d const& xi() const;
     Eigen::Vector3d& xi();
+    Eigen::Matrix3d const& Ei() const;
+    Eigen::Matrix3d& Ei();
 
     index_type ti() const;
+    std::array<index_type, 4u> const& vis() const;
 
     Eigen::Vector4d polynomial(Eigen::Vector3d const& X) const;
 
@@ -72,6 +76,7 @@ class hybrid_mesh_meshless_mls_node_t
 
     Eigen::Matrix3d Fi_;
     Eigen::Vector3d xi_;
+    Eigen::Matrix3d Ei_;
 };
 
 } // namespace mechanics

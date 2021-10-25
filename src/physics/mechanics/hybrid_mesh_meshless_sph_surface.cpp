@@ -7,7 +7,7 @@ namespace physics {
 namespace mechanics {
 
 hybrid_mesh_meshless_sph_surface_t::hybrid_mesh_meshless_sph_surface_t(
-    hybrid_mesh_meshless_sph_body_t* mechanical_model,
+    hybrid_mesh_meshless_mls_body_t* mechanical_model,
     std::vector<Eigen::Vector3d> const& vertices,
     std::vector<triangle_t> const& triangles)
     : render_vertices_(), triangles_(), vertices_(), mechanical_model_(mechanical_model)
@@ -19,7 +19,7 @@ hybrid_mesh_meshless_sph_surface_t::hybrid_mesh_meshless_sph_surface_t(
         vertex_type v{};
         v.position = p;
         render_vertices_.push_back(v);
-        hybrid_mesh_meshless_sph_surface_vertex_t mv(p);
+        hybrid_mesh_meshless_mls_surface_vertex_t mv(p);
         vertices_.push_back(mv);
     }
     triangles_.reserve(triangles.size());
@@ -42,7 +42,7 @@ void hybrid_mesh_meshless_sph_surface_t::initialize_interpolation_scheme(scalar_
     detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t const&
         mesh_tet_range_searcher = mechanical_model_->mesh_tetrahedron_range_searcher();
 
-    std::vector<hybrid_mesh_meshless_sph_node_t> const& nodes = mechanical_model_->meshless_nodes();
+    std::vector<hybrid_mesh_meshless_mls_node_t> const& nodes = mechanical_model_->meshless_nodes();
 
     for (std::size_t i = 0u; i < vertices_.size(); ++i)
     {
@@ -76,7 +76,7 @@ void hybrid_mesh_meshless_sph_surface_t::initialize_interpolation_scheme(scalar_
 
         index_type const ti = mesh_tet_range_searcher.in_tetrahedron(Xk);
         vertices_[i] =
-            hybrid_mesh_meshless_sph_surface_vertex_t(Xk, Xk, Xkjs, Wkjs, Vjs, sk, neighbours, ti);
+            hybrid_mesh_meshless_mls_surface_vertex_t(Xk, Xk, Xkjs, Wkjs, Vjs, sk, neighbours, ti);
         render_vertices_[i].position = Xk;
     }
 }
@@ -134,18 +134,18 @@ Eigen::Vector3d& hybrid_mesh_meshless_sph_surface_t::material_space_position(std
     return vertices_[vi].x0();
 }
 
-std::vector<hybrid_mesh_meshless_sph_surface_vertex_t> const&
+std::vector<hybrid_mesh_meshless_mls_surface_vertex_t> const&
 hybrid_mesh_meshless_sph_surface_t::embedded_vertices() const
 {
     return vertices_;
 }
 
-hybrid_mesh_meshless_sph_body_t const* hybrid_mesh_meshless_sph_surface_t::mechanical_model() const
+hybrid_mesh_meshless_mls_body_t const* hybrid_mesh_meshless_sph_surface_t::mechanical_model() const
 {
     return mechanical_model_;
 }
 
-hybrid_mesh_meshless_sph_body_t* hybrid_mesh_meshless_sph_surface_t::mechanical_model()
+hybrid_mesh_meshless_mls_body_t* hybrid_mesh_meshless_sph_surface_t::mechanical_model()
 {
     return mechanical_model_;
 }

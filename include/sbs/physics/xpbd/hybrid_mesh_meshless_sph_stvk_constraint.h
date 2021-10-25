@@ -9,16 +9,16 @@ namespace sbs {
 namespace physics {
 namespace mechanics {
 
-class hybrid_mesh_meshless_sph_node_t;
+class hybrid_mesh_meshless_mls_node_t;
 
 } // namespace mechanics
 
 namespace xpbd {
 
-class hybrid_mesh_meshless_sph_constraint_t : public constraint_t
+class hybrid_mesh_meshless_mls_constraint_t : public constraint_t
 {
   public:
-    hybrid_mesh_meshless_sph_constraint_t(
+    hybrid_mesh_meshless_mls_constraint_t(
         scalar_type const alpha,
         scalar_type const beta,
         simulation_t const& simulation,
@@ -26,7 +26,7 @@ class hybrid_mesh_meshless_sph_constraint_t : public constraint_t
         index_type ni,
         scalar_type young_modulus,
         scalar_type poisson_ratio,
-        mechanics::hybrid_mesh_meshless_sph_node_t& node);
+        mechanics::hybrid_mesh_meshless_mls_node_t& node);
 
     virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
 
@@ -41,7 +41,7 @@ class hybrid_mesh_meshless_sph_constraint_t : public constraint_t
     dCdvi(Eigen::Matrix3d const& dPsidFi) const;
 
   private:
-    mechanics::hybrid_mesh_meshless_sph_node_t& node_;
+    mechanics::hybrid_mesh_meshless_mls_node_t& node_;
     index_type bi_;
     index_type ni_;
     scalar_type mu_;

@@ -8,17 +8,17 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
-sbs::physics::xpbd::hybrid_mesh_meshless_sph_surface_contact_handler_t::
-    hybrid_mesh_meshless_sph_surface_contact_handler_t(simulation_t& simulation)
+sbs::physics::xpbd::hybrid_mesh_meshless_mls_surface_contact_handler_t::
+    hybrid_mesh_meshless_mls_surface_contact_handler_t(simulation_t& simulation)
     : simulation_(simulation)
 {
 }
 
-void sbs::physics::xpbd::hybrid_mesh_meshless_sph_surface_contact_handler_t::on_cd_starting() {}
+void sbs::physics::xpbd::hybrid_mesh_meshless_mls_surface_contact_handler_t::on_cd_starting() {}
 
-void sbs::physics::xpbd::hybrid_mesh_meshless_sph_surface_contact_handler_t::on_cd_ending() {}
+void sbs::physics::xpbd::hybrid_mesh_meshless_mls_surface_contact_handler_t::on_cd_ending() {}
 
-void sbs::physics::xpbd::hybrid_mesh_meshless_sph_surface_contact_handler_t::handle(
+void sbs::physics::xpbd::hybrid_mesh_meshless_mls_surface_contact_handler_t::handle(
     collision::contact_t const& contact)
 {
     auto const contact_type = contact.type();
@@ -39,12 +39,12 @@ void sbs::physics::xpbd::hybrid_mesh_meshless_sph_surface_contact_handler_t::han
         }
 
         auto const vi = surface_mesh_contact.vi();
-        mechanics::hybrid_mesh_meshless_sph_surface_vertex_t const& vk =
+        mechanics::hybrid_mesh_meshless_mls_surface_vertex_t const& vk =
             surface_mesh->embedded_vertices()[vi];
         Eigen::Vector3d const vip = surface_mesh->vertex(surface_mesh_contact.vi()).position;
 
         auto collision_constraint =
-            std::make_unique<xpbd::hybrid_mesh_meshless_sph_collision_constraint_t>(
+            std::make_unique<xpbd::hybrid_mesh_meshless_mls_collision_constraint_t>(
                 simulation_.simulation_parameters().collision_compliance,
                 simulation_.simulation_parameters().collision_damping,
                 b1.id(),

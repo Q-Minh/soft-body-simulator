@@ -17,7 +17,7 @@ struct geometry_t;
 namespace physics {
 namespace mechanics {
 
-class hybrid_mesh_meshless_sph_node_t;
+class hybrid_mesh_meshless_mls_node_t;
 
 namespace detail {
 namespace hybrid_mesh_meshless_sph {
@@ -28,7 +28,7 @@ class meshless_node_range_searcher_t : public Discregrid::KDTree<Discregrid::Bou
     using base_type = Discregrid::KDTree<Discregrid::BoundingSphere>;
 
     meshless_node_range_searcher_t();
-    meshless_node_range_searcher_t(std::vector<hybrid_mesh_meshless_sph_node_t> const* nodes);
+    meshless_node_range_searcher_t(std::vector<hybrid_mesh_meshless_mls_node_t> const* nodes);
 
     meshless_node_range_searcher_t(meshless_node_range_searcher_t const& other) = default;
     meshless_node_range_searcher_t(meshless_node_range_searcher_t&& other)      = default;
@@ -46,7 +46,7 @@ class meshless_node_range_searcher_t : public Discregrid::KDTree<Discregrid::Bou
         const override final;
 
   private:
-    std::vector<hybrid_mesh_meshless_sph_node_t> const* nodes_;
+    std::vector<hybrid_mesh_meshless_mls_node_t> const* nodes_;
 };
 
 class mesh_tetrahedron_range_searcher_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
@@ -84,7 +84,7 @@ class mesh_tetrahedron_range_searcher_t : public Discregrid::KDTree<Discregrid::
 } // namespace hybrid_mesh_meshless_sph
 } // namespace detail
 
-class hybrid_mesh_meshless_sph_body_t : public physics::body_t
+class hybrid_mesh_meshless_mls_body_t : public physics::body_t
 {
   public:
     /**
@@ -107,7 +107,7 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
      * h*1. Increase h to include more neighbours.
      * @param resolution The resolution of the particle sampling grid
      */
-    hybrid_mesh_meshless_sph_body_t(
+    hybrid_mesh_meshless_mls_body_t(
         simulation_t& simulation,
         index_type id,
         common::geometry_t const& geometry,
@@ -123,8 +123,8 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
     virtual void update_physical_model() override;
     virtual void transform(Eigen::Affine3d const& affine) override;
 
-    std::vector<hybrid_mesh_meshless_sph_node_t> const& meshless_nodes() const;
-    std::vector<hybrid_mesh_meshless_sph_node_t>& meshless_nodes();
+    std::vector<hybrid_mesh_meshless_mls_node_t> const& meshless_nodes() const;
+    std::vector<hybrid_mesh_meshless_mls_node_t>& meshless_nodes();
     std::size_t mesh_node_count() const;
     std::size_t meshless_node_count() const;
     hybrid_mesh_meshless_sph_surface_t const& surface_mesh() const;
@@ -174,7 +174,7 @@ class hybrid_mesh_meshless_sph_body_t : public physics::body_t
     std::vector<Eigen::Vector3d>
         mesh_x0_; ///< Material space positions of the initial tetrahedral geometry
     std::vector<Eigen::Vector3d> mesh_x_; ///< Positions of each mesh node in world space
-    std::vector<hybrid_mesh_meshless_sph_node_t> meshless_nodes_;
+    std::vector<hybrid_mesh_meshless_mls_node_t> meshless_nodes_;
     detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t
         material_space_meshless_node_searcher_; ///< Used for querying neighbours in material space
     detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t

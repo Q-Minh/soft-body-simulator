@@ -54,10 +54,12 @@ int main(int argc, char** argv)
     beam.initialize_collision_model();
 
     auto constexpr mass_density = 1.;
+    sbs::scalar_type total_mass{0.};
     for (auto const& meshless_node : beam.nodes())
     {
         sbs::physics::particle_t p{meshless_node.Xi()};
         p.mass() = mass_density * meshless_node.Vi();
+        total_mass += p.mass();
         simulation.add_particle(p, beam_idx);
     }
     for (std::size_t i = 0u; i < beam.nodes().size(); ++i)
@@ -283,6 +285,8 @@ int main(int argc, char** argv)
             std::string const element_count =
                 "Elements: " + std::to_string(beam.topology().tetrahedron_count());
             ImGui::Text(element_count.c_str());
+            std::string const total_mass_str = "Total mass: " + std::to_string(total_mass) + " g";
+            ImGui::Text(total_mass_str.c_str());
         }
 
         ImGui::End();

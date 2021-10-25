@@ -9,13 +9,13 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
-sbs::physics::xpbd::hybrid_mesh_meshless_sph_collision_constraint_t::
-    hybrid_mesh_meshless_sph_collision_constraint_t(
+sbs::physics::xpbd::hybrid_mesh_meshless_mls_collision_constraint_t::
+    hybrid_mesh_meshless_mls_collision_constraint_t(
         scalar_type alpha,
         scalar_type beta,
         index_type const bi,
-        mechanics::hybrid_mesh_meshless_sph_body_t const* b,
-        mechanics::hybrid_mesh_meshless_sph_surface_vertex_t const& vk,
+        mechanics::hybrid_mesh_meshless_mls_body_t const* b,
+        mechanics::hybrid_mesh_meshless_mls_surface_vertex_t const& vk,
         Eigen::Vector3d const& vi,
         Eigen::Vector3d const& c,
         Eigen::Vector3d const& n)
@@ -23,7 +23,7 @@ sbs::physics::xpbd::hybrid_mesh_meshless_sph_collision_constraint_t::
 {
 }
 
-void hybrid_mesh_meshless_sph_collision_constraint_t::project_positions(
+void hybrid_mesh_meshless_mls_collision_constraint_t::project_positions(
     simulation_t& simulation,
     scalar_type dt)
 {

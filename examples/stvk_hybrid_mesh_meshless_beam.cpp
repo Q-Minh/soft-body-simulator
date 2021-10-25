@@ -33,15 +33,15 @@ int main(int argc, char** argv)
     simulation.add_body();
     std::array<unsigned int, 3u> const particle_grid_resolution{16u, 16u, 16u};
     simulation.bodies()[beam_idx] =
-        std::make_unique<sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t>(
+        std::make_unique<sbs::physics::mechanics::hybrid_mesh_meshless_mls_body_t>(
             simulation,
             beam_idx,
             beam_geometry,
             h,
             particle_grid_resolution);
 
-    sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t& beam =
-        *dynamic_cast<sbs::physics::mechanics::hybrid_mesh_meshless_sph_body_t*>(
+    sbs::physics::mechanics::hybrid_mesh_meshless_mls_body_t& beam =
+        *dynamic_cast<sbs::physics::mechanics::hybrid_mesh_meshless_mls_body_t*>(
             simulation.bodies()[beam_idx].get());
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 5., -1.)};
     beam_transform.rotate(
@@ -93,10 +93,10 @@ int main(int argc, char** argv)
         auto const beta  = simulation.simulation_parameters().damping;
         auto const E     = simulation.simulation_parameters().young_modulus;
         auto const nu    = simulation.simulation_parameters().poisson_ratio;
-        sbs::physics::mechanics::hybrid_mesh_meshless_sph_node_t& node = beam.meshless_nodes()[i];
+        sbs::physics::mechanics::hybrid_mesh_meshless_mls_node_t& node = beam.meshless_nodes()[i];
         auto const ni = static_cast<sbs::index_type>(i);
         auto constraint =
-            std::make_unique<sbs::physics::xpbd::hybrid_mesh_meshless_sph_constraint_t>(
+            std::make_unique<sbs::physics::xpbd::hybrid_mesh_meshless_mls_constraint_t>(
                 alpha,
                 beta,
                 simulation,
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
     simulation.use_collision_detection_system(
         std::make_unique<sbs::physics::collision::brute_force_cd_system_t>(collision_objects));
     simulation.collision_detection_system()->use_contact_handler(
-        std::make_unique<sbs::physics::xpbd::hybrid_mesh_meshless_sph_surface_contact_handler_t>(
+        std::make_unique<sbs::physics::xpbd::hybrid_mesh_meshless_mls_surface_contact_handler_t>(
             simulation));
 
     /**

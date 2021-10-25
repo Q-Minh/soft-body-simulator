@@ -12,7 +12,7 @@ namespace sbs {
 namespace physics {
 namespace mechanics {
 
-hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
+hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
     simulation_t& simulation,
     index_type id,
     common::geometry_t const& geometry,
@@ -186,7 +186,7 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
 
                 functions::poly6_kernel_t kernel(grid_node_position, h_);
                 auto const ni = static_cast<index_type>(meshless_nodes_.size());
-                hybrid_mesh_meshless_sph_node_t node(ni, kernel, *this);
+                hybrid_mesh_meshless_mls_node_t node(ni, kernel, *this);
                 node.xi() = kernel.xi();
                 meshless_nodes_.push_back(node);
             }
@@ -242,38 +242,38 @@ hybrid_mesh_meshless_sph_body_t::hybrid_mesh_meshless_sph_body_t(
     }
 }
 
-body_t::visual_model_type const& hybrid_mesh_meshless_sph_body_t::visual_model() const
+body_t::visual_model_type const& hybrid_mesh_meshless_mls_body_t::visual_model() const
 {
     return visual_model_;
 }
 
-body_t::collision_model_type const& hybrid_mesh_meshless_sph_body_t::collision_model() const
+body_t::collision_model_type const& hybrid_mesh_meshless_mls_body_t::collision_model() const
 {
     return collision_model_;
 }
 
-body_t::visual_model_type& hybrid_mesh_meshless_sph_body_t::visual_model()
+body_t::visual_model_type& hybrid_mesh_meshless_mls_body_t::visual_model()
 {
     return visual_model_;
 }
 
-body_t::collision_model_type& hybrid_mesh_meshless_sph_body_t::collision_model()
+body_t::collision_model_type& hybrid_mesh_meshless_mls_body_t::collision_model()
 {
     return collision_model_;
 }
 
-void hybrid_mesh_meshless_sph_body_t::update_visual_model()
+void hybrid_mesh_meshless_mls_body_t::update_visual_model()
 {
     visual_model_.compute_positions();
     visual_model_.compute_normals();
 }
 
-void hybrid_mesh_meshless_sph_body_t::update_collision_model()
+void hybrid_mesh_meshless_mls_body_t::update_collision_model()
 {
     collision_model_.update(simulation());
 }
 
-void hybrid_mesh_meshless_sph_body_t::update_physical_model()
+void hybrid_mesh_meshless_mls_body_t::update_physical_model()
 {
     auto const& particles = simulation().particles()[id()];
     assert(particles.size() == (mesh_x0_.size() + meshless_nodes_.size()));
@@ -286,13 +286,13 @@ void hybrid_mesh_meshless_sph_body_t::update_physical_model()
     for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
         index_type const ni                   = static_cast<index_type>(i);
-        hybrid_mesh_meshless_sph_node_t& node = meshless_nodes_[ni];
+        hybrid_mesh_meshless_mls_node_t& node = meshless_nodes_[ni];
         particle_t const& p                   = particles[meshless_particles_index_offset_ + i];
         node.xi()                             = p.x();
     }
 }
 
-void hybrid_mesh_meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
+void hybrid_mesh_meshless_mls_body_t::transform(Eigen::Affine3d const& affine)
 {
     auto const v             = Eigen::Vector3d{1., 1., 1.}.normalized();
     auto const vp            = affine * Eigen::Vector4d{v.x(), v.y(), v.z(), 0.};
@@ -319,7 +319,7 @@ void hybrid_mesh_meshless_sph_body_t::transform(Eigen::Affine3d const& affine)
     }
 }
 
-void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
+void hybrid_mesh_meshless_mls_body_t::initialize_physical_model()
 {
     // Precompute the mesh node shape functions as a function which maps
     // material space positions to barycentric coordinates. The barycentric
@@ -413,157 +413,157 @@ void hybrid_mesh_meshless_sph_body_t::initialize_physical_model()
     }
 }
 
-void hybrid_mesh_meshless_sph_body_t::initialize_visual_model()
+void hybrid_mesh_meshless_mls_body_t::initialize_visual_model()
 {
     visual_model_.initialize_interpolation_scheme(2. * h_);
     visual_model_.compute_normals();
 }
 
-void hybrid_mesh_meshless_sph_body_t::initialize_collision_model()
+void hybrid_mesh_meshless_mls_body_t::initialize_collision_model()
 {
     collision_model_      = collision::point_bvh_model_t(&visual_model_);
     collision_model_.id() = id();
 }
 
-void hybrid_mesh_meshless_sph_body_t::set_mesh_particles_index_offset(index_type offset)
+void hybrid_mesh_meshless_mls_body_t::set_mesh_particles_index_offset(index_type offset)
 {
     mesh_particles_index_offset_ = offset;
 }
 
-void hybrid_mesh_meshless_sph_body_t::set_meshless_particles_index_offset(index_type offset)
+void hybrid_mesh_meshless_mls_body_t::set_meshless_particles_index_offset(index_type offset)
 {
     meshless_particles_index_offset_ = offset;
 }
 
-index_type hybrid_mesh_meshless_sph_body_t::get_mesh_particles_index_offset() const
+index_type hybrid_mesh_meshless_mls_body_t::get_mesh_particles_index_offset() const
 {
     return mesh_particles_index_offset_;
 }
 
-index_type hybrid_mesh_meshless_sph_body_t::get_meshless_particles_index_offset() const
+index_type hybrid_mesh_meshless_mls_body_t::get_meshless_particles_index_offset() const
 {
     return meshless_particles_index_offset_;
 }
 
-std::vector<hybrid_mesh_meshless_sph_node_t> const&
-hybrid_mesh_meshless_sph_body_t::meshless_nodes() const
+std::vector<hybrid_mesh_meshless_mls_node_t> const&
+hybrid_mesh_meshless_mls_body_t::meshless_nodes() const
 {
     return meshless_nodes_;
 }
 
-std::vector<hybrid_mesh_meshless_sph_node_t>& hybrid_mesh_meshless_sph_body_t::meshless_nodes()
+std::vector<hybrid_mesh_meshless_mls_node_t>& hybrid_mesh_meshless_mls_body_t::meshless_nodes()
 {
     return meshless_nodes_;
 }
 
-std::size_t hybrid_mesh_meshless_sph_body_t::mesh_node_count() const
+std::size_t hybrid_mesh_meshless_mls_body_t::mesh_node_count() const
 {
     return mesh_x0_.size();
 }
 
-std::size_t hybrid_mesh_meshless_sph_body_t::meshless_node_count() const
+std::size_t hybrid_mesh_meshless_mls_body_t::meshless_node_count() const
 {
     return meshless_nodes_.size();
 }
 
-hybrid_mesh_meshless_sph_surface_t const& hybrid_mesh_meshless_sph_body_t::surface_mesh() const
+hybrid_mesh_meshless_sph_surface_t const& hybrid_mesh_meshless_mls_body_t::surface_mesh() const
 {
     return visual_model_;
 }
 
-hybrid_mesh_meshless_sph_surface_t& hybrid_mesh_meshless_sph_body_t::surface_mesh()
+hybrid_mesh_meshless_sph_surface_t& hybrid_mesh_meshless_mls_body_t::surface_mesh()
 {
     return visual_model_;
 }
 
-collision::point_bvh_model_t const& hybrid_mesh_meshless_sph_body_t::bvh() const
+collision::point_bvh_model_t const& hybrid_mesh_meshless_mls_body_t::bvh() const
 {
     return collision_model_;
 }
 
-std::size_t hybrid_mesh_meshless_sph_body_t::mixed_meshless_node_count() const
+std::size_t hybrid_mesh_meshless_mls_body_t::mixed_meshless_node_count() const
 {
     auto const count = std::count_if(
         meshless_nodes_.begin(),
         meshless_nodes_.end(),
-        [](hybrid_mesh_meshless_sph_node_t const& meshless_node) {
+        [](hybrid_mesh_meshless_mls_node_t const& meshless_node) {
             return meshless_node.is_mixed_particle();
         });
     return count;
 }
 
-std::size_t hybrid_mesh_meshless_sph_body_t::interior_tetrahedron_count() const
+std::size_t hybrid_mesh_meshless_mls_body_t::interior_tetrahedron_count() const
 {
     auto const count =
         std::count(is_boundary_tetrahedron_.begin(), is_boundary_tetrahedron_.end(), false);
     return count;
 }
 
-std::size_t hybrid_mesh_meshless_sph_body_t::mesh_shape_function_count() const
+std::size_t hybrid_mesh_meshless_mls_body_t::mesh_shape_function_count() const
 {
     auto const count = std::count(is_boundary_vertex_.begin(), is_boundary_vertex_.end(), false);
     return count;
 }
 
-tetrahedron_set_t const& hybrid_mesh_meshless_sph_body_t::topology() const
+tetrahedron_set_t const& hybrid_mesh_meshless_mls_body_t::topology() const
 {
     return volumetric_topology_;
 }
 
-tetrahedron_set_t& hybrid_mesh_meshless_sph_body_t::topology()
+tetrahedron_set_t& hybrid_mesh_meshless_mls_body_t::topology()
 {
     return volumetric_topology_;
 }
 
-scalar_type hybrid_mesh_meshless_sph_body_t::h() const
+scalar_type hybrid_mesh_meshless_mls_body_t::h() const
 {
     return h_;
 }
 
-std::vector<Eigen::Vector3d> const& hybrid_mesh_meshless_sph_body_t::x0() const
+std::vector<Eigen::Vector3d> const& hybrid_mesh_meshless_mls_body_t::x0() const
 {
     return mesh_x0_;
 }
 
-std::vector<Eigen::Vector3d> const& hybrid_mesh_meshless_sph_body_t::x() const
+std::vector<Eigen::Vector3d> const& hybrid_mesh_meshless_mls_body_t::x() const
 {
     return mesh_x_;
 }
 
 detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t const&
-hybrid_mesh_meshless_sph_body_t::mesh_tetrahedron_range_searcher() const
+hybrid_mesh_meshless_mls_body_t::mesh_tetrahedron_range_searcher() const
 {
     return material_space_mesh_node_searcher_;
 }
 
 detail::hybrid_mesh_meshless_sph::meshless_node_range_searcher_t const&
-hybrid_mesh_meshless_sph_body_t::meshless_node_range_searcher() const
+hybrid_mesh_meshless_mls_body_t::meshless_node_range_searcher() const
 {
     return material_space_meshless_node_searcher_;
 }
 
-bool hybrid_mesh_meshless_sph_body_t::is_boundary_mesh_tetrahedron(index_type const ti) const
+bool hybrid_mesh_meshless_mls_body_t::is_boundary_mesh_tetrahedron(index_type const ti) const
 {
     return is_boundary_tetrahedron_[ti];
 }
 
-bool hybrid_mesh_meshless_sph_body_t::is_boundary_mesh_vertex(index_type const vi) const
+bool hybrid_mesh_meshless_mls_body_t::is_boundary_mesh_vertex(index_type const vi) const
 {
     return is_boundary_vertex_[vi];
 }
 
-Eigen::Matrix4d const& hybrid_mesh_meshless_sph_body_t::phi_i(index_type const ti) const
+Eigen::Matrix4d const& hybrid_mesh_meshless_mls_body_t::phi_i(index_type const ti) const
 {
     return Ainv_[ti];
 }
 
-Eigen::Vector4d hybrid_mesh_meshless_sph_body_t::phi_i(index_type const ti, std::uint8_t v) const
+Eigen::Vector4d hybrid_mesh_meshless_mls_body_t::phi_i(index_type const ti, std::uint8_t v) const
 {
     return Ainv_[ti].row(v);
 }
 
 Eigen::Matrix<scalar_type, 4, 3>
-hybrid_mesh_meshless_sph_body_t::grad_phi_i(index_type const ti) const
+hybrid_mesh_meshless_mls_body_t::grad_phi_i(index_type const ti) const
 {
     Eigen::Matrix4d const& Ainv = Ainv_[ti];
     Eigen::Matrix<scalar_type, 4, 3> grad{};
@@ -575,7 +575,7 @@ hybrid_mesh_meshless_sph_body_t::grad_phi_i(index_type const ti) const
 }
 
 Eigen::Vector3d
-hybrid_mesh_meshless_sph_body_t::grad_phi_i(index_type const ti, std::uint8_t v) const
+hybrid_mesh_meshless_mls_body_t::grad_phi_i(index_type const ti, std::uint8_t v) const
 {
     Eigen::Matrix4d const& Ainv = Ainv_[ti];
     Eigen::Vector3d const grad  = Ainv.block(v, 1u, 1u, 3u).transpose();
@@ -592,7 +592,7 @@ namespace hybrid_mesh_meshless_sph {
 meshless_node_range_searcher_t::meshless_node_range_searcher_t() : base_type(0u), nodes_() {}
 
 meshless_node_range_searcher_t::meshless_node_range_searcher_t(
-    std::vector<hybrid_mesh_meshless_sph_node_t> const* nodes)
+    std::vector<hybrid_mesh_meshless_mls_node_t> const* nodes)
     : base_type(nodes->size()), nodes_(nodes)
 {
     this->construct();
@@ -600,7 +600,7 @@ meshless_node_range_searcher_t::meshless_node_range_searcher_t(
 
 std::vector<index_type> meshless_node_range_searcher_t::neighbours_of(index_type const ni) const
 {
-    hybrid_mesh_meshless_sph_node_t const& node = (*nodes_)[ni];
+    hybrid_mesh_meshless_mls_node_t const& node = (*nodes_)[ni];
     scalar_type const r                         = node.kernel().h();
     Eigen::Vector3d const x                     = node.kernel().xi();
     Discregrid::BoundingSphere const node_shape_function_domain{x, r};

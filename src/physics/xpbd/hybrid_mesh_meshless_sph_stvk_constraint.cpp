@@ -9,7 +9,7 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
-hybrid_mesh_meshless_sph_constraint_t::hybrid_mesh_meshless_sph_constraint_t(
+hybrid_mesh_meshless_mls_constraint_t::hybrid_mesh_meshless_mls_constraint_t(
     scalar_type const alpha,
     scalar_type const beta,
     simulation_t const& simulation,
@@ -17,19 +17,19 @@ hybrid_mesh_meshless_sph_constraint_t::hybrid_mesh_meshless_sph_constraint_t(
     index_type ni,
     scalar_type young_modulus,
     scalar_type poisson_ratio,
-    mechanics::hybrid_mesh_meshless_sph_node_t& node)
+    mechanics::hybrid_mesh_meshless_mls_node_t& node)
     : constraint_t(alpha, beta), node_(node), bi_(bi), ni_(ni), mu_(), lambda_()
 {
     mu_     = (young_modulus) / (2. * (1 + poisson_ratio));
     lambda_ = (young_modulus * poisson_ratio) / ((1 + poisson_ratio) * (1 - 2 * poisson_ratio));
 }
 
-void hybrid_mesh_meshless_sph_constraint_t::project_positions(
+void hybrid_mesh_meshless_mls_constraint_t::project_positions(
     simulation_t& simulation,
     scalar_type dt)
 {
     auto& particles                                        = simulation.particles()[bi_];
-    mechanics::hybrid_mesh_meshless_sph_body_t const& body = node_.body();
+    mechanics::hybrid_mesh_meshless_mls_body_t const& body = node_.body();
     std::size_t const mesh_particle_offset                 = body.get_mesh_particles_index_offset();
     std::size_t const meshless_particle_offset = body.get_meshless_particles_index_offset();
 
@@ -107,53 +107,54 @@ void hybrid_mesh_meshless_sph_constraint_t::project_positions(
 }
 
 Eigen::Matrix3d
-hybrid_mesh_meshless_sph_constraint_t::deformation_gradient(simulation_t& simulation) const
+hybrid_mesh_meshless_mls_constraint_t::deformation_gradient(simulation_t& simulation) const
 {
     auto& particles                           = simulation.particles()[bi_];
     std::vector<index_type> const& neighbours = node_.neighbours();
     functions::poly6_kernel_t const& kernel   = node_.kernel();
 
-    mechanics::hybrid_mesh_meshless_sph_body_t const& body = node_.body();
+    mechanics::hybrid_mesh_meshless_mls_body_t const& body = node_.body();
     std::size_t const mesh_particle_offset                 = body.get_mesh_particles_index_offset();
     std::size_t const meshless_particle_offset = body.get_meshless_particles_index_offset();
 
     Eigen::Matrix3d Fi{};
     Fi.setZero();
-    for (std::size_t k = 0u; k < neighbours.size(); ++k)
-    {
-        index_type const j             = neighbours[k];
-        scalar_type const Vj           = node_.Vjs()[k];
-        Eigen::Matrix3d const& Li      = node_.Li();
-        Eigen::Vector3d const& gradWij = node_.gradWij()[k];
-        particle_t const& pi           = particles[meshless_particle_offset + ni_];
-        particle_t const& pj           = particles[meshless_particle_offset + j];
-        Eigen::Vector3d const xji      = pj.xi() - pi.xi();
-        Eigen::Matrix3d const Fij      = Vj * xji * (Li * gradWij).transpose();
-        Fi += Fij;
-    }
+    //for (std::size_t k = 0u; k < neighbours.size(); ++k)
+    //{
+    //    index_type const j             = neighbours[k];
+    //    scalar_type const Vj           = node_.Vjs()[k];
+    //    Eigen::Matrix3d const& Li      = node_.Li();
+    //    Eigen::Vector3d const& gradWij = node_.gradWij()[k];
+    //    particle_t const& pi           = particles[meshless_particle_offset + ni_];
+    //    particle_t const& pj           = particles[meshless_particle_offset + j];
+    //    Eigen::Vector3d const xji      = pj.xi() - pi.xi();
+    //    Eigen::Matrix3d const Fij      = Vj * xji * (Li * gradWij).transpose();
+    //    Fi += Fij;
+    //}
     if (node_.is_mixed_particle())
     {
-        //    index_type const ti    = node_.ti();
-        //    tetrahedron_t const& t = body.topology().tetrahedron(ti);
-        //    for (std::uint8_t i = 0u; i < 4u; ++i)
-        //    {
-        //        index_type const vi = t.vertex_indices()[i];
-        //        // boundary mesh vertices have no shape function, so
-        //        // they do not contribute to the interpolation scheme
-        //        if (body.is_boundary_mesh_vertex(vi))
-        //            continue;
+        index_type const ti    = node_.ti();
+        tetrahedron_t const& t = body.topology().tetrahedron(ti);
+        for (std::uint8_t i = 0u; i < 4u; ++i)
+        {
+            index_type const vi = t.vertex_indices()[i];
+            // boundary mesh vertices have no shape function, so
+            // they do not contribute to the interpolation scheme
+            //if (body.is_boundary_mesh_vertex(vi))
+            //    continue;
 
-        //        Eigen::Vector3d const& grad_phi_i = body.grad_phi_i(ti, i);
-        //        particle_t const& p               = particles[mesh_particle_offset + vi];
-        //        Eigen::Matrix3d const j           = p.xi() * grad_phi_i.transpose();
-        //        Fi += j;
-        //    }
+            Eigen::Vector3d const& grad_phi_i = body.grad_phi_i(ti, i);
+            particle_t const& p               = particles[mesh_particle_offset + vi];
+            Eigen::Matrix3d const J           = p.xi() * grad_phi_i.transpose();
+            Fi += J;
+        }
+        std::cout << "Fi: " << Fi << "\n";
     }
 
     return Fi;
 }
 
-Eigen::Matrix3d hybrid_mesh_meshless_sph_constraint_t::green_strain(Eigen::Matrix3d const& Fi) const
+Eigen::Matrix3d hybrid_mesh_meshless_mls_constraint_t::green_strain(Eigen::Matrix3d const& Fi) const
 {
     Eigen::Matrix3d const Ei =
         scalar_type{0.5} * (Fi.transpose() * Fi - Eigen::Matrix3d::Identity());
@@ -161,7 +162,7 @@ Eigen::Matrix3d hybrid_mesh_meshless_sph_constraint_t::green_strain(Eigen::Matri
 }
 
 std::pair<scalar_type, Eigen::Matrix3d>
-hybrid_mesh_meshless_sph_constraint_t::strain_energy_and_stress(
+hybrid_mesh_meshless_mls_constraint_t::strain_energy_and_stress(
     Eigen::Matrix3d const& Fi,
     Eigen::Matrix3d const& Ei) const
 {
@@ -177,13 +178,13 @@ hybrid_mesh_meshless_sph_constraint_t::strain_energy_and_stress(
     return std::make_pair(Psi, dPsidFi);
 }
 
-scalar_type const hybrid_mesh_meshless_sph_constraint_t::C(scalar_type const Psi) const
+scalar_type const hybrid_mesh_meshless_mls_constraint_t::C(scalar_type const Psi) const
 {
     return node_.Vi() * Psi;
 }
 
 std::vector<Eigen::Vector3d>
-hybrid_mesh_meshless_sph_constraint_t::dCdxk(Eigen::Matrix3d const& dPsidFi) const
+hybrid_mesh_meshless_mls_constraint_t::dCdxk(Eigen::Matrix3d const& dPsidFi) const
 {
     std::vector<index_type> const& neighbours = node_.neighbours();
 
@@ -222,12 +223,12 @@ hybrid_mesh_meshless_sph_constraint_t::dCdxk(Eigen::Matrix3d const& dPsidFi) con
 }
 
 std::array<std::optional<Eigen::Vector3d>, 4u>
-hybrid_mesh_meshless_sph_constraint_t::dCdvi(Eigen::Matrix3d const& dPsidFi) const
+hybrid_mesh_meshless_mls_constraint_t::dCdvi(Eigen::Matrix3d const& dPsidFi) const
 {
     std::array<std::optional<Eigen::Vector3d>, 4u> grad{};
     if (node_.is_mixed_particle())
     {
-        mechanics::hybrid_mesh_meshless_sph_body_t const& body = node_.body();
+        mechanics::hybrid_mesh_meshless_mls_body_t const& body = node_.body();
         index_type const ti                                    = node_.ti();
         tetrahedron_t const& t                                 = body.topology().tetrahedron(ti);
         for (std::uint8_t i = 0u; i < 4u; ++i)

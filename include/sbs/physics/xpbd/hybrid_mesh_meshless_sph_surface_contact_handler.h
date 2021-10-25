@@ -10,10 +10,10 @@ class simulation_t;
 
 namespace xpbd {
 
-class hybrid_mesh_meshless_sph_surface_contact_handler_t : public collision::contact_handler_t
+class hybrid_mesh_meshless_mls_surface_contact_handler_t : public collision::contact_handler_t
 {
   public:
-    hybrid_mesh_meshless_sph_surface_contact_handler_t(simulation_t& simulation);
+    hybrid_mesh_meshless_mls_surface_contact_handler_t(simulation_t& simulation);
 
     virtual void on_cd_starting() override;
     virtual void on_cd_ending() override;

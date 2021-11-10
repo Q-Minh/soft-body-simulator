@@ -148,6 +148,8 @@ PROPERTIES
     DEBUG_POSTFIX "_d"
 )
 
+find_package(autodiff CONFIG REQUIRED)
+
 # Should make the library shared in the future
 add_library(sbs STATIC)
 add_library(sbs::sbs ALIAS sbs)
@@ -167,164 +169,29 @@ PUBLIC
     Eigen3::Eigen 
     glm::glm
     Threads::Threads
-    Discregrid
+    Discregrid 
+    autodiff::autodiff
 )
 
-set(_sbs_sources 
-"${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/aliases.h"
-
-    # common
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/geometry.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/mesh.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/node.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/primitive.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/common/scene.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/geometry.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/mesh.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/node.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/primitive.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/scene.cpp"
-
-    #geometry 
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_bar_model.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_cloth_model.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/geometry/get_simple_plane_model.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_bar_model.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_cloth_model.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/get_simple_plane_model.cpp"
-
-    # io
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/io/endianness.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/io/load_scene.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/io/ply.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/io/tokenize.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/io/load_scene.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/io/ply.cpp"
-
-    # physics
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/body.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/environment_body.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/gauss_seidel_solver.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/particle.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/simulation.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/solver.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/tetrahedral_body.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/timestep.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/tetrahedral_mesh_boundary.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/topology.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/body.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/environment_body.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/gauss_seidel_solver.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/particle.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/simulation.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/solver.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/tetrahedral_body.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/timestep.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/tetrahedral_mesh_boundary.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/topology.cpp"
-
-    # physics/collision
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/brute_force_cd_system.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/bvh_model.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/cd_system.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/collision_model.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/contact.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/intersections.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/collision/sdf_model.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/brute_force_cd_system.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/bvh_model.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/cd_system.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/collision_model.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/contact.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/intersections.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/collision/sdf_model.cpp"
-
-    # physics/cutting
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/cutting/cut_tetrahedron.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/cutting/virtual_scalpel.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/cutting/cut_tetrahedron.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/cutting/virtual_scalpel.cpp"
-
-    # physics/functions
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/functions/kernel.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/functions/kernel.cpp"
-
-    # physics/mechanics
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_body.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_node.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/mechanics/meshless_sph_surface.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_mls_body.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_mls_node.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/hybrid_mesh_meshless_mls_surface.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_body.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_node.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/mechanics/meshless_sph_surface.cpp"
-
-    # physics/xpbd
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/collision_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/contact_handler.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/distance_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/green_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_collision_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_positional_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/hybrid_mesh_meshless_mls_surface_contact_handler.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_collision_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_positional_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_surface_contact_handler.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/meshless_sph_stvk_constraint.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/physics/xpbd/simulation_parameters.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/collision_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/contact_handler.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/distance_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/green_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_collision_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_positional_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/hybrid_mesh_meshless_mls_surface_contact_handler.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_collision_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_positional_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_surface_contact_handler.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/meshless_sph_stvk_constraint.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/xpbd/simulation_parameters.cpp"
-
-    # rendering
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/camera.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/light.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/physics_timestep_throttler.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/pick.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/renderer.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/shader.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/sbs/rendering/trackball_rotation_adapter.h"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/camera.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/light.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/physics_timestep_throttler.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/pick.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/renderer.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/shader.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rendering/trackball_rotation_adapter.cpp"
-)
+file(
+    GLOB_RECURSE _sbs_sources 
+    LIST_DIRECTORIES OFF 
+    RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" 
+    CONFIGURE_DEPENDS 
+    "src/*.cpp")
+file(
+    GLOB_RECURSE _sbs_headers 
+    LIST_DIRECTORIES OFF 
+    RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" 
+    CONFIGURE_DEPENDS 
+    "include/*.h")
 
 target_sources(sbs 
 PRIVATE
+    ${_sbs_headers}
     ${_sbs_sources}
 )
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${_sbs_sources})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${_sbs_sources} ${_sbs_headers})
 target_include_directories(sbs 
 PUBLIC 
     $<INSTALL_INTERFACE:include>

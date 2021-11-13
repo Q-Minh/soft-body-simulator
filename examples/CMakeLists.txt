@@ -9,3 +9,7 @@ target_link_libraries(stvk-meshless-beam PRIVATE sbs::sbs)
 add_executable(stvk-hybrid-mesh-meshless-beam)
 target_sources(stvk-hybrid-mesh-meshless-beam PRIVATE "stvk_hybrid_mesh_meshless_beam.cpp")
 target_link_libraries(stvk-hybrid-mesh-meshless-beam PRIVATE sbs::sbs)
+
+add_executable(sandbox)
+target_sources(sandbox PRIVATE "sandbox.cpp")
+target_link_libraries(sandbox PRIVATE sbs::sbs)

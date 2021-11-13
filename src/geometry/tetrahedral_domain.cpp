@@ -1,0 +1,192 @@
+#include "sbs/geometry/tetrahedral_domain.h"
+
+namespace sbs {
+namespace geometry {
+
+tetrahedral_domain_t::tetrahedral_domain_t(
+    std::vector<Eigen::Vector3d> const& points,
+    std::vector<index_type> const& indices)
+    : positions_(points), mesh_(), tet_maps_()
+{
+    mesh_.reserve_vertices(points.size());
+    for (auto const& p : points)
+        mesh_.add_vertex();
+
+    for (auto i = 0u; i < indices.size(); i += 4u)
+    {
+        index_type const v1 = indices[i];
+        index_type const v2 = indices[i + 1u];
+        index_type const v3 = indices[i + 2u];
+        index_type const v4 = indices[i + 3u];
+
+        mesh_.add_tetrahedron(topology::tetrahedron_t{v1, v2, v3, v4});
+
+        Eigen::Vector3d const& p1 = points[v1];
+        Eigen::Vector3d const& p2 = points[v2];
+        Eigen::Vector3d const& p3 = points[v3];
+        Eigen::Vector3d const& p4 = points[v4];
+
+        tet_maps_.push_back(math::tetrahedron_barycentric_mapping_t(p1, p2, p3, p4));
+    }
+
+    in_tetrahedron_query_ = in_tetrahedron_query_t(&mesh_, &positions_, &tet_maps_);
+}
+
+topology::tetrahedron_t const& tetrahedral_domain_t::tetrahedron(index_type ti) const
+{
+    return mesh_.tetrahedron(ti);
+}
+
+Eigen::Vector3d const& tetrahedral_domain_t::position(index_type i) const
+{
+    return positions_[i];
+}
+
+topology::tetrahedron_set_t const& tetrahedral_domain_t::topology() const
+{
+    return mesh_;
+}
+
+index_type tetrahedral_domain_t::in_tetrahedron(Eigen::Vector3d const& X) const
+{
+    return in_tetrahedron_query_.in_tetrahedron(X);
+}
+
+tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron_query_t()
+    : base_type(0u),
+      topology_(nullptr),
+      mesh_nodes_(nullptr),
+      tet_maps_(nullptr),
+      tetrahedron_centers_()
+{
+}
+
+tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron_query_t(
+    topology::tetrahedron_set_t const* topology,
+    std::vector<Eigen::Vector3d> const* mesh_nodes,
+    std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps)
+    : base_type(topology->tetrahedron_count()),
+      topology_(topology),
+      mesh_nodes_(mesh_nodes),
+      tet_maps_(tet_maps),
+      tetrahedron_centers_()
+{
+    tetrahedron_centers_.reserve(topology_->tetrahedron_count());
+    for (auto const& t : topology_->tetrahedra())
+    {
+        Eigen::Vector3d const& p1 = (*mesh_nodes)[t.v1()];
+        Eigen::Vector3d const& p2 = (*mesh_nodes)[t.v2()];
+        Eigen::Vector3d const& p3 = (*mesh_nodes)[t.v3()];
+        Eigen::Vector3d const& p4 = (*mesh_nodes)[t.v4()];
+
+        Eigen::Vector3d const center = 0.25 * (p1 + p2 + p3 + p4);
+        tetrahedron_centers_.push_back(center);
+    }
+    this->construct();
+}
+
+index_type
+tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron(Eigen::Vector3d const& p) const
+{
+    auto const intersects = [this, p](unsigned int node_idx, unsigned int depth) -> bool {
+        Discregrid::BoundingSphere const& s = this->hull(node_idx);
+        return s.contains(p);
+    };
+
+    // auto const is_point_in_tetrahedron =
+    //     [this](Eigen::Vector3d const& point, topology::tetrahedron_t const& t) {
+    //         auto const& face_copies = t.faces_copy();
+    //         std::array<bool, 4u> is_inside{false, false, false, false};
+    //         for (std::uint8_t i = 0u; i < 4u; ++i)
+    //         {
+    //             auto const& f             = face_copies[i];
+    //             Eigen::Vector3d const& p1 = (*mesh_nodes_)[f.v1()];
+    //             Eigen::Vector3d const& p2 = (*mesh_nodes_)[f.v2()];
+    //             Eigen::Vector3d const& p3 = (*mesh_nodes_)[f.v3()];
+
+    //            Eigen::Vector3d const n           = (p2 - p1).cross(p3 - p1).normalized();
+    //            scalar_type const signed_distance = (point - p1).dot(n);
+    //            bool const is_outside             = signed_distance > 0.;
+    //            is_inside[i]                      = !is_outside;
+    //        }
+    //        bool const is_p_in_t = is_inside[0] && is_inside[1] && is_inside[2] && is_inside[3];
+    //        return is_p_in_t;
+    //    };
+
+    index_type parent_ti = std::numeric_limits<index_type>::max();
+    bool found{false};
+    auto const get_ti = [this, p, &parent_ti, /*is_point_in_tetrahedron, */ &found](
+                            unsigned int node_idx,
+                            unsigned int depth) {
+        if (found)
+            return;
+
+        base_type::Node const& node = this->node(node_idx);
+        if (!node.isLeaf())
+            return;
+
+        for (auto j = node.begin; j < node.begin + node.n; ++j)
+        {
+            index_type const ti              = static_cast<index_type>(m_lst[j]);
+            topology::tetrahedron_t const& t = topology_->tetrahedron(ti);
+
+            Eigen::Vector3d const& p1 = (*mesh_nodes_)[t.v1()];
+            Eigen::Vector3d const& p2 = (*mesh_nodes_)[t.v2()];
+            Eigen::Vector3d const& p3 = (*mesh_nodes_)[t.v3()];
+            Eigen::Vector3d const& p4 = (*mesh_nodes_)[t.v4()];
+
+            bool const is_point_in_tetrahedron = (*tet_maps_)[ti].contains(p);
+
+            if (is_point_in_tetrahedron)
+            {
+                // NOTE:
+                // Use this variable for debugging purposes.
+                // It is possible that a point lies exactly in 2 tetrahedra or more.
+                // For example, a point lying on a shared face of 2 tetrahedra will
+                // belong in both tets. In this implementation, for the moment,
+                // we will choose to associate a point with the first tetrahedra
+                // that we find.
+                bool const is_point_shared_between_multiple_tetrahedra =
+                    (parent_ti != std::numeric_limits<index_type>::max());
+                parent_ti = ti;
+                found     = true;
+            }
+        }
+    };
+
+    traverseBreadthFirst(intersects, get_ti);
+
+    return parent_ti;
+}
+
+Eigen::Vector3d tetrahedral_domain_t::in_tetrahedron_query_t::entityPosition(unsigned int i) const
+{
+    return tetrahedron_centers_[i];
+}
+
+void tetrahedral_domain_t::in_tetrahedron_query_t::computeHull(
+    unsigned int b,
+    unsigned int n,
+    Discregrid::BoundingSphere& hull) const
+{
+    std::vector<Eigen::Vector3d> vertices_of_sphere{};
+    vertices_of_sphere.reserve(n * 4u);
+    for (unsigned int i = b; i < n + b; ++i)
+    {
+        index_type const ti              = static_cast<index_type>(m_lst[i]);
+        topology::tetrahedron_t const& t = topology_->tetrahedron(ti);
+        for (index_type const vi : t.vertex_indices())
+        {
+            Eigen::Vector3d const& pi = (*mesh_nodes_)[vi];
+            vertices_of_sphere.push_back(pi);
+        }
+    }
+
+    Discregrid::BoundingSphere const s(vertices_of_sphere);
+
+    hull.x() = s.x();
+    hull.r() = s.r();
+}
+
+} // namespace geometry
+} // namespace sbs

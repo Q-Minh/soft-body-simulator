@@ -1,10 +1,11 @@
 #ifndef SBS_GEOMETRY_TETRAHEDRAL_DOMAIN_H
 #define SBS_GEOMETRY_TETRAHEDRAL_DOMAIN_H
 
+#include "sbs/math/mapping.h"
 #include "sbs/topology/tetrahedron_set.h"
 
-#include <Discregrid/acceleration/kd_tree.hpp>
 #include <Discregrid/acceleration/bounding_sphere.hpp>
+#include <Discregrid/acceleration/kd_tree.hpp>
 #include <Eigen/Core>
 #include <vector>
 
@@ -38,7 +39,8 @@ class tetrahedral_domain_t
   private:
     std::vector<Eigen::Vector3d> positions_; ///< Vertex positions
     topology::tetrahedron_set_t mesh_;       ///< Topology
-    std::vector<Eigen::Matrix4d> Ainv_;      ///< Barycentric mapping per tetrahedron
+    std::vector<math::tetrahedron_barycentric_mapping_t>
+        tet_maps_; ///< Barycentric mapping per tetrahedron
 
   public:
     class in_tetrahedron_query_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
@@ -50,15 +52,13 @@ class tetrahedral_domain_t
         in_tetrahedron_query_t(
             topology::tetrahedron_set_t const* topology,
             std::vector<Eigen::Vector3d> const* mesh_nodes,
-            std::vector<Eigen::Matrix4d> const* Ainv);
+            std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps);
 
         in_tetrahedron_query_t(in_tetrahedron_query_t const& other) = default;
         in_tetrahedron_query_t(in_tetrahedron_query_t&& other)      = default;
 
-        in_tetrahedron_query_t&
-        operator=(in_tetrahedron_query_t const& other) = default;
-        in_tetrahedron_query_t&
-        operator=(in_tetrahedron_query_t&& other) noexcept = default;
+        in_tetrahedron_query_t& operator=(in_tetrahedron_query_t const& other) = default;
+        in_tetrahedron_query_t& operator=(in_tetrahedron_query_t&& other) noexcept = default;
 
         index_type in_tetrahedron(Eigen::Vector3d const& p) const;
 
@@ -69,7 +69,7 @@ class tetrahedral_domain_t
       private:
         topology::tetrahedron_set_t const* topology_;
         std::vector<Eigen::Vector3d> const* mesh_nodes_;
-        std::vector<Eigen::Matrix4d> const* Ainv_;
+        std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps_;
         std::vector<Eigen::Vector3d> tetrahedron_centers_;
     };
 

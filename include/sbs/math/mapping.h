@@ -1,46 +1,95 @@
 #ifndef SBS_MATH_MAPPING_H
 #define SBS_MATH_MAPPING_H
 
+#include "sbs/aliases.h"
+
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/dual/eigen.hpp>
 
 namespace sbs {
 namespace math {
 
-struct tetrahedron_affine_mapping_t
+class tetrahedron_affine_mapping_t
 {
+  public:
     tetrahedron_affine_mapping_t(
-        autodiff::Vector3dual X1,
-        autodiff::Vector3dual X2,
-        autodiff::Vector3dual X3,
-        autodiff::Vector3dual X4,
         autodiff::Vector3dual x1,
         autodiff::Vector3dual x2,
         autodiff::Vector3dual x3,
         autodiff::Vector3dual x4)
-        : D(), x1(x1)
+        : D_(), x1_(x1)
     {
-        D.col(0) = (x2 - x1);
-        D.col(1) = (x3 - x1);
-        D.col(2) = (x4 - x1);
+        D_.col(0) = (x2 - x1);
+        D_.col(1) = (x3 - x1);
+        D_.col(2) = (x4 - x1);
 
-        Dinv = D.inverse();
-        det  = D.determinant();
+        Dinv_ = D_.inverse();
+        det_  = D_.determinant();
     }
 
-    autodiff::Vector3dual to_domain(autodiff::Vector3dual const& X) const { return x1 + D * X; }
+    autodiff::Vector3dual to_domain(autodiff::Vector3dual const& X) const { return x1_ + D_ * X; }
     autodiff::Vector3dual to_ref(autodiff::Vector3dual const& x) const
     {
-        autodiff::Vector3dual b = x - x1;
-        return Dinv * b;
+        autodiff::Vector3dual b = x - x1_;
+        return Dinv_ * b;
     }
-    autodiff::Matrix3dual jacobian(autodiff::Vector3dual const& x) const { return D; }
-    autodiff::dual determinant(autodiff::Vector3dual const& x) const { return det; }
+    autodiff::Matrix3dual jacobian(autodiff::Vector3dual const& x) const { return D_; }
+    autodiff::dual determinant(autodiff::Vector3dual const& x) const { return det_; }
 
-    autodiff::Matrix3dual D;
-    autodiff::Matrix3dual Dinv;
-    autodiff::dual det;
-    autodiff::Vector3dual x1;
+  private:
+    autodiff::Matrix3dual D_;
+    autodiff::Matrix3dual Dinv_;
+    autodiff::dual det_;
+    autodiff::Vector3dual x1_;
+};
+
+class tetrahedron_barycentric_mapping_t
+{
+  public:
+    tetrahedron_barycentric_mapping_t(
+        autodiff::Vector3dual const& X1,
+        autodiff::Vector3dual const& X2,
+        autodiff::Vector3dual const& X3,
+        autodiff::Vector3dual const& X4)
+        : A_(), Ainv_(), det_()
+    {
+        A_.row(0).setOnes();
+        A_.block(1, 0, 3, 1) = X1;
+        A_.block(1, 1, 3, 1) = X2;
+        A_.block(1, 2, 3, 1) = X3;
+        A_.block(1, 3, 3, 1) = X4;
+
+        Ainv_ = A_.inverse();
+        det_  = A_.determinant();
+    }
+
+    autodiff::Vector4dual barycentric_coordinates(autodiff::Vector3dual X) const
+    {
+        autodiff::Vector4dual P1{1., X.x(), X.y(), X.z()};
+        autodiff::Vector4dual bc = Ainv_ * P1;
+        return bc;
+    }
+    bool contains(autodiff::Vector3dual X) const
+    {
+        Eigen::Vector4d const bc       = barycentric_coordinates(X);
+        auto const sum                 = bc.sum();
+        bool const is_sum_equal_to_one = std::abs(1. - sum) < eps();
+        bool const are_all_coefficients_less_than_one =
+            std::abs(bc(0)) < 1. && std::abs(bc(1)) < 1. && std::abs(bc(2)) < 1. &&
+            std::abs(bc(3)) < 1.;
+        return is_sum_equal_to_one && are_all_coefficients_less_than_one;
+    }
+    autodiff::Vector3dual coordinates(autodiff::Vector4dual bc) const
+    {
+        autodiff::Vector4dual P1 = A_ * bc;
+        return autodiff::Vector3dual(P1(1), P1(2), P1(3));
+    }
+    autodiff::dual determinant() const { return det_; }
+
+  private:
+    autodiff::Matrix4dual A_;
+    autodiff::Matrix4dual Ainv_;
+    autodiff::dual det_;
 };
 
 } // namespace math

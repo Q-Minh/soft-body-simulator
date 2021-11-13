@@ -49,15 +49,7 @@ class tetrahedral_element_t
         autodiff::Vector3dual const& X2,
         autodiff::Vector3dual const& X3,
         autodiff::Vector3dual const& X4)
-        : mapping_(
-              reference_tetrahedron_position<0>(),
-              reference_tetrahedron_position<1>(),
-              reference_tetrahedron_position<2>(),
-              reference_tetrahedron_position<3>(),
-              X1,
-              X2,
-              X3,
-              X4)
+        : mapping_(X1, X2, X3, X4)
     {
     }
 

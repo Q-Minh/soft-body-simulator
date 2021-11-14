@@ -7,6 +7,7 @@
 #include <Discregrid/acceleration/bounding_sphere.hpp>
 #include <Discregrid/acceleration/kd_tree.hpp>
 #include <Eigen/Core>
+#include <utility>
 #include <vector>
 
 namespace sbs {
@@ -77,6 +78,9 @@ class tetrahedral_domain_t
   private:
     in_tetrahedron_query_t in_tetrahedron_query_; ///< Spatial searcher
 };
+
+std::pair<std::vector<Eigen::Vector3d>, std::vector<index_type>>
+boundary_surface(tetrahedral_domain_t const& domain);
 
 } // namespace geometry
 } // namespace sbs

@@ -36,7 +36,7 @@ class environment_body_t : public body_t
     virtual void update_visual_model() override;
     virtual void update_collision_model() override;
     virtual void update_physical_model() override;
-    virtual void transform(Eigen::Affine3d const& affine) override;
+    void transform(Eigen::Affine3d const& affine);
 
     collision::sdf_model_t const& sdf() const;
 

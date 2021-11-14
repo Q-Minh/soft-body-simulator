@@ -2,6 +2,7 @@
 #define SBS_COMMON_MESH_H
 
 #include "node.h"
+#include "sbs/aliases.h"
 
 #include <Eigen/Core>
 #include <array>
@@ -22,7 +23,11 @@ class shared_vertex_surface_mesh_i : public renderable_node_t
     };
     struct triangle_type
     {
-        std::array<std::uint32_t, 3u> vertices;
+        triangle_type() = default;
+        triangle_type(index_type v1, index_type v2, index_type v3) : vertices{v1, v2, v3} {}
+        triangle_type(std::array<index_type, 3u> vertices) : vertices(vertices) {}
+
+        std::array<index_type, 3u> vertices;
     };
 
     virtual std::size_t triangle_count() const = 0;

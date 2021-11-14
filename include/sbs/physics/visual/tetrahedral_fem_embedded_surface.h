@@ -21,13 +21,15 @@ class tetrahedral_fem_embedded_surface
     using interpolation_op_type = math::interpolation_op_t<basis_function_type>;
     using base_type             = interpolated_embedded_surface_t<interpolation_op_type>;
 
+    tetrahedral_fem_embedded_surface() = default;
+
     tetrahedral_fem_embedded_surface(
         std::vector<Eigen::Vector3d> const& points,
         std::vector<index_type> const& indices,
-        mechanics::linear_tetrahedral_fem_model_t const& mechanical_model);
+        mechanics::linear_tetrahedral_fem_model_t const* mechanical_model);
 
     // Accessors
-    mechanics::linear_tetrahedral_fem_model_t const& mechanical_model() const;
+    mechanics::linear_tetrahedral_fem_model_t const* mechanical_model() const;
 
     // Mutators
 
@@ -39,7 +41,8 @@ class tetrahedral_fem_embedded_surface
     void update();
 
   private:
-    mechanics::linear_tetrahedral_fem_model_t const& mechanical_model_;
+    mechanics::linear_tetrahedral_fem_model_t const* mechanical_model_;
+    std::vector<index_type> cell_containing_vertex_;
 };
 
 } // namespace visual

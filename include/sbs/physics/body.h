@@ -28,7 +28,6 @@ class body_t
     virtual void update_visual_model()                          = 0;
     virtual void update_collision_model()                       = 0;
     virtual void update_physical_model()                        = 0;
-    virtual void transform(Eigen::Affine3d const& affine)       = 0;
 
     index_type id() const;
     index_type& id();

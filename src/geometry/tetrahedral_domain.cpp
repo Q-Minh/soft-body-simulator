@@ -194,5 +194,62 @@ void tetrahedral_domain_t::in_tetrahedron_query_t::computeHull(
     hull.r() = s.r();
 }
 
+std::pair<std::vector<Eigen::Vector3d>, std::vector<index_type>>
+boundary_surface(tetrahedral_domain_t const& domain)
+{
+    auto const& topology = domain.topology();
+    std::vector<Eigen::Vector3d> tet_points{};
+    tet_points.reserve(topology.vertex_count());
+    for (auto i = 0u; i < topology.vertex_count(); ++i)
+    {
+        tet_points.push_back(domain.position(i));
+    }
+
+    std::vector<topology::triangle_t> const boundary_triangles =
+        topology.oriented_boundary_triangles();
+
+    std::vector<Eigen::Vector3d> triangle_points{};
+    triangle_points.reserve(tet_points.size()); // overallocate
+
+    std::vector<index_type> triangle_indices{};
+    triangle_indices.reserve(boundary_triangles.size()); // heuristically pre-allocate
+
+    std::map<index_type, index_type> tet_vertex_idx_to_surface_vertex_idx{};
+    for (auto const& triangle : boundary_triangles)
+    {
+        auto const v1 = triangle.v1();
+        auto const v2 = triangle.v2();
+        auto const v3 = triangle.v3();
+
+        if (tet_vertex_idx_to_surface_vertex_idx.find(v1) ==
+            tet_vertex_idx_to_surface_vertex_idx.end())
+        {
+            auto const new_idx                       = triangle_points.size();
+            tet_vertex_idx_to_surface_vertex_idx[v1] = static_cast<index_type>(new_idx);
+            triangle_points.push_back(tet_points[v1]);
+        }
+        if (tet_vertex_idx_to_surface_vertex_idx.find(v2) ==
+            tet_vertex_idx_to_surface_vertex_idx.end())
+        {
+            auto const new_idx                       = triangle_points.size();
+            tet_vertex_idx_to_surface_vertex_idx[v1] = static_cast<index_type>(new_idx);
+            triangle_points.push_back(tet_points[v1]);
+        }
+        if (tet_vertex_idx_to_surface_vertex_idx.find(v3) ==
+            tet_vertex_idx_to_surface_vertex_idx.end())
+        {
+            auto const new_idx                       = triangle_points.size();
+            tet_vertex_idx_to_surface_vertex_idx[v1] = static_cast<index_type>(new_idx);
+            triangle_points.push_back(tet_points[v1]);
+        }
+
+        triangle_indices.push_back(tet_vertex_idx_to_surface_vertex_idx[v1]);
+        triangle_indices.push_back(tet_vertex_idx_to_surface_vertex_idx[v2]);
+        triangle_indices.push_back(tet_vertex_idx_to_surface_vertex_idx[v3]);
+    }
+
+    return std::make_pair(triangle_points, triangle_indices);
+}
+
 } // namespace geometry
 } // namespace sbs

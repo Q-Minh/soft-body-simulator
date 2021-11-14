@@ -121,7 +121,7 @@ class hybrid_mesh_meshless_mls_body_t : public physics::body_t
     virtual void update_visual_model() override;
     virtual void update_collision_model() override;
     virtual void update_physical_model() override;
-    virtual void transform(Eigen::Affine3d const& affine) override;
+    void transform(Eigen::Affine3d const& affine);
 
     std::vector<hybrid_mesh_meshless_mls_node_t> const& meshless_nodes() const;
     std::vector<hybrid_mesh_meshless_mls_node_t>& meshless_nodes();

@@ -33,6 +33,8 @@ class fem_model_t
     using element_type = ElementType;
     using size_type    = std::size_t;
 
+    fem_model_t() = default;
+
     // Accessors
     dof_type const& dof(index_type i) const { return dofs_[i]; }
     autodiff::Vector3dual const& point(index_type i) const { return points_[i]; }
@@ -106,6 +108,7 @@ class tetrahedral_fem_model_t : public fem_model_t<
     using basis_function_type = polynomial_hat_basis_function_t<Order>;
     using self_type           = tetrahedral_fem_model_t<dof_type, Order>;
 
+    tetrahedral_fem_model_t() = default;
     tetrahedral_fem_model_t(geometry::tetrahedral_domain_t const& domain);
 
     // Accessors

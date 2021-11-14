@@ -21,6 +21,8 @@ class linear_tetrahedral_fem_model_t : public math::tetrahedral_fem_model_t<auto
   public:
     using base_type = math::tetrahedral_fem_model_t<autodiff::Vector3dual, 1>;
 
+    linear_tetrahedral_fem_model_t() = default;
+
     /**
      * @brief
      * Initializes the fem model with a tetrahedral mesh as the simulated domain.

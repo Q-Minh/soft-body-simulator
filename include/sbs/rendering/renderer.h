@@ -18,9 +18,11 @@
 
 namespace sbs {
 namespace physics {
-
+namespace xpbd {
+// Forward declares
 class simulation_t;
 
+} // namespace xpbd
 } // namespace physics
 
 namespace rendering {
@@ -68,7 +70,7 @@ class renderer_t : public renderer_base_t
 {
   public:
     renderer_t(
-        physics::simulation_t& simulation,
+        physics::xpbd::simulation_t& simulation,
         point_light_t const& point_light,
         directional_light_t const& directional_light);
 
@@ -105,10 +107,10 @@ class renderer_t : public renderer_base_t
     /**
      * Render loop hooks
      */
-    std::function<void(physics::simulation_t&)> on_new_imgui_frame;
-    std::function<void(double /*render_frame_dt*/, physics::simulation_t& /*scene*/)>
+    std::function<void(physics::xpbd::simulation_t&)> on_new_imgui_frame;
+    std::function<void(double /*render_frame_dt*/, physics::xpbd::simulation_t& /*scene*/)>
         on_new_physics_timestep;
-    std::function<void(physics::simulation_t&)> on_pre_render;
+    std::function<void(physics::xpbd::simulation_t&)> on_pre_render;
 
     /**
      * User input hooks
@@ -153,7 +155,7 @@ class renderer_t : public renderer_base_t
     void process_input(GLFWwindow* window, double dt);
 
   private:
-    physics::simulation_t& simulation_;
+    physics::xpbd::simulation_t& simulation_;
     point_light_t point_light_;
     directional_light_t directional_light_;
 

@@ -1,7 +1,8 @@
-#include <sbs/physics/mechanics/meshless_sph_surface.h>
-#include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/meshless_sph_collision_constraint.h>
-#include <sbs/physics/xpbd/meshless_sph_surface_contact_handler.h>
+#include "sbs/physics/xpbd/meshless_sph_surface_contact_handler.h"
+
+#include "sbs/physics/mechanics/meshless_sph_surface.h"
+#include "sbs/physics/xpbd/meshless_sph_collision_constraint.h"
+#include "sbs/physics/xpbd/simulation.h"
 
 namespace sbs {
 namespace physics {
@@ -25,8 +26,8 @@ void meshless_sph_surface_contact_handler_t::handle(collision::contact_t const& 
         collision::surface_mesh_particle_to_sdf_contact_t const& surface_mesh_contact =
             reinterpret_cast<collision::surface_mesh_particle_to_sdf_contact_t const&>(contact);
 
-        body_t const& b1 = *simulation_.bodies().at(contact.b1());
-        body_t const& b2 = *simulation_.bodies().at(contact.b2());
+        body::body_t const& b1 = *simulation_.bodies().at(contact.b1());
+        body::body_t const& b2 = *simulation_.bodies().at(contact.b2());
 
         auto const& visual_model = b1.visual_model();
         mechanics::meshless_sph_surface_t const* surface_mesh =
@@ -50,7 +51,7 @@ void meshless_sph_surface_contact_handler_t::handle(collision::contact_t const& 
             vip,
             contact.point(),
             contact.normal());
-        std::vector<std::unique_ptr<physics::constraint_t>>& collision_constraints =
+        std::vector<std::unique_ptr<constraint_t>>& collision_constraints =
             simulation_.collision_constraints();
         collision_constraints.push_back(std::move(collision_constraint));
     }

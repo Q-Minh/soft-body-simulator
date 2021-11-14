@@ -1,14 +1,13 @@
 #ifndef SBS_PHYSICS_XPBD_MESHLESS_SPH_SURFACE_CONTACT_HANDLER_H
 #define SBS_PHYSICS_XPBD_MESHLESS_SPH_SURFACE_CONTACT_HANDLER_H
 
-#include <sbs/physics/collision/contact.h>
+#include "sbs/physics/collision/contact.h"
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 class simulation_t;
-
-namespace xpbd {
 
 class meshless_sph_surface_contact_handler_t : public collision::contact_handler_t
 {

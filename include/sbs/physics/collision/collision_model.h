@@ -1,14 +1,16 @@
 #ifndef SBS_PHYSICS_COLLISION_COLLISION_MODEL_H
 #define SBS_PHYSICS_COLLISION_COLLISION_MODEL_H
 
+#include "sbs/aliases.h"
+
 #include <Eigen/Geometry>
-#include <sbs/aliases.h>
 
 namespace sbs {
 namespace physics {
-
+namespace xpbd {
 // Forward declares
 class simulation_t;
+} // namespace xpbd
 
 namespace collision {
 
@@ -35,7 +37,7 @@ class collision_model_t
     virtual model_type_t model_type() const                                    = 0;
     virtual primitive_type_t primitive_type() const                            = 0;
     virtual void collide(collision_model_t& other, contact_handler_t& handler) = 0;
-    virtual void update(simulation_t const& simulation)                        = 0;
+    virtual void update(xpbd::simulation_t const& simulation)                  = 0;
 
     volume_type const& volume() const;
     volume_type& volume();

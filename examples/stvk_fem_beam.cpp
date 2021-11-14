@@ -2,14 +2,14 @@
 #include <imgui/imgui.h>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
+#include <sbs/physics/body/environment_body.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
-#include <sbs/physics/environment_body.h>
-#include <sbs/physics/gauss_seidel_solver.h>
-#include <sbs/physics/simulation.h>
 #include <sbs/physics/tetrahedral_body.h>
 #include <sbs/physics/timestep.h>
 #include <sbs/physics/xpbd/contact_handler.h>
+#include <sbs/physics/xpbd/gauss_seidel_solver.h>
 #include <sbs/physics/xpbd/green_constraint.h>
+#include <sbs/physics/xpbd/simulation.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -19,13 +19,15 @@ int main(int argc, char** argv)
     /**
      * Setup simulation
      */
-    sbs::physics::simulation_t simulation{};
+    sbs::physics::xpbd::simulation_t simulation{};
 
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
-    auto const beam_idx = simulation.add_body();
-    simulation.bodies()[beam_idx] =
-        std::make_unique<sbs::physics::tetrahedral_body_t>(simulation, beam_idx, beam_geometry);
+    auto const beam_idx           = simulation.add_body();
+    simulation.bodies()[beam_idx] = std::make_unique<sbs::physics::body::tetrahedral_body_t>(
+        simulation,
+        beam_idx,
+        beam_geometry);
     sbs::physics::tetrahedral_body_t& beam =
         *dynamic_cast<sbs::physics::tetrahedral_body_t*>(simulation.bodies()[beam_idx].get());
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -1.)};
@@ -35,7 +37,7 @@ int main(int argc, char** argv)
     beam.transform(beam_transform);
     for (auto const& x0 : beam.x0())
     {
-        sbs::physics::particle_t p{x0};
+        sbs::physics::xpbd::particle_t p{x0};
         p.mass() = 1.;
         simulation.add_particle(p, beam_idx);
     }
@@ -70,7 +72,7 @@ int main(int argc, char** argv)
             Eigen::Vector3d{0., 1., 0.},
             Eigen::Vector3d{0., 0., 0.}),
         floor_volume);
-    simulation.add_body(std::make_unique<sbs::physics::environment_body_t>(
+    simulation.add_body(std::make_unique<sbs::physics::body::environment_body_t>(
         simulation,
         floor_idx,
         floor_geometry,
@@ -84,7 +86,7 @@ int main(int argc, char** argv)
         simulation.bodies().begin(),
         simulation.bodies().end(),
         std::back_inserter(collision_objects),
-        [](std::unique_ptr<sbs::physics::body_t>& b) { return &(b->collision_model()); });
+        [](std::unique_ptr<sbs::physics::body::body_t>& b) { return &(b->collision_model()); });
     simulation.use_collision_detection_system(
         std::make_unique<sbs::physics::collision::brute_force_cd_system_t>(collision_objects));
     simulation.collision_detection_system()->use_contact_handler(
@@ -126,13 +128,13 @@ int main(int argc, char** argv)
     timestep.dt()         = 0.016;
     timestep.iterations() = 5u;
     timestep.substeps()   = 1u;
-    timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
+    timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
         timestep.dt(),
         [&](sbs::rendering::physics_timestep_throttler_t& throttler,
             double dt,
-            sbs::physics::simulation_t& simulation) { timestep.step(simulation); });
+            sbs::physics::xpbd::simulation_t& simulation) { timestep.step(simulation); });
 
     renderer.on_new_physics_timestep = throttler;
     renderer.camera().position().x   = 0.;
@@ -163,14 +165,14 @@ int main(int argc, char** argv)
     fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
         auto* tet_mesh_boundary =
             reinterpret_cast<sbs::physics::tetrahedral_mesh_boundary_t*>(node);
-        auto const tvi              = tet_mesh_boundary->from_surface_vertex(vi);
-        auto const tet_mesh         = tet_mesh_boundary->tetrahedral_mesh();
-        sbs::physics::particle_t& p = simulation.particles()[beam_idx][tvi];
-        p.mass()                    = p.fixed() ? 1. : 0.;
+        auto const tvi                    = tet_mesh_boundary->from_surface_vertex(vi);
+        auto const tet_mesh               = tet_mesh_boundary->tetrahedral_mesh();
+        sbs::physics::xpbd::particle_t& p = simulation.particles()[beam_idx][tvi];
+        p.mass()                          = p.fixed() ? 1. : 0.;
     };
 
     renderer.pickers.push_back(fix_picker);
-    renderer.on_new_imgui_frame = [&](sbs::physics::simulation_t& s) {
+    renderer.on_new_imgui_frame = [&](sbs::physics::xpbd::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 
         static int selected_idx = 0;
@@ -241,7 +243,7 @@ int main(int argc, char** argv)
         ImGui::End();
     };
 
-    renderer.on_pre_render = [&](sbs::physics::simulation_t& s) {
+    renderer.on_pre_render = [&](sbs::physics::xpbd::simulation_t& s) {
         renderer.clear_points();
         for (auto const& particles : s.particles())
         {

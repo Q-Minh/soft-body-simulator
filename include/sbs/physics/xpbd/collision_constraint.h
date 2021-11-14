@@ -1,16 +1,16 @@
 #ifndef SBS_PHYSICS_XPBD_COLLISION_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_COLLISION_CONSTRAINT_H
 
+#include "sbs/physics/xpbd/constraint.h"
+
 #include <Eigen/Core>
-#include <sbs/physics/constraint.h>
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 // Forward declares
 class simulation_t;
-
-namespace xpbd {
 
 class collision_constraint_t : public constraint_t
 {

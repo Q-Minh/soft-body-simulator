@@ -2,7 +2,7 @@
 #define SBS_PHYSICS_MODELS_LINEAR_TETRAHEDRAL_FEM_BODY_H
 
 #include "sbs/common/geometry.h"
-#include "sbs/physics/body.h"
+#include "sbs/physics/body/body.h"
 #include "sbs/physics/collision/bvh_model.h"
 #include "sbs/physics/mechanics/linear_tetrahedral_fem_model.h"
 #include "sbs/physics/visual/tetrahedral_fem_embedded_surface.h"
@@ -17,7 +17,7 @@ class linear_tetrahedral_fem_body_t : public body_t
     using base_type = body_t;
 
     linear_tetrahedral_fem_body_t(
-        simulation_t& simulation,
+        xpbd::simulation_t& simulation,
         index_type const id,
         common::geometry_t const& geometry);
 

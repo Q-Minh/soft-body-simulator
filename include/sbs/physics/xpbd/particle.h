@@ -1,11 +1,13 @@
-#ifndef SBS_PHYSICS_PARTICLE_H
-#define SBS_PHYSICS_PARTICLE_H
+#ifndef SBS_PHYSICS_XPBD_PARTICLE_H
+#define SBS_PHYSICS_XPBD_PARTICLE_H
+
+#include "sbs/aliases.h"
 
 #include <Eigen/Core>
-#include <sbs/aliases.h>
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 class particle_t
 {
@@ -52,7 +54,8 @@ class particle_t
     scalar_type m_;
 };
 
+} // namespace xpbd
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_PARTICLE_H
+#endif // SBS_PHYSICS_XPBD_PARTICLE_H

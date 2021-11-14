@@ -1,8 +1,9 @@
 #include "sbs/physics/xpbd/green_constraint.h"
 
+#include "sbs/physics/xpbd/simulation.h"
+
 #include <Eigen/LU>
 #include <Eigen/SVD>
-#include <sbs/physics/simulation.h>
 
 namespace sbs {
 namespace physics {

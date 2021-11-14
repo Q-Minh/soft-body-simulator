@@ -1,6 +1,6 @@
 #include "sbs/physics/body/linear_tetrahedral_fem_body.h"
 
-#include "sbs/physics/simulation.h"
+#include "sbs/physics/xpbd/simulation.h"
 
 #include <map>
 
@@ -9,7 +9,7 @@ namespace physics {
 namespace body {
 
 linear_tetrahedral_fem_body_t::linear_tetrahedral_fem_body_t(
-    simulation_t& simulation,
+    xpbd::simulation_t& simulation,
     index_type const id,
     common::geometry_t const& geometry)
     : base_type(simulation, id), mechanical_model_(), visual_model_(), collision_model_()

@@ -1,14 +1,15 @@
-#include <sbs/physics/mechanics/meshless_sph_node.h>
-#include <sbs/physics/mechanics/meshless_sph_body.h>
-#include <sbs/physics/mechanics/meshless_sph_surface.h>
-#include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/meshless_sph_collision_constraint.h>
+#include "sbs/physics/xpbd/meshless_sph_collision_constraint.h"
+
+#include "sbs/physics/mechanics/meshless_sph_body.h"
+#include "sbs/physics/mechanics/meshless_sph_node.h"
+#include "sbs/physics/mechanics/meshless_sph_surface.h"
+#include "sbs/physics/xpbd/simulation.h"
 
 namespace sbs {
 namespace physics {
 namespace xpbd {
 
-sbs::physics::xpbd::meshless_sph_collision_constraint_t::meshless_sph_collision_constraint_t(
+meshless_sph_collision_constraint_t::meshless_sph_collision_constraint_t(
     scalar_type alpha,
     scalar_type beta,
     index_type const bi,
@@ -21,7 +22,7 @@ sbs::physics::xpbd::meshless_sph_collision_constraint_t::meshless_sph_collision_
 {
 }
 
-void sbs::physics::xpbd::meshless_sph_collision_constraint_t::project_positions(
+void meshless_sph_collision_constraint_t::project_positions(
     simulation_t& simulation,
     scalar_type dt)
 {

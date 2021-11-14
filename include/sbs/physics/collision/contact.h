@@ -39,6 +39,17 @@ class contact_t
 class surface_mesh_particle_to_sdf_contact_t : public contact_t
 {
   public:
+    /**
+     * @brief Construct a new surface mesh particle to sdf contact t object
+     *
+     * @param contact_type Should be type_t::surface_particle_to_sdf. Should maybe remove this
+     * parameter and automatically set it instead.
+     * @param body1 Index of the SDF collideable body
+     * @param body2 Index of the other colliding body
+     * @param contact_point Point on the zero-level set of the sdf where the contact occurred
+     * @param contact_normal SDF outward normal
+     * @param vi Index of the colliding surface vertex
+     */
     surface_mesh_particle_to_sdf_contact_t(
         contact_t::type_t contact_type,
         index_type const body1,

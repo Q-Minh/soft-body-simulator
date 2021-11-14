@@ -1,17 +1,21 @@
 #ifndef SBS_PHYSICS_BODY_H
 #define SBS_PHYSICS_BODY_H
 
+#include "sbs/aliases.h"
+#include "sbs/common/node.h"
+#include "sbs/physics/collision/collision_model.h"
+
 #include <Eigen/Geometry>
 #include <memory>
-#include <sbs/aliases.h>
-#include <sbs/common/node.h>
-#include <sbs/physics/collision/collision_model.h>
 
 namespace sbs {
 namespace physics {
-
+namespace xpbd {
 // Forward declares
 class simulation_t;
+} // namespace xpbd
+
+namespace body {
 
 class body_t
 {
@@ -19,7 +23,10 @@ class body_t
     using visual_model_type    = common::renderable_node_t;
     using collision_model_type = collision::collision_model_t;
 
-    body_t(simulation_t& simulation, index_type id) : simulation_(simulation), id_(id) {}
+    body_t(xpbd::simulation_t& simulation, index_type id)
+        : simulation_(simulation), id_(id)
+    {
+    }
 
     virtual visual_model_type const& visual_model() const       = 0;
     virtual collision_model_type const& collision_model() const = 0;
@@ -34,16 +41,17 @@ class body_t
 
     virtual ~body_t() = default;
 
-    simulation_t const& simulation() const { return simulation_; }
+    xpbd::simulation_t const& simulation() const { return simulation_; }
 
   protected:
-    simulation_t& simulation() { return simulation_; }
+    xpbd::simulation_t& simulation() { return simulation_; }
 
   private:
     index_type id_;
-    simulation_t& simulation_;
+    xpbd::simulation_t& simulation_;
 };
 
+} // namespace body
 } // namespace physics
 } // namespace sbs
 

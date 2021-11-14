@@ -1,9 +1,9 @@
 #ifndef SBS_PHYSICS_XPBD_MESHLESS_COROTATIONAL_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_MESHLESS_COROTATIONAL_CONSTRAINT_H
 
-#include <sbs/aliases.h>
-#include <sbs/physics/constraint.h>
-#include <sbs/physics/mechanics/meshless_sph_node.h>
+#include "sbs/aliases.h"
+#include "sbs/physics/mechanics/meshless_sph_node.h"
+#include "sbs/physics/xpbd/constraint.h"
 
 namespace sbs {
 namespace physics {

@@ -1,9 +1,10 @@
+#include "sbs/physics/mechanics/meshless_sph_node.h"
+
+#include "sbs/physics/functions/kernel.h"
+
 #include <Eigen/LU>
 #include <cassert>
 #include <iterator>
-#include <sbs/physics/functions/kernel.h>
-#include <sbs/physics/mechanics/meshless_sph_node.h>
-#include <sbs/physics/particle.h>
 
 namespace sbs {
 namespace physics {

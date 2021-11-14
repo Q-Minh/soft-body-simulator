@@ -1,6 +1,8 @@
+#include "sbs/physics/xpbd/meshless_sph_stvk_constraint.h"
+
+#include "sbs/physics/xpbd/simulation.h"
+
 #include <numeric>
-#include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/meshless_sph_stvk_constraint.h>
 
 namespace sbs {
 namespace physics {

@@ -1,9 +1,11 @@
-#include <sbs/physics/constraint.h>
-#include <sbs/physics/gauss_seidel_solver.h>
-#include <sbs/physics/simulation.h>
+#include "sbs/physics/xpbd/gauss_seidel_solver.h"
+
+#include "sbs/physics/xpbd/simulation.h"
+#include "sbs/physics/xpbd/constraint.h"
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 void gauss_seidel_solver_t::solve(simulation_t& simulation, scalar_type dt, std::size_t iterations)
 {
@@ -36,5 +38,6 @@ void gauss_seidel_solver_t::solve(simulation_t& simulation, scalar_type dt, std:
     }
 }
 
+} // namespace xpbd
 } // namespace physics
 } // namespace sbs

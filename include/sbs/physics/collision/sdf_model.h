@@ -1,9 +1,10 @@
 #ifndef SBS_PHYSICS_COLLISION_SDF_MODEL_H
 #define SBS_PHYSICS_COLLISION_SDF_MODEL_H
 
+#include "sbs/aliases.h"
+#include "sbs/physics/collision/collision_model.h"
+
 #include <Discregrid/cubic_lagrange_discrete_grid.hpp>
-#include <sbs/aliases.h>
-#include <sbs/physics/collision/collision_model.h>
 #include <utility>
 
 namespace sbs {
@@ -31,7 +32,7 @@ class sdf_model_t : public collision_model_t
     virtual model_type_t model_type() const override;
     virtual primitive_type_t primitive_type() const override;
     virtual void collide(collision_model_t& other, contact_handler_t& handler) override;
-    virtual void update(simulation_t const& simulation) override;
+    virtual void update(xpbd::simulation_t const& simulation) override;
 
     static sdf_model_t
     from_plane(Eigen::Hyperplane<scalar_type, 3> const& plane, Eigen::AlignedBox3d const& volume);

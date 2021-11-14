@@ -1,12 +1,12 @@
 #include "sbs/rendering/renderer.h"
 
+#include "sbs/physics/xpbd/simulation.h"
 #include "sbs/rendering/pick.h"
 
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>
 #include <imgui/imgui.h>
 #include <implot/implot.h>
-#include <sbs/physics/simulation.h>
 
 namespace sbs {
 namespace rendering {
@@ -14,7 +14,7 @@ namespace rendering {
 renderer_base_t* renderer_base_t::active_renderer = nullptr;
 
 renderer_t::renderer_t(
-    physics::simulation_t& simulation,
+    physics::xpbd::simulation_t& simulation,
     point_light_t const& point_light,
     directional_light_t const& directional_light)
     : simulation_(simulation),
@@ -84,8 +84,8 @@ bool renderer_t::initialize()
     glGenBuffers(1, &point_vbo_);
 
     auto const create_objects_for_opengl =
-        [](std::vector<std::unique_ptr<physics::body_t>> const& bodies) {
-            for (std::unique_ptr<physics::body_t> const& body : bodies)
+        [](std::vector<std::unique_ptr<physics::body::body_t>> const& bodies) {
+            for (std::unique_ptr<physics::body::body_t> const& body : bodies)
             {
                 common::renderable_node_t& object = body->visual_model();
                 unsigned int& VAO                 = object.VAO();
@@ -174,7 +174,7 @@ void renderer_t::launch()
             simulation_.bodies().begin(),
             simulation_.bodies().end(),
             std::back_inserter(objects),
-            [](std::unique_ptr<physics::body_t>& body) { return &body->visual_model(); });
+            [](std::unique_ptr<physics::body::body_t>& body) { return &body->visual_model(); });
         render_objects(objects);
 
         if (should_render_points_)
@@ -190,8 +190,8 @@ void renderer_t::launch()
 void renderer_t::close()
 {
     auto const delete_objects_from_opengl =
-        [](std::vector<std::unique_ptr<physics::body_t>> const& bodies) {
-            for (std::unique_ptr<physics::body_t> const& body : bodies)
+        [](std::vector<std::unique_ptr<physics::body::body_t>> const& bodies) {
+            for (std::unique_ptr<physics::body::body_t> const& body : bodies)
             {
                 common::renderable_node_t const& object = body->visual_model();
                 glDeleteVertexArrays(1, &(object.VAO()));
@@ -205,7 +205,7 @@ void renderer_t::close()
     mesh_shader_.destroy();
     wireframe_shader_.destroy();
     point_shader_.destroy();
-    
+
     ImPlot::DestroyContext();
     ImGui::DestroyContext();
     glfwTerminate();

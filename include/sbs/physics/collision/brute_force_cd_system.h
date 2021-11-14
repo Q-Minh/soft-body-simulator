@@ -13,7 +13,7 @@ class brute_force_cd_system_t : public cd_system_t
     brute_force_cd_system_t(std::vector<collision_model_t*> const& collision_objects);
 
     virtual void execute() override;
-    virtual void update(simulation_t const& simulation) override;
+    virtual void update(xpbd::simulation_t const& simulation) override;
 };
 
 } // namespace collision

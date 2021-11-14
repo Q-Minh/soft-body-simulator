@@ -1,6 +1,8 @@
+#include "sbs/physics/xpbd/collision_constraint.h"
+
+#include "sbs/physics/xpbd/simulation.h"
+
 #include <Eigen/Geometry>
-#include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/collision_constraint.h>
 
 namespace sbs {
 namespace physics {

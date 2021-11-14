@@ -1,10 +1,11 @@
-#ifndef SBS_PHYSICS_CONSTRAINT_H
-#define SBS_PHYSICS_CONSTRAINT_H
+#ifndef SBS_PHYSICS_XPBD_CONSTRAINT_H
+#define SBS_PHYSICS_XPBD_CONSTRAINT_H
 
-#include <sbs/aliases.h>
+#include "sbs/aliases.h"
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 // Forward declares
 class simulation_t;
@@ -34,7 +35,8 @@ class constraint_t
     scalar_type lagrange_;
 };
 
+} // namespace xpbd
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_CONSTRAINT_H
+#endif // SBS_PHYSICS_XPBD_CONSTRAINT_H

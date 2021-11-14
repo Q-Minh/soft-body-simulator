@@ -1,14 +1,14 @@
 #ifndef SBS_PHYSICS_XPBD_HYBRID_MESH_MESHLESS_MLS_SURFACE_CONTACT_HANDLER_H
 #define SBS_PHYSICS_XPBD_HYBRID_MESH_MESHLESS_MLS_SURFACE_CONTACT_HANDLER_H
 
-#include <sbs/physics/collision/contact.h>
+#include "sbs/physics/collision/contact.h"
 
 namespace sbs {
 namespace physics {
-
-class simulation_t;
-
 namespace xpbd {
+
+// Forward declares
+class simulation_t;
 
 class hybrid_mesh_meshless_mls_surface_contact_handler_t : public collision::contact_handler_t
 {

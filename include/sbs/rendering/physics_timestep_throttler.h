@@ -7,9 +7,11 @@ namespace sbs {
 
 // forward declares
 namespace physics {
+namespace xpbd {
 
 class simulation_t;
 
+} // namespace xpbd
 } // namespace physics
 
 namespace rendering {
@@ -22,7 +24,7 @@ class physics_timestep_throttler_t
         std::function<void(
             physics_timestep_throttler_t& /*throttler*/,
             double /*physics_dt*/,
-            physics::simulation_t& /*simulation*/)> step);
+            physics::xpbd::simulation_t& /*simulation*/)> step);
     physics_timestep_throttler_t(physics_timestep_throttler_t const&) = default;
     physics_timestep_throttler_t(physics_timestep_throttler_t&&)      = default;
 
@@ -31,7 +33,7 @@ class physics_timestep_throttler_t
      * @param frame_dt Renderer's duration/elapsed time since last frame
      * @param simulation The renderer's simulation
      */
-    void operator()(double frame_dt, physics::simulation_t& simulation);
+    void operator()(double frame_dt, physics::xpbd::simulation_t& simulation);
 
     /**
      * @brief Gets the estimated fps of the physics simulation loop. Does not correspond to the
@@ -60,7 +62,7 @@ class physics_timestep_throttler_t
     std::function<void(
         physics_timestep_throttler_t&,
         double /*physics_dt*/,
-        physics::simulation_t& /*simulation*/)>
+        physics::xpbd::simulation_t& /*simulation*/)>
         step_; ///< Physics step to execute with throttling
     bool are_physics_active_;
 };

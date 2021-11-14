@@ -128,9 +128,9 @@ geometry_t transform(geometry_t const& geometry, Eigen::Affine3d const& transfor
             geometry.positions[i + 2]};
 
         Eigen::Vector3d const p_prime = transform * p;
-        other.positions[i]            = p_prime.x();
-        other.positions[i + 1]        = p_prime.y();
-        other.positions[i + 2]        = p_prime.z();
+        other.positions[i]            = static_cast<float>(p_prime.x());
+        other.positions[i + 1]        = static_cast<float>(p_prime.y());
+        other.positions[i + 2]        = static_cast<float>(p_prime.z());
     }
     return other;
 }

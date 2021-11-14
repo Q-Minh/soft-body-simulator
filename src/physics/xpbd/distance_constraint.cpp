@@ -1,5 +1,6 @@
-#include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/distance_constraint.h>
+#include "sbs/physics/xpbd/distance_constraint.h"
+
+#include "sbs/physics/xpbd/simulation.h"
 
 namespace sbs {
 namespace physics {

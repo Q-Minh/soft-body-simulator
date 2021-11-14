@@ -1,6 +1,6 @@
 #include "sbs/rendering/physics_timestep_throttler.h"
 
-#include "sbs/physics/simulation.h"
+#include "sbs/physics/xpbd/simulation.h"
 
 #include <chrono>
 
@@ -12,12 +12,14 @@ physics_timestep_throttler_t::physics_timestep_throttler_t(
     std::function<void(
         physics_timestep_throttler_t& /*throttler*/,
         double /*physics_dt*/,
-        physics::simulation_t& /*simulation*/)> step)
+        physics::xpbd::simulation_t& /*simulation*/)> step)
     : tb_{0.}, timestep_(timestep), fps_{0u}, step_(step), are_physics_active_{false}
 {
 }
 
-void physics_timestep_throttler_t::operator()(double frame_dt, physics::simulation_t& simulation)
+void physics_timestep_throttler_t::operator()(
+    double frame_dt,
+    physics::xpbd::simulation_t& simulation)
 {
     if (!are_physics_active_)
         return;

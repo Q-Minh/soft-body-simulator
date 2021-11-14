@@ -1,19 +1,21 @@
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h"
+
+#include "sbs/common/geometry.h"
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h"
+#include "sbs/physics/xpbd/particle.h"
+#include "sbs/physics/xpbd/simulation.h"
+
 #include <Discregrid/cubic_lagrange_discrete_grid.hpp>
 #include <Discregrid/geometry/mesh_distance.hpp>
 #include <Discregrid/mesh/triangle_mesh.hpp>
 #include <cassert>
-#include <sbs/common/geometry.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
-#include <sbs/physics/particle.h>
-#include <sbs/physics/simulation.h>
 
 namespace sbs {
 namespace physics {
 namespace mechanics {
 
 hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
-    simulation_t& simulation,
+    xpbd::simulation_t& simulation,
     index_type id,
     common::geometry_t const& geometry,
     scalar_type const h,
@@ -242,22 +244,22 @@ hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
     }
 }
 
-body_t::visual_model_type const& hybrid_mesh_meshless_mls_body_t::visual_model() const
+body::body_t::visual_model_type const& hybrid_mesh_meshless_mls_body_t::visual_model() const
 {
     return visual_model_;
 }
 
-body_t::collision_model_type const& hybrid_mesh_meshless_mls_body_t::collision_model() const
+body::body_t::collision_model_type const& hybrid_mesh_meshless_mls_body_t::collision_model() const
 {
     return collision_model_;
 }
 
-body_t::visual_model_type& hybrid_mesh_meshless_mls_body_t::visual_model()
+body::body_t::visual_model_type& hybrid_mesh_meshless_mls_body_t::visual_model()
 {
     return visual_model_;
 }
 
-body_t::collision_model_type& hybrid_mesh_meshless_mls_body_t::collision_model()
+body::body_t::collision_model_type& hybrid_mesh_meshless_mls_body_t::collision_model()
 {
     return collision_model_;
 }
@@ -280,14 +282,14 @@ void hybrid_mesh_meshless_mls_body_t::update_physical_model()
     assert(mesh_x_.size() == mesh_x0_.size());
     for (std::size_t i = 0u; i < mesh_x_.size(); ++i)
     {
-        particle_t const& p = particles[mesh_particles_index_offset_ + i];
-        mesh_x_[i]          = p.x();
+        xpbd::particle_t const& p = particles[mesh_particles_index_offset_ + i];
+        mesh_x_[i]                = p.x();
     }
     for (std::size_t i = 0u; i < meshless_nodes_.size(); ++i)
     {
         index_type const ni                   = static_cast<index_type>(i);
         hybrid_mesh_meshless_mls_node_t& node = meshless_nodes_[ni];
-        particle_t const& p                   = particles[meshless_particles_index_offset_ + i];
+        xpbd::particle_t const& p             = particles[meshless_particles_index_offset_ + i];
         node.xi()                             = p.x();
     }
 }
@@ -327,12 +329,12 @@ void hybrid_mesh_meshless_mls_body_t::initialize_physical_model()
     Ainv_.reserve(volumetric_topology_.tetrahedron_count());
     for (std::size_t i = 0u; i < volumetric_topology_.tetrahedron_count(); ++i)
     {
-        index_type const ti       = static_cast<index_type>(i);
+        index_type const ti              = static_cast<index_type>(i);
         topology::tetrahedron_t const& t = volumetric_topology_.tetrahedron(ti);
-        Eigen::Vector3d const& X0 = mesh_x0_[t.v1()];
-        Eigen::Vector3d const& X1 = mesh_x0_[t.v2()];
-        Eigen::Vector3d const& X2 = mesh_x0_[t.v3()];
-        Eigen::Vector3d const& X3 = mesh_x0_[t.v4()];
+        Eigen::Vector3d const& X0        = mesh_x0_[t.v1()];
+        Eigen::Vector3d const& X1        = mesh_x0_[t.v2()];
+        Eigen::Vector3d const& X2        = mesh_x0_[t.v3()];
+        Eigen::Vector3d const& X3        = mesh_x0_[t.v4()];
 
         Eigen::Matrix4d A{};
         A.row(0u).setOnes();
@@ -759,7 +761,7 @@ index_type mesh_tetrahedron_range_searcher_t::in_tetrahedron(Eigen::Vector3d con
 
         for (auto j = node.begin; j < node.begin + node.n; ++j)
         {
-            index_type const ti    = static_cast<index_type>(m_lst[j]);
+            index_type const ti              = static_cast<index_type>(m_lst[j]);
             topology::tetrahedron_t const& t = topology_->tetrahedron(ti);
 
             Eigen::Vector3d const& p1 = (*mesh_nodes_)[t.v1()];
@@ -814,7 +816,7 @@ void mesh_tetrahedron_range_searcher_t::computeHull(
     vertices_of_sphere.reserve(n * 4u);
     for (unsigned int i = b; i < n + b; ++i)
     {
-        index_type const ti    = static_cast<index_type>(m_lst[i]);
+        index_type const ti              = static_cast<index_type>(m_lst[i]);
         topology::tetrahedron_t const& t = topology_->tetrahedron(ti);
         for (index_type const vi : t.vertex_indices())
         {

@@ -1,13 +1,14 @@
 #ifndef SBS_PHYSICS_MECHANICS_MESHLESS_BODY_H
 #define SBS_PHYSICS_MECHANICS_MESHLESS_BODY_H
 
+#include "sbs/physics/body/body.h"
+#include "sbs/physics/collision/bvh_model.h"
+#include "sbs/physics/mechanics/meshless_sph_surface.h"
+#include "sbs/topology/tetrahedron_set.h"
+
 #include <Discregrid/acceleration/bounding_sphere_hierarchy.hpp>
 #include <Eigen/Core>
 #include <sbs/aliases.h>
-#include <sbs/physics/body.h>
-#include <sbs/physics/collision/bvh_model.h>
-#include <sbs/physics/mechanics/meshless_sph_surface.h>
-#include <sbs/topology/tetrahedron_set.h>
 #include <vector>
 
 namespace sbs {
@@ -49,7 +50,7 @@ class meshless_sph_body_range_searcher_t : public Discregrid::KDTree<Discregrid:
     std::vector<meshless_sph_node_t> const* nodes_;
 };
 
-class meshless_sph_body_t : public physics::body_t
+class meshless_sph_body_t : public body::body_t
 {
   public:
     /**
@@ -71,7 +72,7 @@ class meshless_sph_body_t : public physics::body_t
      * @param resolution The resolution of the particle sampling grid
      */
     meshless_sph_body_t(
-        simulation_t& simulation,
+        xpbd::simulation_t& simulation,
         index_type id,
         common::geometry_t const& geometry,
         scalar_type const h,

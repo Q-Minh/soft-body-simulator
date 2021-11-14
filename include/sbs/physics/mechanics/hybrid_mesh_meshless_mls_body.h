@@ -1,13 +1,14 @@
 #ifndef SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_BODY_H
 #define SBS_PHYSICS_MECHANICS_HYBRID_MESH_MESHLESS_MLS_BODY_H
 
+#include "sbs/physics/body/body.h"
+#include "sbs/physics/collision/bvh_model.h"
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h"
+#include "sbs/topology/tetrahedron_set.h"
+
 #include <Discregrid/acceleration/bounding_sphere.hpp>
 #include <Discregrid/acceleration/kd_tree.hpp>
 #include <Eigen/Core>
-#include <sbs/physics/body.h>
-#include <sbs/physics/collision/bvh_model.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
-#include <sbs/topology/tetrahedron_set.h>
 
 namespace sbs {
 namespace common {
@@ -84,7 +85,7 @@ class mesh_tetrahedron_range_searcher_t : public Discregrid::KDTree<Discregrid::
 } // namespace hybrid_mesh_meshless_sph
 } // namespace detail
 
-class hybrid_mesh_meshless_mls_body_t : public physics::body_t
+class hybrid_mesh_meshless_mls_body_t : public body::body_t
 {
   public:
     /**
@@ -108,7 +109,7 @@ class hybrid_mesh_meshless_mls_body_t : public physics::body_t
      * @param resolution The resolution of the particle sampling grid
      */
     hybrid_mesh_meshless_mls_body_t(
-        simulation_t& simulation,
+        xpbd::simulation_t& simulation,
         index_type id,
         common::geometry_t const& geometry,
         scalar_type const h,

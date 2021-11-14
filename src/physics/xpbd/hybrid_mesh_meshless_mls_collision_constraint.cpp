@@ -1,9 +1,11 @@
+#include "sbs/physics/xpbd/hybrid_mesh_meshless_mls_collision_constraint.h"
+
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h"
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h"
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h"
+#include "sbs/physics/xpbd/simulation.h"
+
 #include <optional>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
-#include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_collision_constraint.h>
 
 namespace sbs {
 namespace physics {
@@ -65,7 +67,7 @@ void hybrid_mesh_meshless_mls_collision_constraint_t::project_positions(
     {
         std::array<std::optional<scalar_type>, 4u> const& mesh_phi_js = vk_.mesh_phi_js();
         topology::tetrahedron_t const& t = b_->topology().tetrahedron(vk_.ti());
-        auto const& vis        = t.vertex_indices();
+        auto const& vis                  = t.vertex_indices();
         for (std::uint8_t v = 0u; v < 4u; ++v)
         {
             if (!mesh_phi_js[v].has_value())
@@ -108,7 +110,7 @@ void hybrid_mesh_meshless_mls_collision_constraint_t::project_positions(
     {
         std::array<std::optional<scalar_type>, 4u> const& mesh_phi_js = vk_.mesh_phi_js();
         topology::tetrahedron_t const& t = b_->topology().tetrahedron(vk_.ti());
-        auto const& vis        = t.vertex_indices();
+        auto const& vis                  = t.vertex_indices();
         for (std::uint8_t v = 0u; v < 4u; ++v)
         {
             if (!gradC_mesh[v].has_value())

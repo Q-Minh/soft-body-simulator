@@ -1,9 +1,12 @@
+#include "sbs/physics/collision/bvh_model.h"
+
+#include "sbs/common/mesh.h"
+#include "sbs/physics/collision/contact.h"
+#include "sbs/physics/collision/sdf_model.h"
+#include "sbs/physics/xpbd/simulation.h"
+#include "vector"
+
 #include <cassert>
-#include <sbs/common/mesh.h>
-#include <sbs/physics/collision/bvh_model.h>
-#include <sbs/physics/collision/contact.h>
-#include <sbs/physics/collision/sdf_model.h>
-#include <vector>
 
 namespace sbs {
 namespace physics {
@@ -44,17 +47,17 @@ void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& han
             return c;
         };
 
-        auto const is_sphere_colliding_with_sdf =
-            [this, &sdf_model, closest_point_on_aabb](unsigned int node_idx, unsigned int depth) -> bool {
-            Discregrid::BoundingSphere const& s                     = this->hull(node_idx);
-            Eigen::AlignedBox3d const& sdf_englobing_volume         = sdf_model.volume();
+        auto const is_sphere_colliding_with_sdf = [this, &sdf_model, closest_point_on_aabb](
+                                                      unsigned int node_idx,
+                                                      unsigned int depth) -> bool {
+            Discregrid::BoundingSphere const& s             = this->hull(node_idx);
+            Eigen::AlignedBox3d const& sdf_englobing_volume = sdf_model.volume();
 
-            //auto const [sd, grad] = sdf_model.evaluate(s.x());
-            //if (sd < 0.)
-            //    return true;
+            // auto const [sd, grad] = sdf_model.evaluate(s.x());
+            // if (sd < 0.)
+            //     return true;
 
-            Eigen::Vector3d closest_point =
-                closest_point_on_aabb(s.x(), sdf_englobing_volume);
+            Eigen::Vector3d closest_point = closest_point_on_aabb(s.x(), sdf_englobing_volume);
 
             Eigen::Vector3d const diff = s.x() - closest_point;
             scalar_type const dist2    = diff.squaredNorm();
@@ -99,7 +102,7 @@ void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& han
     }
 }
 
-void point_bvh_model_t::update(simulation_t const& simulation)
+void point_bvh_model_t::update(xpbd::simulation_t const& simulation)
 {
     kd_tree_type::update();
 }

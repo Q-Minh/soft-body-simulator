@@ -2,17 +2,17 @@
 #include <implot/implot.h>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
+#include <sbs/physics/body/environment_body.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
-#include <sbs/physics/environment_body.h>
-#include <sbs/physics/gauss_seidel_solver.h>
 #include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
 #include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
 #include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
-#include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
+#include <sbs/physics/xpbd/gauss_seidel_solver.h>
 #include <sbs/physics/xpbd/green_constraint.h>
 #include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.h>
 #include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_surface_contact_handler.h>
+#include <sbs/physics/xpbd/simulation.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -22,7 +22,7 @@ int main(int argc, char** argv)
     /**
      * Setup simulation
      */
-    sbs::physics::simulation_t simulation{};
+    sbs::physics::xpbd::simulation_t simulation{};
     simulation.simulation_parameters().collision_damping = 0.01;
     simulation.simulation_parameters().poisson_ratio     = 0.3;
     simulation.simulation_parameters().young_modulus     = 1e6;
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
     beam.set_mesh_particles_index_offset(mesh_index_offset);
     for (auto const& mesh_x0 : beam.x0())
     {
-        sbs::physics::particle_t p{mesh_x0};
+        sbs::physics::xpbd::particle_t p{mesh_x0};
         simulation.add_particle(p, beam_idx);
     }
     auto const meshless_index_offset =
@@ -66,31 +66,31 @@ int main(int argc, char** argv)
     beam.set_meshless_particles_index_offset(meshless_index_offset);
     for (auto const& meshless_node : beam.meshless_nodes())
     {
-        sbs::physics::particle_t p{meshless_node.Xi()};
+        sbs::physics::xpbd::particle_t p{meshless_node.Xi()};
         simulation.add_particle(p, beam_idx);
     }
-    for (sbs::physics::tetrahedron_t const& t : beam.topology().tetrahedra())
+    for (sbs::topology::tetrahedron_t const& t : beam.topology().tetrahedra())
     {
         // Only constrain interior tets
         if (beam.topology().is_boundary_tetrahedron(t))
             continue;
 
-        //auto const alpha = simulation.simulation_parameters().compliance;
-        //auto const beta  = simulation.simulation_parameters().damping;
-        //auto const nu    = simulation.simulation_parameters().poisson_ratio;
-        //auto const E     = simulation.simulation_parameters().young_modulus;
-        //auto constraint  = std::make_unique<sbs::physics::xpbd::green_constraint_t>(
-        //    alpha,
-        //    beta,
-        //    simulation,
-        //    beam_idx,
-        //    t.v1(),
-        //    t.v2(),
-        //    t.v3(),
-        //    t.v4(),
-        //    E,
-        //    nu);
-        //simulation.add_constraint(std::move(constraint));
+        // auto const alpha = simulation.simulation_parameters().compliance;
+        // auto const beta  = simulation.simulation_parameters().damping;
+        // auto const nu    = simulation.simulation_parameters().poisson_ratio;
+        // auto const E     = simulation.simulation_parameters().young_modulus;
+        // auto constraint  = std::make_unique<sbs::physics::xpbd::green_constraint_t>(
+        //     alpha,
+        //     beta,
+        //     simulation,
+        //     beam_idx,
+        //     t.v1(),
+        //     t.v2(),
+        //     t.v3(),
+        //     t.v4(),
+        //     E,
+        //     nu);
+        // simulation.add_constraint(std::move(constraint));
     }
     for (std::size_t i = 0u; i < beam.meshless_nodes().size(); ++i)
     {
@@ -125,7 +125,7 @@ int main(int argc, char** argv)
             Eigen::Vector3d{0., 1., 0.},
             Eigen::Vector3d{0., 0., 0.}),
         floor_volume);
-    simulation.add_body(std::make_unique<sbs::physics::environment_body_t>(
+    simulation.add_body(std::make_unique<sbs::physics::body::environment_body_t>(
         simulation,
         floor_idx,
         floor_geometry,
@@ -139,7 +139,7 @@ int main(int argc, char** argv)
         simulation.bodies().begin(),
         simulation.bodies().end(),
         std::back_inserter(collision_objects),
-        [](std::unique_ptr<sbs::physics::body_t>& b) { return &(b->collision_model()); });
+        [](std::unique_ptr<sbs::physics::body::body_t>& b) { return &(b->collision_model()); });
     simulation.use_collision_detection_system(
         std::make_unique<sbs::physics::collision::brute_force_cd_system_t>(collision_objects));
     simulation.collision_detection_system()->use_contact_handler(
@@ -182,13 +182,13 @@ int main(int argc, char** argv)
     timestep.dt()         = 0.016;
     timestep.iterations() = 25u;
     timestep.substeps()   = 1u;
-    timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
+    timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
         0. /*timestep.dt() / 4.*/,
         [&](sbs::rendering::physics_timestep_throttler_t& throttler,
             double dt,
-            sbs::physics::simulation_t& simulation) { timestep.step(simulation); });
+            sbs::physics::xpbd::simulation_t& simulation) { timestep.step(simulation); });
 
     renderer.on_new_physics_timestep = throttler;
     renderer.camera().position().x   = 0.;
@@ -223,7 +223,7 @@ int main(int argc, char** argv)
     // };
 
     // renderer.pickers.push_back(fix_picker);
-    renderer.on_new_imgui_frame = [&](sbs::physics::simulation_t& s) {
+    renderer.on_new_imgui_frame = [&](sbs::physics::xpbd::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 
         static int selected_idx = 0;
@@ -325,7 +325,7 @@ int main(int argc, char** argv)
         ImGui::End();
     };
 
-    renderer.on_pre_render = [&](sbs::physics::simulation_t& s) {
+    renderer.on_pre_render = [&](sbs::physics::xpbd::simulation_t& s) {
         // renderer.clear_points();
         // auto const offset     = beam.get_meshless_particles_index_offset();
         // auto const& particles = s.particles()[beam_idx];

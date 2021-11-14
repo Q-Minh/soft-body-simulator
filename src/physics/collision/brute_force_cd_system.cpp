@@ -1,5 +1,6 @@
-#include <sbs/physics/collision/brute_force_cd_system.h>
-#include <sbs/physics/collision/collision_model.h>
+#include "sbs/physics/collision/brute_force_cd_system.h"
+
+#include "sbs/physics/collision/collision_model.h"
 
 namespace sbs {
 namespace physics {
@@ -25,7 +26,7 @@ void brute_force_cd_system_t::execute()
     }
 }
 
-void brute_force_cd_system_t::update(simulation_t const& simulation)
+void brute_force_cd_system_t::update(xpbd::simulation_t const& simulation)
 {
     // no-op
 }

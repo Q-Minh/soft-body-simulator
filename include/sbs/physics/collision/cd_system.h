@@ -8,8 +8,9 @@
 
 namespace sbs {
 namespace physics {
-
+namespace xpbd {
 class simulation_t;
+} // namespace xpbd
 
 namespace collision {
 
@@ -29,8 +30,8 @@ class cd_system_t
     cd_system_t& operator=(cd_system_t const& other) = default;
     cd_system_t& operator=(cd_system_t&& other) = default;
 
-    virtual void execute()                                       = 0;
-    virtual void update(physics::simulation_t const& simulation) = 0;
+    virtual void execute()                                    = 0;
+    virtual void update(xpbd::simulation_t const& simulation) = 0;
 
     std::vector<collision_model_t*> const& collision_objects() const;
 

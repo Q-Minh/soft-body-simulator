@@ -2,15 +2,15 @@
 #include <implot/implot.h>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
+#include <sbs/physics/body/environment_body.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
-#include <sbs/physics/environment_body.h>
-#include <sbs/physics/gauss_seidel_solver.h>
 #include <sbs/physics/mechanics/meshless_sph_body.h>
-#include <sbs/physics/simulation.h>
 #include <sbs/physics/timestep.h>
+#include <sbs/physics/xpbd/gauss_seidel_solver.h>
 #include <sbs/physics/xpbd/meshless_sph_positional_constraint.h>
 #include <sbs/physics/xpbd/meshless_sph_stvk_constraint.h>
 #include <sbs/physics/xpbd/meshless_sph_surface_contact_handler.h>
+#include <sbs/physics/xpbd/simulation.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
@@ -20,7 +20,7 @@ int main(int argc, char** argv)
     /**
      * Setup simulation
      */
-    sbs::physics::simulation_t simulation{};
+    sbs::physics::xpbd::simulation_t simulation{};
     simulation.simulation_parameters().compliance                  = 1e-10;
     simulation.simulation_parameters().damping                     = 1e-2;
     simulation.simulation_parameters().collision_compliance        = 1e-4;
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
     sbs::scalar_type total_mass{0.};
     for (auto const& meshless_node : beam.nodes())
     {
-        sbs::physics::particle_t p{meshless_node.Xi()};
+        sbs::physics::xpbd::particle_t p{meshless_node.Xi()};
         p.mass() = mass_density * meshless_node.Vi();
         total_mass += p.mass();
         simulation.add_particle(p, beam_idx);
@@ -95,7 +95,7 @@ int main(int argc, char** argv)
             Eigen::Vector3d{0., 1., 0.},
             Eigen::Vector3d{0., 0., 0.}),
         floor_volume);
-    simulation.add_body(std::make_unique<sbs::physics::environment_body_t>(
+    simulation.add_body(std::make_unique<sbs::physics::body::environment_body_t>(
         simulation,
         floor_idx,
         floor_geometry,
@@ -109,7 +109,7 @@ int main(int argc, char** argv)
         simulation.bodies().begin(),
         simulation.bodies().end(),
         std::back_inserter(collision_objects),
-        [](std::unique_ptr<sbs::physics::body_t>& b) { return &(b->collision_model()); });
+        [](std::unique_ptr<sbs::physics::body::body_t>& b) { return &(b->collision_model()); });
     simulation.use_collision_detection_system(
         std::make_unique<sbs::physics::collision::brute_force_cd_system_t>(collision_objects));
     simulation.collision_detection_system()->use_contact_handler(
@@ -151,13 +151,13 @@ int main(int argc, char** argv)
     timestep.dt()         = 0.016;
     timestep.iterations() = 5u;
     timestep.substeps()   = 1u;
-    timestep.solver()     = std::make_unique<sbs::physics::gauss_seidel_solver_t>();
+    timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
         timestep.dt(),
         [&](sbs::rendering::physics_timestep_throttler_t& throttler,
             double dt,
-            sbs::physics::simulation_t& simulation) { timestep.step(simulation); });
+            sbs::physics::xpbd::simulation_t& simulation) { timestep.step(simulation); });
 
     renderer.on_new_physics_timestep = throttler;
     renderer.camera().position().x   = 0.;
@@ -215,7 +215,7 @@ int main(int argc, char** argv)
     };
 
     renderer.pickers.push_back(fix_picker);
-    renderer.on_new_imgui_frame = [&](sbs::physics::simulation_t& s) {
+    renderer.on_new_imgui_frame = [&](sbs::physics::xpbd::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 
         static int selected_idx = 0;
@@ -308,7 +308,7 @@ int main(int argc, char** argv)
         ImGui::End();
     };
 
-    renderer.on_pre_render = [&](sbs::physics::simulation_t& s) {
+    renderer.on_pre_render = [&](sbs::physics::xpbd::simulation_t& s) {
         renderer.clear_points();
         for (auto const [vi, p] : fixed_vertices)
         {

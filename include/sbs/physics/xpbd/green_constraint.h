@@ -1,8 +1,9 @@
 #ifndef SBS_PHYSICS_XPBD_GREEN_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_GREEN_CONSTRAINT_H
 
+#include "sbs/physics/xpbd/constraint.h"
+
 #include <Eigen/Core>
-#include <sbs/physics/constraint.h>
 
 namespace sbs {
 namespace physics {

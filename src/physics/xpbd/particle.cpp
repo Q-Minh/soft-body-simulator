@@ -1,7 +1,8 @@
-#include <sbs/physics/particle.h>
+#include "sbs/physics/xpbd/particle.h"
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 particle_t::particle_t(position_type const& p)
     : x0_(p), xi_(p), xn_(p), x_(p), v_(0., 0., 0.), f_(0., 0., 0.), m_(1.)
@@ -81,5 +82,6 @@ scalar_type& particle_t::mass()
     return m_;
 }
 
+} // namespace xpbd
 } // namespace physics
 } // namespace sbs

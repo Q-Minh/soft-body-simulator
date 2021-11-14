@@ -8,16 +8,11 @@
 
 namespace sbs {
 namespace common {
-
 class shared_vertex_surface_mesh_i;
 class contact_handler_t;
-
 } // namespace common
 
 namespace physics {
-
-class simulation_t;
-
 namespace collision {
 
 class point_bvh_model_t : public collision_model_t,
@@ -35,7 +30,7 @@ class point_bvh_model_t : public collision_model_t,
     virtual model_type_t model_type() const override;
     virtual primitive_type_t primitive_type() const override;
     virtual void collide(collision_model_t& other, contact_handler_t& handler) override;
-    virtual void update(simulation_t const& simulation) override;
+    virtual void update(xpbd::simulation_t const& simulation) override;
 
   protected:
     using kd_tree_type = Discregrid::KDTree<Discregrid::BoundingSphere>;

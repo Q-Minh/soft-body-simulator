@@ -1,8 +1,10 @@
-#include <sbs/physics/constraint.h>
-#include <sbs/physics/simulation.h>
+#include "sbs/physics/xpbd/constraint.h"
+
+#include "sbs/physics/xpbd/simulation.h"
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 constraint_t::constraint_t(scalar_type alpha, scalar_type beta)
     : alpha_(alpha), beta_(beta), lagrange_(0.)
@@ -37,5 +39,6 @@ scalar_type constraint_t::damping() const
     return beta_;
 }
 
+} // namespace xpbd
 } // namespace physics
 } // namespace sbs

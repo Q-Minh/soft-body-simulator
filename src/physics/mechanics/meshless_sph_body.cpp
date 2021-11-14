@@ -1,19 +1,21 @@
+#include "sbs/physics/mechanics/meshless_sph_body.h"
+
+#include "sbs/common/geometry.h"
+#include "sbs/physics/mechanics/meshless_sph_node.h"
+#include "sbs/physics/xpbd/particle.h"
+#include "sbs/physics/xpbd/simulation.h"
+
 #include <Discregrid/cubic_lagrange_discrete_grid.hpp>
 #include <Discregrid/geometry/mesh_distance.hpp>
 #include <Discregrid/mesh/triangle_mesh.hpp>
 #include <algorithm>
-#include <sbs/common/geometry.h>
-#include <sbs/physics/mechanics/meshless_sph_body.h>
-#include <sbs/physics/mechanics/meshless_sph_node.h>
-#include <sbs/physics/particle.h>
-#include <sbs/physics/simulation.h>
 
 namespace sbs {
 namespace physics {
 namespace mechanics {
 
 meshless_sph_body_t::meshless_sph_body_t(
-    simulation_t& simulation,
+    xpbd::simulation_t& simulation,
     index_type id,
     common::geometry_t const& geometry,
     scalar_type const h,
@@ -190,22 +192,22 @@ meshless_sph_body_t::meshless_sph_body_t(
     }
 }
 
-body_t::visual_model_type const& meshless_sph_body_t::visual_model() const
+body::body_t::visual_model_type const& meshless_sph_body_t::visual_model() const
 {
     return visual_model_;
 }
 
-body_t::collision_model_type const& meshless_sph_body_t::collision_model() const
+body::body_t::collision_model_type const& meshless_sph_body_t::collision_model() const
 {
     return collision_model_;
 }
 
-body_t::visual_model_type& meshless_sph_body_t::visual_model()
+body::body_t::visual_model_type& meshless_sph_body_t::visual_model()
 {
     return visual_model_;
 }
 
-body_t::collision_model_type& meshless_sph_body_t::collision_model()
+body::body_t::collision_model_type& meshless_sph_body_t::collision_model()
 {
     return collision_model_;
 }
@@ -228,7 +230,7 @@ void meshless_sph_body_t::update_physical_model()
     for (std::size_t i = 0u; i < particles.size(); ++i)
     {
         meshless_sph_node_t& node = meshless_nodes_[i];
-        particle_t const& p       = particles[i];
+        xpbd::particle_t const& p = particles[i];
         node.xi()                 = p.x();
     }
 }

@@ -1,16 +1,17 @@
-#include "..\..\include\sbs\physics\environment_body.h"
+#include "sbs/physics/body/environment_body.h"
+
+#include "sbs/common/geometry.h"
 
 #include <Discregrid/geometry/mesh_distance.hpp>
 #include <Discregrid/mesh/triangle_mesh.hpp>
 #include <cassert>
-#include <sbs/common/geometry.h>
-#include <sbs/physics/environment_body.h>
 
 namespace sbs {
 namespace physics {
+namespace body {
 
 environment_body_t::environment_body_t(
-    simulation_t& simulation,
+    xpbd::simulation_t& simulation,
     index_type id,
     common::geometry_t const& geometry,
     Eigen::AlignedBox3d const& domain,
@@ -78,7 +79,7 @@ environment_body_t::environment_body_t(
 }
 
 environment_body_t::environment_body_t(
-    simulation_t& simulation,
+    xpbd::simulation_t& simulation,
     index_type id,
     common::geometry_t const& geometry,
     collision::sdf_model_t const& sdf_model)
@@ -125,5 +126,6 @@ collision::sdf_model_t const& environment_body_t::sdf() const
     return collision_model_;
 }
 
+} // namespace body
 } // namespace physics
 } // namespace sbs

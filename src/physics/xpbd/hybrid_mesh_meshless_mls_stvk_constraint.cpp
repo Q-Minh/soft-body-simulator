@@ -1,9 +1,11 @@
+#include "sbs/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.h"
+
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h"
+#include "sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h"
+#include "sbs/physics/xpbd/particle.h"
+#include "sbs/physics/xpbd/simulation.h"
+
 #include <iterator>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_body.h>
-#include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_node.h>
-#include <sbs/physics/particle.h>
-#include <sbs/physics/simulation.h>
-#include <sbs/physics/xpbd/hybrid_mesh_meshless_mls_stvk_constraint.h>
 
 namespace sbs {
 namespace physics {

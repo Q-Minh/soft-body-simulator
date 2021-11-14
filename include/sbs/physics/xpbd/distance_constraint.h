@@ -1,9 +1,10 @@
 #ifndef SBS_PHYSICS_XPBD_DISTANCE_CONSTRAINT_H
 #define SBS_PHYSICS_XPBD_DISTANCE_CONSTRAINT_H
 
+#include "sbs/aliases.h"
+#include "sbs/physics/xpbd/constraint.h"
+
 #include <Eigen/Core>
-#include <sbs/aliases.h>
-#include <sbs/physics/constraint.h>
 
 namespace sbs {
 namespace physics {
@@ -15,7 +16,7 @@ class distance_constraint_t : public constraint_t
     distance_constraint_t(
         scalar_type const alpha,
         scalar_type const beta,
-        simulation_t const& simulation,
+        physics::xpbd::simulation_t const& simulation,
         index_type b1,
         index_type b2,
         index_type v1,

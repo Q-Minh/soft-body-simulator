@@ -1,8 +1,7 @@
-#include "..\..\..\include\sbs\physics\collision\sdf_model.h"
+#include "sbs/physics/collision/sdf_model.h"
 
-#include <sbs/physics/collision/bvh_model.h>
-#include <sbs/physics/collision/contact.h>
-#include <sbs/physics/collision/sdf_model.h>
+#include "sbs/physics/collision/bvh_model.h"
+#include "sbs/physics/collision/contact.h"
 
 namespace sbs {
 namespace physics {
@@ -43,7 +42,7 @@ void sdf_model_t::collide(collision_model_t& other, contact_handler_t& handler)
     }
 }
 
-void sdf_model_t::update(simulation_t const& simulation)
+void sdf_model_t::update(xpbd::simulation_t const& simulation)
 {
     // Currently a no-op. However, for rigid bodies, we need to have a world-to-local transformation
     // to update.

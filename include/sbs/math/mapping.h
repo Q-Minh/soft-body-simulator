@@ -81,18 +81,6 @@ class tetrahedron_barycentric_mapping_t
         autodiff::Vector4dual bc = Ainv_ * P1;
         return bc;
     }
-    bool contains(autodiff::Vector3dual X) const
-    {
-        Eigen::Vector4d const bc       = barycentric_coordinates(X).cast<scalar_type>();
-        auto const sum                 = bc.sum();
-        bool const is_sum_equal_to_one = std::abs(1. - sum) < eps();
-        bool const are_all_coefficients_less_than_or_equal_to_one =
-            std::abs(bc(0)) <= 1. && std::abs(bc(1)) <= 1. && std::abs(bc(2)) <= 1. &&
-            std::abs(bc(3)) <= 1.;
-        bool const is_contained =
-            is_sum_equal_to_one && are_all_coefficients_less_than_or_equal_to_one;
-        return is_contained;
-    }
     autodiff::Vector3dual coordinates(autodiff::Vector4dual bc) const
     {
         autodiff::Vector4dual P1 = A_ * bc;

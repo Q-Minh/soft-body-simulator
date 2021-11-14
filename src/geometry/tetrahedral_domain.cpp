@@ -104,6 +104,7 @@ tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron(Eigen::Vector3d con
         return s.contains(p);
     };
 
+    // separating axis theorem
     auto const is_point_in_tetrahedron =
         [this](Eigen::Vector3d const& point, topology::tetrahedron_t const& t) {
             auto const& face_copies = t.faces_copy();

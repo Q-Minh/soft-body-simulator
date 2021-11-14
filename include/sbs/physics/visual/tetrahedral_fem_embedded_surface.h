@@ -30,6 +30,7 @@ class tetrahedral_fem_embedded_surface
 
     // Accessors
     mechanics::linear_tetrahedral_fem_model_t const* mechanical_model() const;
+    index_type cell_containing_vertex(index_type vi) const;
 
     // Mutators
 

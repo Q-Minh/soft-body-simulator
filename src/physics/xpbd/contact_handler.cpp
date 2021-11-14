@@ -1,9 +1,5 @@
 #include "sbs/physics/xpbd/contact_handler.h"
 
-#include "sbs/physics/body/body.h"
-#include "sbs/physics/tetrahedral_body.h"
-#include "sbs/physics/tetrahedral_mesh_boundary.h"
-#include "sbs/physics/xpbd/collision_constraint.h"
 #include "sbs/physics/xpbd/simulation.h"
 
 namespace sbs {

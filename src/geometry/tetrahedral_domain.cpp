@@ -1,11 +1,14 @@
 #include "sbs/geometry/tetrahedral_domain.h"
 
+#include <unordered_map>
+
 namespace sbs {
 namespace geometry {
 
 tetrahedral_domain_t::tetrahedral_domain_t(
     std::vector<Eigen::Vector3d> const& points,
-    std::vector<index_type> const& indices)
+    std::vector<index_type> const& indices,
+    scalar_type const query_error)
     : positions_(points), mesh_(), tet_maps_()
 {
     mesh_.reserve_vertices(points.size());
@@ -29,7 +32,7 @@ tetrahedral_domain_t::tetrahedral_domain_t(
         tet_maps_.push_back(math::tetrahedron_barycentric_mapping_t(p1, p2, p3, p4));
     }
 
-    in_tetrahedron_query_ = in_tetrahedron_query_t(&mesh_, &positions_, &tet_maps_);
+    in_tetrahedron_query_ = in_tetrahedron_query_t(&mesh_, &positions_, &tet_maps_, query_error);
 }
 
 topology::tetrahedron_t const& tetrahedral_domain_t::tetrahedron(index_type ti) const
@@ -70,12 +73,14 @@ tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron_query_t()
 tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron_query_t(
     topology::tetrahedron_set_t const* topology,
     std::vector<Eigen::Vector3d> const* mesh_nodes,
-    std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps)
+    std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps,
+    scalar_type tolerance)
     : base_type(topology->tetrahedron_count()),
       topology_(topology),
       mesh_nodes_(mesh_nodes),
       tet_maps_(tet_maps),
-      tetrahedron_centers_()
+      tetrahedron_centers_(),
+      tolerance_(tolerance)
 {
     tetrahedron_centers_.reserve(topology_->tetrahedron_count());
     for (auto const& t : topology_->tetrahedra())
@@ -99,29 +104,29 @@ tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron(Eigen::Vector3d con
         return s.contains(p);
     };
 
-    // auto const is_point_in_tetrahedron =
-    //     [this](Eigen::Vector3d const& point, topology::tetrahedron_t const& t) {
-    //         auto const& face_copies = t.faces_copy();
-    //         std::array<bool, 4u> is_inside{false, false, false, false};
-    //         for (std::uint8_t i = 0u; i < 4u; ++i)
-    //         {
-    //             auto const& f             = face_copies[i];
-    //             Eigen::Vector3d const& p1 = (*mesh_nodes_)[f.v1()];
-    //             Eigen::Vector3d const& p2 = (*mesh_nodes_)[f.v2()];
-    //             Eigen::Vector3d const& p3 = (*mesh_nodes_)[f.v3()];
+    auto const is_point_in_tetrahedron =
+        [this](Eigen::Vector3d const& point, topology::tetrahedron_t const& t) {
+            auto const& face_copies = t.faces_copy();
+            std::array<bool, 4u> is_inside{false, false, false, false};
+            for (std::uint8_t i = 0u; i < 4u; ++i)
+            {
+                auto const& f             = face_copies[i];
+                Eigen::Vector3d const& p1 = (*mesh_nodes_)[f.v1()];
+                Eigen::Vector3d const& p2 = (*mesh_nodes_)[f.v2()];
+                Eigen::Vector3d const& p3 = (*mesh_nodes_)[f.v3()];
 
-    //            Eigen::Vector3d const n           = (p2 - p1).cross(p3 - p1).normalized();
-    //            scalar_type const signed_distance = (point - p1).dot(n);
-    //            bool const is_outside             = signed_distance > 0.;
-    //            is_inside[i]                      = !is_outside;
-    //        }
-    //        bool const is_p_in_t = is_inside[0] && is_inside[1] && is_inside[2] && is_inside[3];
-    //        return is_p_in_t;
-    //    };
+                Eigen::Vector3d const n           = (p2 - p1).cross(p3 - p1).normalized();
+                scalar_type const signed_distance = (point - p1).dot(n);
+                bool const is_outside             = signed_distance > sbs::eps();
+                is_inside[i]                      = !is_outside;
+            }
+            bool const is_p_in_t = is_inside[0] && is_inside[1] && is_inside[2] && is_inside[3];
+            return is_p_in_t;
+        };
 
     index_type parent_ti = std::numeric_limits<index_type>::max();
     bool found{false};
-    auto const get_ti = [this, p, &parent_ti, /*is_point_in_tetrahedron, */ &found](
+    auto const get_ti = [this, p, &parent_ti, is_point_in_tetrahedron, &found](
                             unsigned int node_idx,
                             unsigned int depth) {
         if (found)
@@ -141,9 +146,9 @@ tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron(Eigen::Vector3d con
             Eigen::Vector3d const& p3 = (*mesh_nodes_)[t.v3()];
             Eigen::Vector3d const& p4 = (*mesh_nodes_)[t.v4()];
 
-            bool const is_point_in_tetrahedron = (*tet_maps_)[ti].contains(p);
+            bool const is_point_contained = is_point_in_tetrahedron(p, t);
 
-            if (is_point_in_tetrahedron)
+            if (is_point_contained)
             {
                 // NOTE:
                 // Use this variable for debugging purposes.
@@ -156,6 +161,7 @@ tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron(Eigen::Vector3d con
                     (parent_ti != std::numeric_limits<index_type>::max());
                 parent_ti = ti;
                 found     = true;
+                break;
             }
         }
     };
@@ -191,7 +197,7 @@ void tetrahedral_domain_t::in_tetrahedron_query_t::computeHull(
     Discregrid::BoundingSphere const s(vertices_of_sphere);
 
     hull.x() = s.x();
-    hull.r() = s.r();
+    hull.r() = s.r() + tolerance_;
 }
 
 std::pair<std::vector<Eigen::Vector3d>, std::vector<index_type>>
@@ -214,38 +220,34 @@ boundary_surface(tetrahedral_domain_t const& domain)
     std::vector<index_type> triangle_indices{};
     triangle_indices.reserve(boundary_triangles.size()); // heuristically pre-allocate
 
-    std::map<index_type, index_type> tet_vertex_idx_to_surface_vertex_idx{};
-    for (auto const& triangle : boundary_triangles)
+    std::unordered_map<index_type, index_type> tet_to_surface_vertex_map{};
+    for (auto const& f : boundary_triangles)
     {
-        auto const v1 = triangle.v1();
-        auto const v2 = triangle.v2();
-        auto const v3 = triangle.v3();
-
-        if (tet_vertex_idx_to_surface_vertex_idx.find(v1) ==
-            tet_vertex_idx_to_surface_vertex_idx.end())
+        if (tet_to_surface_vertex_map.find(f.v1()) == tet_to_surface_vertex_map.end())
         {
-            auto const new_idx                       = triangle_points.size();
-            tet_vertex_idx_to_surface_vertex_idx[v1] = static_cast<index_type>(new_idx);
-            triangle_points.push_back(tet_points[v1]);
+            auto const index                  = tet_to_surface_vertex_map.size();
+            tet_to_surface_vertex_map[f.v1()] = static_cast<index_type>(index);
+            triangle_points.push_back(tet_points[f.v1()]);
         }
-        if (tet_vertex_idx_to_surface_vertex_idx.find(v2) ==
-            tet_vertex_idx_to_surface_vertex_idx.end())
+        if (tet_to_surface_vertex_map.find(f.v2()) == tet_to_surface_vertex_map.end())
         {
-            auto const new_idx                       = triangle_points.size();
-            tet_vertex_idx_to_surface_vertex_idx[v1] = static_cast<index_type>(new_idx);
-            triangle_points.push_back(tet_points[v1]);
+            auto const index                  = tet_to_surface_vertex_map.size();
+            tet_to_surface_vertex_map[f.v2()] = static_cast<index_type>(index);
+            triangle_points.push_back(tet_points[f.v2()]);
         }
-        if (tet_vertex_idx_to_surface_vertex_idx.find(v3) ==
-            tet_vertex_idx_to_surface_vertex_idx.end())
+        if (tet_to_surface_vertex_map.find(f.v3()) == tet_to_surface_vertex_map.end())
         {
-            auto const new_idx                       = triangle_points.size();
-            tet_vertex_idx_to_surface_vertex_idx[v1] = static_cast<index_type>(new_idx);
-            triangle_points.push_back(tet_points[v1]);
+            auto const index                  = tet_to_surface_vertex_map.size();
+            tet_to_surface_vertex_map[f.v3()] = static_cast<index_type>(index);
+            triangle_points.push_back(tet_points[f.v3()]);
         }
 
-        triangle_indices.push_back(tet_vertex_idx_to_surface_vertex_idx[v1]);
-        triangle_indices.push_back(tet_vertex_idx_to_surface_vertex_idx[v2]);
-        triangle_indices.push_back(tet_vertex_idx_to_surface_vertex_idx[v3]);
+        auto const v1 = tet_to_surface_vertex_map[f.v1()];
+        auto const v2 = tet_to_surface_vertex_map[f.v2()];
+        auto const v3 = tet_to_surface_vertex_map[f.v3()];
+        triangle_indices.push_back(v1);
+        triangle_indices.push_back(v2);
+        triangle_indices.push_back(v3);
     }
 
     return std::make_pair(triangle_points, triangle_indices);

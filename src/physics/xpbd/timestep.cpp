@@ -1,4 +1,4 @@
-#include "sbs/physics/timestep.h"
+#include "sbs/physics/xpbd/timestep.h"
 
 #include "sbs/physics/body/body.h"
 #include "sbs/physics/collision/cd_system.h"
@@ -10,6 +10,7 @@
 
 namespace sbs {
 namespace physics {
+namespace xpbd {
 
 timestep_t::timestep_t(
     scalar_type const dt,
@@ -19,7 +20,7 @@ timestep_t::timestep_t(
 {
 }
 
-void timestep_t::step(xpbd::simulation_t& simulation)
+void timestep_t::step(simulation_t& simulation)
 {
     scalar_type const dt = dt_ / static_cast<scalar_type>(substeps_);
 
@@ -41,7 +42,7 @@ void timestep_t::step(xpbd::simulation_t& simulation)
     for (std::size_t s = 0u; s < substeps_; ++s)
     {
         // move particles using semi-implicit integration
-        for (std::vector<xpbd::particle_t>& body_particles : particles)
+        for (std::vector<particle_t>& body_particles : particles)
         {
             std::for_each(body_particles.begin(), body_particles.end(), [dt](xpbd::particle_t& p) {
                 p.f().y() -= scalar_type{9.81};
@@ -53,7 +54,7 @@ void timestep_t::step(xpbd::simulation_t& simulation)
         solver_->solve(simulation, dt, iterations_);
 
         // set solution
-        for (std::vector<xpbd::particle_t>& body_particles : particles)
+        for (std::vector<particle_t>& body_particles : particles)
         {
             std::for_each(body_particles.begin(), body_particles.end(), [dt](xpbd::particle_t& p) {
                 p.x()  = p.xi();
@@ -104,14 +105,15 @@ std::size_t& timestep_t::substeps()
     return substeps_;
 }
 
-std::unique_ptr<xpbd::solver_t> const& timestep_t::solver() const
+std::unique_ptr<solver_t> const& timestep_t::solver() const
 {
     return solver_;
 }
-std::unique_ptr<xpbd::solver_t>& timestep_t::solver()
+std::unique_ptr<solver_t>& timestep_t::solver()
 {
     return solver_;
 }
 
+} // namespace xpbd
 } // namespace physics
 } // namespace sbs

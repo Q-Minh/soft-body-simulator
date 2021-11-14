@@ -22,7 +22,8 @@ class tetrahedral_domain_t
     tetrahedral_domain_t() = default;
     tetrahedral_domain_t(
         std::vector<Eigen::Vector3d> const& points,
-        std::vector<index_type> const& indices);
+        std::vector<index_type> const& indices,
+        scalar_type const query_error = 1e-2);
 
     tetrahedral_domain_t(tetrahedral_domain_t const& other) = default;
     tetrahedral_domain_t(tetrahedral_domain_t&& other)      = default;
@@ -54,7 +55,8 @@ class tetrahedral_domain_t
         in_tetrahedron_query_t(
             topology::tetrahedron_set_t const* topology,
             std::vector<Eigen::Vector3d> const* mesh_nodes,
-            std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps);
+            std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps,
+            scalar_type tolerance);
 
         in_tetrahedron_query_t(in_tetrahedron_query_t const& other) = default;
         in_tetrahedron_query_t(in_tetrahedron_query_t&& other)      = default;
@@ -73,6 +75,7 @@ class tetrahedral_domain_t
         std::vector<Eigen::Vector3d> const* mesh_nodes_;
         std::vector<math::tetrahedron_barycentric_mapping_t> const* tet_maps_;
         std::vector<Eigen::Vector3d> tetrahedron_centers_;
+        scalar_type tolerance_;
     };
 
   private:

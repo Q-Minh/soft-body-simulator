@@ -37,33 +37,32 @@ body_t::visual_model_type const& linear_tetrahedral_fem_body_t::visual_model() c
     return visual_model_;
 }
 
-body_t::collision_model_type const&
-sbs::physics::body::linear_tetrahedral_fem_body_t::collision_model() const
+body_t::collision_model_type const& linear_tetrahedral_fem_body_t::collision_model() const
 {
     return collision_model_;
 }
 
-body_t::visual_model_type& sbs::physics::body::linear_tetrahedral_fem_body_t::visual_model()
+body_t::visual_model_type& linear_tetrahedral_fem_body_t::visual_model()
 {
     return visual_model_;
 }
 
-body_t::collision_model_type& sbs::physics::body::linear_tetrahedral_fem_body_t::collision_model()
+body_t::collision_model_type& linear_tetrahedral_fem_body_t::collision_model()
 {
     return collision_model_;
 }
 
-void sbs::physics::body::linear_tetrahedral_fem_body_t::update_visual_model()
+void linear_tetrahedral_fem_body_t::update_visual_model()
 {
     visual_model_.update();
 }
 
-void sbs::physics::body::linear_tetrahedral_fem_body_t::update_collision_model()
+void linear_tetrahedral_fem_body_t::update_collision_model()
 {
     collision_model_.update(this->simulation());
 }
 
-void sbs::physics::body::linear_tetrahedral_fem_body_t::update_physical_model()
+void linear_tetrahedral_fem_body_t::update_physical_model()
 {
     auto const& sim       = this->simulation();
     auto const idx        = this->id();
@@ -73,6 +72,38 @@ void sbs::physics::body::linear_tetrahedral_fem_body_t::update_physical_model()
     {
         mechanical_model_.dof(i) = particles[i].x();
     }
+}
+
+mechanics::linear_tetrahedral_fem_model_t const&
+linear_tetrahedral_fem_body_t::get_mechanical_model() const
+{
+    return mechanical_model_;
+}
+
+visual::tetrahedral_fem_embedded_surface const&
+linear_tetrahedral_fem_body_t::get_visual_model() const
+{
+    return visual_model_;
+}
+
+collision::point_bvh_model_t const& linear_tetrahedral_fem_body_t::get_collision_model() const
+{
+    return collision_model_;
+}
+
+mechanics::linear_tetrahedral_fem_model_t& linear_tetrahedral_fem_body_t::get_mechanical_model()
+{
+    return mechanical_model_;
+}
+
+visual::tetrahedral_fem_embedded_surface& linear_tetrahedral_fem_body_t::get_visual_model()
+{
+    return visual_model_;
+}
+
+collision::point_bvh_model_t& linear_tetrahedral_fem_body_t::get_collision_model()
+{
+    return collision_model_;
 }
 
 } // namespace body

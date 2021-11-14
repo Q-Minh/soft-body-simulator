@@ -29,6 +29,14 @@ class linear_tetrahedral_fem_body_t : public body_t
     virtual void update_collision_model() override;
     virtual void update_physical_model() override;
 
+    mechanics::linear_tetrahedral_fem_model_t const& get_mechanical_model() const;
+    visual::tetrahedral_fem_embedded_surface const& get_visual_model() const;
+    collision::point_bvh_model_t const& get_collision_model() const;
+
+    mechanics::linear_tetrahedral_fem_model_t& get_mechanical_model();
+    visual::tetrahedral_fem_embedded_surface& get_visual_model();
+    collision::point_bvh_model_t& get_collision_model();
+
   private:
     mechanics::linear_tetrahedral_fem_model_t mechanical_model_;
     visual::tetrahedral_fem_embedded_surface visual_model_;

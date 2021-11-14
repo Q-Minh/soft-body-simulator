@@ -15,13 +15,11 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
-template <class BasisFunctionType>
+template <class InterpolationFunctionType>
 class strain_energy_quadrature_constraint_t : public constraint_t
 {
   public:
-    using base_type             = constraint_t;
-    using basis_function_type   = BasisFunctionType;
-    using interpolation_op_type = math::interpolation_op_t<basis_function_type>;
+    using interpolation_op_type = InterpolationFunctionType;
 
     strain_energy_quadrature_constraint_t(
         scalar_type alpha,
@@ -40,13 +38,12 @@ class strain_energy_quadrature_constraint_t : public constraint_t
     interpolation_op_type interpolation_op_; ///< Interpolation field
     autodiff::dual wi_;                      ///< Quadrature weight
     autodiff::Vector3dual Xi_;               ///< Quadrature point
-    std::vector<index_type> js_; ///< Independent variable indices (particle position indices)
     scalar_type young_modulus_;
     scalar_type poisson_ratio_;
 };
 
-template <class BasisFunctionType>
-inline strain_energy_quadrature_constraint_t<BasisFunctionType>::
+template <class InterpolationOpType>
+inline strain_energy_quadrature_constraint_t<InterpolationOpType>::
     strain_energy_quadrature_constraint_t(
         scalar_type alpha,
         scalar_type beta,
@@ -66,13 +63,13 @@ inline strain_energy_quadrature_constraint_t<BasisFunctionType>::
 {
 }
 
-template <class BasisFunctionType>
-inline void strain_energy_quadrature_constraint_t<BasisFunctionType>::project_positions(
+template <class InterpolationOpType>
+inline void strain_energy_quadrature_constraint_t<InterpolationOpType>::project_positions(
     simulation_t& simulation,
     scalar_type dt)
 {
-    assert(js_.size() == interpolation_op.uis.size());
-    assert(interpolation_op.uis.size() == interpolation_op.phis.size());
+    assert(js_.size() == interpolation_op_.uis.size());
+    assert(interpolation_op_.uis.size() == interpolation_op_.phis.size());
 
     // Initialize interpolation field with current particle positions
     auto const& particles = simulation.particles();
@@ -82,16 +79,15 @@ inline void strain_energy_quadrature_constraint_t<BasisFunctionType>::project_po
         index_type const b        = bis_[i];
         particle_t const& p       = particles[b][j];
         Eigen::Vector3d const& xi = p.xi();
-        interpolation_op.uis[i]   = xi;
+        interpolation_op_.uis[i]  = xi;
     }
 
     using deformation_gradient_op_type =
         sbs::math::deformation_gradient_op_t<interpolation_op_type>;
     using strain_op_type = sbs::math::strain_op_t<deformation_gradient_op_type>;
 
-    sbs::math::deformation_gradient_op_t<interpolation_op_type> deformation_gradient_op(
-        interpolate_op);
-    sbs::math::strain_op_t<deformation_gradient_op_type> strain_op(deformation_gradient_op);
+    deformation_gradient_op_type deformation_gradient_op(this->interpolation_op_);
+    strain_op_type strain_op(deformation_gradient_op);
     sbs::math::strain_energy_density_op_t<strain_op_type> strain_energy_density_op(
         strain_op,
         young_modulus_,
@@ -108,7 +104,7 @@ inline void strain_energy_quadrature_constraint_t<BasisFunctionType>::project_po
 
     autodiff::dual wiPsi = total_energy(wi_, Xi_);
     // Evaluate constraint
-    scalar_type const C = wiPsi;
+    scalar_type const C = static_cast<scalar_type>(wiPsi);
 
     // Constraint projection
     std::vector<Eigen::Vector3d> gradC{};
@@ -120,8 +116,8 @@ inline void strain_energy_quadrature_constraint_t<BasisFunctionType>::project_po
 
     for (auto i = 0u; i < js_.size(); ++i)
     {
-        autodiff::Vector3dual const dCdxi =
-            autodiff::gradient(total_energy, wrt(interpolate_op.uis[i]), at(wi_, Xi_));
+        autodiff::Vector3dual& xi         = this->interpolation_op_.uis[i];
+        autodiff::Vector3dual const dCdxi = autodiff::gradient(total_energy, wrt(xi), at(wi_, Xi_));
         gradC.push_back(dCdxi.cast<scalar_type>());
     }
 

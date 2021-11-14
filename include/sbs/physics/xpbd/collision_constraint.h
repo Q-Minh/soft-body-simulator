@@ -9,9 +9,6 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
-// Forward declares
-class simulation_t;
-
 class collision_constraint_t : public constraint_t
 {
   public:

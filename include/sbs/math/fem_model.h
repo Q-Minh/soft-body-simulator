@@ -7,6 +7,7 @@
 #include "sbs/geometry/tetrahedral_domain.h"
 
 #include <Eigen/Core>
+#include <unordered_map>
 #include <vector>
 
 namespace sbs {
@@ -138,22 +139,45 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
     auto const element_count = topology.tetrahedron_count();
     auto const vertex_count  = topology.vertex_count();
 
+    // Create first-order DOFS and points first, since they need to be shared by elements
+    for (auto i = 0u; i < vertex_count; ++i)
+    {
+        autodiff::Vector3dual const Xi = domain_.position(i);
+
+        this->add_point(Xi);
+        this->add_dof(dof_type{});
+    }
+
     // Create elements, cells, points and dofs by traversing the domain's tetrahedra
     for (auto e = 0u; e < element_count; ++e)
     {
         topology::tetrahedron_t const& tetrahedron = topology.tetrahedron(e);
-        autodiff::Vector3dual const X1             = domain_.position(tetrahedron.v1());
-        autodiff::Vector3dual const X2             = domain_.position(tetrahedron.v2());
-        autodiff::Vector3dual const X3             = domain_.position(tetrahedron.v3());
-        autodiff::Vector3dual const X4             = domain_.position(tetrahedron.v4());
+        index_type const v1                        = tetrahedron.v1();
+        index_type const v2                        = tetrahedron.v2();
+        index_type const v3                        = tetrahedron.v3();
+        index_type const v4                        = tetrahedron.v4();
+        autodiff::Vector3dual const X1             = domain_.position(v1);
+        autodiff::Vector3dual const X2             = domain_.position(v2);
+        autodiff::Vector3dual const X3             = domain_.position(v3);
+        autodiff::Vector3dual const X4             = domain_.position(v4);
 
         element_type element(X1, X2, X3, X4);
         unsigned int constexpr node_count = cell_type::node_count_value;
 
+        std::unordered_map<index_type, index_type> local_to_global{};
+        local_to_global[0u] = v1;
+        local_to_global[1u] = v2;
+        local_to_global[2u] = v3;
+        local_to_global[3u] = v4;
+
         std::vector<autodiff::Vector3dual> Xis{};
         Xis.reserve(node_count);
+        Xis.push_back(X1);
+        Xis.push_back(X2);
+        Xis.push_back(X3);
+        Xis.push_back(X4);
 
-        // Sample nodes uniformly in the tetrahedral element
+        // Sample interior nodes uniformly in the tetrahedral element
         unsigned int const num_segments_on_edge = Order;
         scalar_type deltaX = 1. / static_cast<scalar_type>(num_segments_on_edge);
         unsigned int constexpr num_samples_on_edge = Order + 1u;
@@ -165,12 +189,29 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
                 auto const i_samples = num_samples_on_edge - k - j;
                 for (auto i = 0u; i < i_samples; ++i)
                 {
+                    // clang-format off
+                    bool const is_tet_vertex =
+                        (k == 0u && j == 0u && i == 0u) || 
+                        (k == 0u && j == 0u && i == num_samples_on_edge - 1u) ||
+                        (k == 0u && j == num_samples_on_edge - 1u && i == 0u) || 
+                        (k == num_samples_on_edge - 1u && j == 0u && i == 0u);
+                    // clang-format on
+
+                    if (is_tet_vertex)
+                        continue;
+
                     auto const dX = i * deltaX;
                     auto const dY = j * deltaX;
                     auto const dZ = k * deltaX;
 
                     autodiff::Vector3dual const Xi = X1 + autodiff::Vector3dual(dX, dY, dZ);
                     Xis.push_back(Xi);
+
+                    auto global_idx            = static_cast<index_type>(this->dof_count());
+                    auto local_idx             = static_cast<index_type>(local_to_global.size());
+                    local_to_global[local_idx] = global_idx;
+                    this->add_dof(dof_type{});
+                    this->add_point(Xi);
                 }
             }
         }
@@ -191,7 +232,7 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
         {
             basis_function_type const phi(Pinv.col(r));
             autodiff::Vector3dual const& Xr = Xis[r];
-            index_type const i              = static_cast<index_type>(node_index_offset + r);
+            index_type const i              = local_to_global[r];
 
             cell.set_node(r, i);
             cell.set_phi(r, phi);
@@ -200,11 +241,6 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
         // build fem model
         this->add_element(element);
         this->add_cell(cell);
-        for (auto r = 0u; r < node_count; ++r)
-        {
-            this->add_point(Xis[r]);
-            this->add_dof(dof_type{});
-        }
     }
 }
 

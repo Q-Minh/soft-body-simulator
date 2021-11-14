@@ -4,7 +4,7 @@ namespace sbs {
 namespace physics {
 namespace visual {
 
-sbs::physics::visual::tetrahedral_fem_embedded_surface::tetrahedral_fem_embedded_surface(
+tetrahedral_fem_embedded_surface::tetrahedral_fem_embedded_surface(
     std::vector<Eigen::Vector3d> const& points,
     std::vector<index_type> const& indices,
     mechanics::linear_tetrahedral_fem_model_t const* mechanical_model)
@@ -49,12 +49,18 @@ sbs::physics::visual::tetrahedral_fem_embedded_surface::tetrahedral_fem_embedded
     }
 
     this->use_interpolation_operators(interpolation_ops);
+    this->update();
 }
 
 mechanics::linear_tetrahedral_fem_model_t const*
 tetrahedral_fem_embedded_surface::mechanical_model() const
 {
     return mechanical_model_;
+}
+
+index_type tetrahedral_fem_embedded_surface::cell_containing_vertex(index_type vi) const
+{
+    return cell_containing_vertex_[vi];
 }
 
 void tetrahedral_fem_embedded_surface::update()

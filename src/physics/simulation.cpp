@@ -14,16 +14,20 @@ void simulation_t::add_particle(particle_t const& p, index_type const body_idx)
     particles_[body_idx].push_back(p);
 }
 
-void simulation_t::add_body(std::unique_ptr<body_t> body)
+index_type simulation_t::add_body(std::unique_ptr<body_t> body)
 {
+    index_type bi = bodies_.size();
     bodies_.push_back(std::move(body));
     particles_.push_back({});
+    return bi;
 }
 
-void simulation_t::add_body()
+index_type simulation_t::add_body()
 {
+    index_type bi = bodies_.size();
     bodies_.push_back({});
     particles_.push_back({});
+    return bi;
 }
 
 void simulation_t::add_constraint(std::unique_ptr<constraint_t> constraint)

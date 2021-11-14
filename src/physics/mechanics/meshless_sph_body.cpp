@@ -37,7 +37,7 @@ meshless_sph_body_t::meshless_sph_body_t(
 
     for (std::size_t i = 0u; i < geometry.indices.size(); i += 4u)
     {
-        sbs::physics::tetrahedron_t const tetrahedron{
+        topology::tetrahedron_t const tetrahedron{
             static_cast<index_type>(geometry.indices[i]),
             static_cast<index_type>(geometry.indices[i + 1u]),
             static_cast<index_type>(geometry.indices[i + 2u]),
@@ -60,10 +60,10 @@ meshless_sph_body_t::meshless_sph_body_t(
         vertices.push_back(pos);
     }
     std::vector<std::array<unsigned int, 3u>> faces{};
-    std::vector<triangle_t> const boundary_triangles =
+    std::vector<topology::triangle_t> const boundary_triangles =
         volumetric_topology_.oriented_boundary_triangles();
     faces.reserve(boundary_triangles.size());
-    for (triangle_t const& f : boundary_triangles)
+    for (topology::triangle_t const& f : boundary_triangles)
         faces.push_back({f.v1(), f.v2(), f.v3()});
 
     /**
@@ -142,7 +142,7 @@ meshless_sph_body_t::meshless_sph_body_t(
     // are actually referenced by faces
     std::unordered_map<index_type, index_type> tet_vertex_to_surface_vertex{};
     std::vector<Eigen::Vector3d> surface_vertices{};
-    std::vector<triangle_t> surface_triangles{};
+    std::vector<topology::triangle_t> surface_triangles{};
     for (auto const& f : boundary_triangles)
     {
         if (tet_vertex_to_surface_vertex.find(f.v1()) == tet_vertex_to_surface_vertex.end())
@@ -167,7 +167,7 @@ meshless_sph_body_t::meshless_sph_body_t(
         auto const v1 = tet_vertex_to_surface_vertex[f.v1()];
         auto const v2 = tet_vertex_to_surface_vertex[f.v2()];
         auto const v3 = tet_vertex_to_surface_vertex[f.v3()];
-        triangle_t const triangle{v1, v2, v3};
+        topology::triangle_t const triangle{v1, v2, v3};
         surface_triangles.push_back(triangle);
     }
 
@@ -286,12 +286,12 @@ meshless_sph_body_range_searcher_t const& meshless_sph_body_t::range_searcher() 
     return material_space_range_query_;
 }
 
-tetrahedron_set_t const& meshless_sph_body_t::topology() const
+topology::tetrahedron_set_t const& meshless_sph_body_t::topology() const
 {
     return volumetric_topology_;
 }
 
-tetrahedron_set_t& meshless_sph_body_t::topology()
+topology::tetrahedron_set_t& meshless_sph_body_t::topology()
 {
     return volumetric_topology_;
 }

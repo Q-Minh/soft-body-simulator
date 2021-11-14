@@ -9,6 +9,18 @@
 namespace sbs {
 namespace math {
 
+class identity_mapping_t
+{
+  public:
+    autodiff::Vector3dual to_domain(autodiff::Vector3dual const& X) const { return X; }
+    autodiff::Vector3dual to_ref(autodiff::Vector3dual const& x) const { return x; }
+    autodiff::Matrix3dual jacobian(autodiff::Vector3dual const& x) const
+    {
+        return autodiff::Matrix3dual::Identity();
+    }
+    autodiff::dual determinant(autodiff::Vector3dual const& x) const { return 1.; }
+};
+
 class tetrahedron_affine_mapping_t
 {
   public:
@@ -54,10 +66,10 @@ class tetrahedron_barycentric_mapping_t
         : A_(), Ainv_(), det_()
     {
         A_.row(0).setOnes();
-        A_.block(1, 0, 3, 1) = X1;
-        A_.block(1, 1, 3, 1) = X2;
-        A_.block(1, 2, 3, 1) = X3;
-        A_.block(1, 3, 3, 1) = X4;
+        A_.block(1, 0, 3, 1) = X1.cast<scalar_type>();
+        A_.block(1, 1, 3, 1) = X2.cast<scalar_type>();
+        A_.block(1, 2, 3, 1) = X3.cast<scalar_type>();
+        A_.block(1, 3, 3, 1) = X4.cast<scalar_type>();
 
         Ainv_ = A_.inverse();
         det_  = A_.determinant();
@@ -71,7 +83,7 @@ class tetrahedron_barycentric_mapping_t
     }
     bool contains(autodiff::Vector3dual X) const
     {
-        Eigen::Vector4d const bc       = barycentric_coordinates(X);
+        Eigen::Vector4d const bc       = barycentric_coordinates(X).cast<scalar_type>();
         auto const sum                 = bc.sum();
         bool const is_sum_equal_to_one = std::abs(1. - sum) < eps();
         bool const are_all_coefficients_less_than_one =
@@ -87,8 +99,8 @@ class tetrahedron_barycentric_mapping_t
     autodiff::dual determinant() const { return det_; }
 
   private:
-    autodiff::Matrix4dual A_;
-    autodiff::Matrix4dual Ainv_;
+    Eigen::Matrix4d A_;
+    Eigen::Matrix4d Ainv_;
     autodiff::dual det_;
 };
 

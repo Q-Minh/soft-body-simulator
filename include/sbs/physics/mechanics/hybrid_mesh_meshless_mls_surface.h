@@ -8,10 +8,12 @@
 #include <vector>
 
 namespace sbs {
-namespace physics {
 
+namespace topology {
 class triangle_t;
+} // namespace topology
 
+namespace physics {
 namespace mechanics {
 
 class hybrid_mesh_meshless_mls_body_t;
@@ -64,7 +66,7 @@ class hybrid_mesh_meshless_sph_surface_t : public common::shared_vertex_surface_
     hybrid_mesh_meshless_sph_surface_t(
         hybrid_mesh_meshless_mls_body_t* mechanical_model,
         std::vector<Eigen::Vector3d> const& vertices,
-        std::vector<triangle_t> const& triangles);
+        std::vector<topology::triangle_t> const& triangles);
 
     hybrid_mesh_meshless_sph_surface_t(hybrid_mesh_meshless_sph_surface_t const& other) = default;
     hybrid_mesh_meshless_sph_surface_t(hybrid_mesh_meshless_sph_surface_t&& other)      = default;

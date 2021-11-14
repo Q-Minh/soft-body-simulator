@@ -55,10 +55,11 @@ struct polynomial_hat_basis_function_t
         Eigen::Vector<autodiff::dual, num_nodes_for_tetrahedron_cell_of_order_t<Order>::value>;
     static_assert(
         num_nodes_for_tetrahedron_cell_of_order_t<Order>::value ==
-            num_coefficients_for_polynomial_of_order_t > Order > ::value_compare,
+            num_coefficients_for_polynomial_of_order_t<Order>::value,
         "Number of nodes required in the tetrahedron should be same number of coefficients "
         "required in polynomial interpolation");
 
+    polynomial_hat_basis_function_t() = default;
     polynomial_hat_basis_function_t(coefficients_type const& a) : a(a) {}
 
     autodiff::dual operator()(autodiff::Vector3dual const& X) const

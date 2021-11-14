@@ -7,7 +7,7 @@
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/bvh_model.h>
 #include <sbs/physics/mechanics/meshless_sph_surface.h>
-#include <sbs/physics/topology.h>
+#include <sbs/topology/tetrahedron_set.h>
 #include <vector>
 
 namespace sbs {
@@ -93,8 +93,8 @@ class meshless_sph_body_t : public physics::body_t
     collision::point_bvh_model_t const& bvh() const;
 
     meshless_sph_body_range_searcher_t const& range_searcher() const;
-    tetrahedron_set_t const& topology() const;
-    tetrahedron_set_t& topology();
+    topology::tetrahedron_set_t const& topology() const;
+    topology::tetrahedron_set_t& topology();
     scalar_type h() const;
 
     void initialize_physical_model();
@@ -105,7 +105,7 @@ class meshless_sph_body_t : public physics::body_t
     std::vector<meshless_sph_node_t> meshless_nodes_;
     meshless_sph_body_range_searcher_t
         material_space_range_query_; ///< Used for querying neighbours in material space
-    tetrahedron_set_t
+    topology::tetrahedron_set_t
         volumetric_topology_; ///< Only used for boundary surface extraction, the mechanical
                               ///< representation is still just a set of meshless meshless_nodes
     meshless_sph_surface_t visual_model_;

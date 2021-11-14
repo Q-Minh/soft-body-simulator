@@ -7,7 +7,7 @@
 #include <sbs/physics/body.h>
 #include <sbs/physics/collision/bvh_model.h>
 #include <sbs/physics/mechanics/hybrid_mesh_meshless_mls_surface.h>
-#include <sbs/physics/topology.h>
+#include <sbs/topology/tetrahedron_set.h>
 
 namespace sbs {
 namespace common {
@@ -56,7 +56,7 @@ class mesh_tetrahedron_range_searcher_t : public Discregrid::KDTree<Discregrid::
 
     mesh_tetrahedron_range_searcher_t();
     mesh_tetrahedron_range_searcher_t(
-        tetrahedron_set_t const* topology,
+        topology::tetrahedron_set_t const* topology,
         std::vector<Eigen::Vector3d> const* mesh_nodes,
         std::vector<Eigen::Matrix4d> const* Ainv);
 
@@ -75,7 +75,7 @@ class mesh_tetrahedron_range_searcher_t : public Discregrid::KDTree<Discregrid::
         const override final;
 
   private:
-    tetrahedron_set_t const* topology_;
+    topology::tetrahedron_set_t const* topology_;
     std::vector<Eigen::Vector3d> const* mesh_nodes_;
     std::vector<Eigen::Matrix4d> const* Ainv_;
     std::vector<Eigen::Vector3d> tetrahedron_centers_;
@@ -135,8 +135,8 @@ class hybrid_mesh_meshless_mls_body_t : public physics::body_t
     std::size_t interior_tetrahedron_count() const;
     std::size_t mesh_shape_function_count() const;
 
-    tetrahedron_set_t const& topology() const;
-    tetrahedron_set_t& topology();
+    topology::tetrahedron_set_t const& topology() const;
+    topology::tetrahedron_set_t& topology();
     scalar_type h() const;
 
     std::vector<Eigen::Vector3d> const& x0() const;
@@ -179,7 +179,8 @@ class hybrid_mesh_meshless_mls_body_t : public physics::body_t
         material_space_meshless_node_searcher_; ///< Used for querying neighbours in material space
     detail::hybrid_mesh_meshless_sph::mesh_tetrahedron_range_searcher_t
         material_space_mesh_node_searcher_;
-    tetrahedron_set_t volumetric_topology_; ///< Is not the topology of the mechanical model.
+    topology::tetrahedron_set_t
+        volumetric_topology_; ///< Is not the topology of the mechanical model.
     std::vector<bool>
         is_boundary_vertex_; ///< vi is a boundary vertex if is_boundary_vertex_ == true
     std::vector<bool>

@@ -64,7 +64,7 @@ void hybrid_mesh_meshless_mls_collision_constraint_t::project_positions(
     if (vk_.is_in_tetrahedron())
     {
         std::array<std::optional<scalar_type>, 4u> const& mesh_phi_js = vk_.mesh_phi_js();
-        tetrahedron_t const& t = b_->topology().tetrahedron(vk_.ti());
+        topology::tetrahedron_t const& t = b_->topology().tetrahedron(vk_.ti());
         auto const& vis        = t.vertex_indices();
         for (std::uint8_t v = 0u; v < 4u; ++v)
         {
@@ -107,7 +107,7 @@ void hybrid_mesh_meshless_mls_collision_constraint_t::project_positions(
     if (vk_.is_in_tetrahedron())
     {
         std::array<std::optional<scalar_type>, 4u> const& mesh_phi_js = vk_.mesh_phi_js();
-        tetrahedron_t const& t = b_->topology().tetrahedron(vk_.ti());
+        topology::tetrahedron_t const& t = b_->topology().tetrahedron(vk_.ti());
         auto const& vis        = t.vertex_indices();
         for (std::uint8_t v = 0u; v < 4u; ++v)
         {

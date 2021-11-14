@@ -3,7 +3,7 @@
 
 #include <Eigen/Core>
 #include <sbs/common/mesh.h>
-#include <sbs/physics/topology.h>
+#include <sbs/topology/tetrahedron_set.h>
 
 namespace sbs {
 namespace physics {
@@ -72,7 +72,7 @@ class meshless_sph_surface_t : public common::shared_vertex_surface_mesh_i
     meshless_sph_surface_t(
         meshless_sph_body_t* mechanical_model,
         std::vector<Eigen::Vector3d> const& vertices,
-        std::vector<triangle_t> const& triangles);
+        std::vector<topology::triangle_t> const& triangles);
 
     meshless_sph_surface_t(meshless_sph_surface_t const& other) = default;
     meshless_sph_surface_t(meshless_sph_surface_t&& other)      = default;

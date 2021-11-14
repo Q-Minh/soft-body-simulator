@@ -1,8 +1,8 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <numeric>
-#include <sbs/physics/tetrahedral_mesh_boundary.h>
-#include <sbs/physics/topology.h>
+#include "sbs/physics/tetrahedral_mesh_boundary.h"
+#include "sbs/topology/tetrahedron_set.h"
 
 namespace sbs {
 namespace physics {
@@ -11,7 +11,7 @@ namespace physics {
  * Surface mesh adapter
  */
 
-tetrahedral_mesh_boundary_t::tetrahedral_mesh_boundary_t(tetrahedron_set_t* mesh)
+tetrahedral_mesh_boundary_t::tetrahedral_mesh_boundary_t(topology::tetrahedron_set_t* mesh)
     : mesh_(mesh),
       vertex_index_map_{},
       tet_to_surface_vertex_index_map_{},
@@ -80,7 +80,7 @@ void tetrahedral_mesh_boundary_t::extract_boundary_surface()
     triangles_.reserve(mesh_->triangle_count());
     vertices_.reserve(mesh_->vertex_count());
 
-    std::vector<triangle_t> const& triangles = mesh_->triangles();
+    std::vector<topology::triangle_t> const& triangles = mesh_->triangles();
     for (std::size_t fi = 0u; fi < triangles.size(); ++fi)
     {
         bool const is_interior_triangle = triangles[fi].incident_tetrahedron_indices().size() == 2u;
@@ -89,7 +89,7 @@ void tetrahedral_mesh_boundary_t::extract_boundary_surface()
 
         triangle_index_map_.push_back(static_cast<index_type>(fi));
 
-        triangle_t const& boundary_triangle = triangles[fi];
+        topology::triangle_t const& boundary_triangle = triangles[fi];
         triangle_type surface_mesh_triangle{};
 
         for (std::size_t j = 0u; j < boundary_triangle.vertex_indices().size(); ++j)
@@ -215,12 +215,12 @@ void tetrahedral_mesh_boundary_t::prepare_indices_for_wireframe_rendering()
     // no-op
 }
 
-tetrahedron_set_t const* tetrahedral_mesh_boundary_t::tetrahedral_mesh() const
+topology::tetrahedron_set_t const* tetrahedral_mesh_boundary_t::tetrahedral_mesh() const
 {
     return mesh_;
 }
 
-tetrahedron_set_t* tetrahedral_mesh_boundary_t::tetrahedral_mesh()
+topology::tetrahedron_set_t* tetrahedral_mesh_boundary_t::tetrahedral_mesh()
 {
     return mesh_;
 }

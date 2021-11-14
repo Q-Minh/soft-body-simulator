@@ -8,10 +8,12 @@
 #include <vector>
 
 namespace sbs {
-namespace physics {
-
+namespace topology {
 // Forward declares
 class tetrahedron_set_t;
+} // namespace topology
+
+namespace physics {
 
 /**
  * @brief Surface mesh representation of a tetrahedral mesh's boundary surface.
@@ -23,7 +25,7 @@ class tetrahedral_mesh_boundary_t : public common::shared_vertex_surface_mesh_i
     using triangle_type = common::shared_vertex_surface_mesh_i::triangle_type;
 
     tetrahedral_mesh_boundary_t() = default;
-    tetrahedral_mesh_boundary_t(tetrahedron_set_t* mesh);
+    tetrahedral_mesh_boundary_t(topology::tetrahedron_set_t* mesh);
 
     tetrahedral_mesh_boundary_t(tetrahedral_mesh_boundary_t const& other) = default;
     tetrahedral_mesh_boundary_t(tetrahedral_mesh_boundary_t&& other)      = default;
@@ -74,8 +76,8 @@ class tetrahedral_mesh_boundary_t : public common::shared_vertex_surface_mesh_i
 
     void compute_normals();
 
-    tetrahedron_set_t const* tetrahedral_mesh() const;
-    tetrahedron_set_t* tetrahedral_mesh();
+    topology::tetrahedron_set_t const* tetrahedral_mesh() const;
+    topology::tetrahedron_set_t* tetrahedral_mesh();
 
   private:
     void prepare_vertices_for_surface_rendering();
@@ -83,7 +85,7 @@ class tetrahedral_mesh_boundary_t : public common::shared_vertex_surface_mesh_i
     void prepare_vertices_for_wireframe_rendering();
     void prepare_indices_for_wireframe_rendering();
 
-    tetrahedron_set_t* mesh_;
+    topology::tetrahedron_set_t* mesh_;
     std::vector<index_type>
         vertex_index_map_; ///< Maps from surface vertex indices to tet vertex indices
     std::vector<std::optional<index_type>>

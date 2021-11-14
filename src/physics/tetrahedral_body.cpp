@@ -21,7 +21,7 @@ tetrahedral_body_t::tetrahedral_body_t(
 
     for (std::size_t i = 0u; i < geometry.indices.size(); i += 4u)
     {
-        sbs::physics::tetrahedron_t const tetrahedron{
+        topology::tetrahedron_t const tetrahedron{
             static_cast<index_type>(geometry.indices[i]),
             static_cast<index_type>(geometry.indices[i + 1u]),
             static_cast<index_type>(geometry.indices[i + 2u]),
@@ -109,7 +109,7 @@ void tetrahedral_body_t::transform(Eigen::Affine3d const& affine)
     visual_model_.compute_normals();
 }
 
-tetrahedron_set_t const& tetrahedral_body_t::physical_model() const
+topology::tetrahedron_set_t const& tetrahedral_body_t::physical_model() const
 {
     return physical_model_;
 }

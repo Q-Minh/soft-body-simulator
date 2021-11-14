@@ -32,7 +32,7 @@ constexpr autodiff::Vector3dual reference_tetrahedron_position()
     }
 }
 
-std::array<autodiff::Vector3dual, 4> reference_tetrahedron()
+inline std::array<autodiff::Vector3dual, 4> reference_tetrahedron()
 {
     return {
         reference_tetrahedron_position<0>(),

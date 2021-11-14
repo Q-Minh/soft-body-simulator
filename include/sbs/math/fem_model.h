@@ -108,6 +108,10 @@ class tetrahedral_fem_model_t : public fem_model_t<
 
     tetrahedral_fem_model_t(geometry::tetrahedral_domain_t const& domain);
 
+    // Accessors
+    geometry::tetrahedral_domain_t const& domain() const { return domain_; }
+
+    // Mutators
     void build_model();
 
   private:
@@ -141,14 +145,13 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
         autodiff::Vector3dual const X4             = domain_.position(tetrahedron.v4());
 
         element_type element(X1, X2, X3, X4);
-        cell_type cell{};
-        unsigned int constexpr node_count = cell.node_count();
+        unsigned int constexpr node_count = cell_type::node_count_value;
 
         std::vector<autodiff::Vector3dual> Xis{};
         Xis.reserve(node_count);
 
         // Sample nodes uniformly in the tetrahedral element
-        unsigned int const num_segments_on_edge = num_samples_on_edge - 1;
+        unsigned int const num_segments_on_edge = Order;
         scalar_type deltaX = 1. / static_cast<scalar_type>(num_segments_on_edge);
         unsigned int constexpr num_samples_on_edge = Order + 1u;
         for (auto k = 0u; k < num_samples_on_edge; ++k)
@@ -180,12 +183,14 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
         PolynomialMatrixType const Pinv = P.inverse(); // LU-decomposition based inverse
 
         auto const node_index_offset = this->point_count();
+        cell_type cell{};
         for (auto r = 0u; r < node_count; ++r)
         {
             basis_function_type const phi(Pinv.col(r));
             autodiff::Vector3dual const& Xr = Xis[r];
+            index_type const i              = static_cast<index_type>(node_index_offset + r);
 
-            cell.set_node(r, node_index_offset + r);
+            cell.set_node(r, i);
             cell.set_phi(r, phi);
         }
 

@@ -23,8 +23,7 @@ int main(int argc, char** argv)
 
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
-    auto const beam_idx = static_cast<sbs::index_type>(simulation.bodies().size());
-    simulation.add_body();
+    auto const beam_idx = simulation.add_body();
     simulation.bodies()[beam_idx] =
         std::make_unique<sbs::physics::tetrahedral_body_t>(simulation, beam_idx, beam_geometry);
     sbs::physics::tetrahedral_body_t& beam =

@@ -6,7 +6,7 @@
 #include <sbs/physics/collision/bvh_model.h>
 #include <sbs/physics/particle.h>
 #include <sbs/physics/tetrahedral_mesh_boundary.h>
-#include <sbs/physics/topology.h>
+#include <sbs/topology/tetrahedron_set.h>
 
 namespace sbs {
 namespace common {
@@ -36,7 +36,7 @@ class tetrahedral_body_t : public body_t
     virtual void update_physical_model() override;
     virtual void transform(Eigen::Affine3d const& affine) override;
 
-    tetrahedron_set_t const& physical_model() const;
+    topology::tetrahedron_set_t const& physical_model() const;
 
     tetrahedral_mesh_boundary_t const& surface_mesh() const;
     tetrahedral_mesh_boundary_t& surface_mesh();
@@ -51,7 +51,7 @@ class tetrahedral_body_t : public body_t
 
   private:
     std::vector<Eigen::Vector3d> x0_;
-    tetrahedron_set_t physical_model_;
+    topology::tetrahedron_set_t physical_model_;
     tetrahedral_mesh_boundary_t visual_model_;
     collision::point_bvh_model_t collision_model_;
 };

@@ -41,7 +41,7 @@ hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
     volumetric_topology_.reserve_vertices(geometry.positions.size() / 3u);
     for (std::size_t i = 0u; i < geometry.indices.size(); i += 4u)
     {
-        sbs::physics::tetrahedron_t const tetrahedron{
+        topology::tetrahedron_t const tetrahedron{
             static_cast<index_type>(geometry.indices[i]),
             static_cast<index_type>(geometry.indices[i + 1u]),
             static_cast<index_type>(geometry.indices[i + 2u]),
@@ -77,16 +77,16 @@ hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
      * Extract boundary surface of the tetrahedral exterior_layer_mesh
      */
     std::vector<std::array<unsigned int, 3u>> exterior_boundary_faces{};
-    std::vector<triangle_t> const exterior_layer_boundary_triangles =
+    std::vector<topology::triangle_t> const exterior_layer_boundary_triangles =
         volumetric_topology_.oriented_boundary_triangles();
     exterior_boundary_faces.reserve(exterior_layer_boundary_triangles.size());
-    for (triangle_t const& f : exterior_layer_boundary_triangles)
+    for (topology::triangle_t const& f : exterior_layer_boundary_triangles)
         exterior_boundary_faces.push_back({f.v1(), f.v2(), f.v3()});
 
     /**
      * Extract interior layer's boundary surface of the tetrahedral exterior_layer_mesh
      */
-    tetrahedron_set_t interior_tetrahedral_topology = volumetric_topology_;
+    topology::tetrahedron_set_t interior_tetrahedral_topology = volumetric_topology_;
     is_boundary_tetrahedron_.resize(volumetric_topology_.tetrahedron_count(), false);
     std::vector<index_type> const boundary_tets =
         volumetric_topology_.boundary_tetrahedron_indices();
@@ -98,10 +98,10 @@ hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
     interior_tetrahedral_topology.collect_garbage();
 
     std::vector<std::array<unsigned int, 3u>> interior_boundary_faces{};
-    std::vector<triangle_t> const interior_layer_boundary_triangles =
+    std::vector<topology::triangle_t> const interior_layer_boundary_triangles =
         interior_tetrahedral_topology.oriented_boundary_triangles();
     interior_boundary_faces.reserve(interior_layer_boundary_triangles.size());
-    for (triangle_t const& f : interior_layer_boundary_triangles)
+    for (topology::triangle_t const& f : interior_layer_boundary_triangles)
         interior_boundary_faces.push_back({f.v1(), f.v2(), f.v3()});
 
     /**
@@ -194,7 +194,7 @@ hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
     }
 
     std::vector<Eigen::Vector3d> surface_vertices{};
-    std::vector<triangle_t> surface_triangles{};
+    std::vector<topology::triangle_t> surface_triangles{};
     std::unordered_map<index_type, index_type> tet_to_surface_vertex_map{};
     for (auto const& f : exterior_layer_boundary_triangles)
     {
@@ -220,7 +220,7 @@ hybrid_mesh_meshless_mls_body_t::hybrid_mesh_meshless_mls_body_t(
         auto const v1 = tet_to_surface_vertex_map[f.v1()];
         auto const v2 = tet_to_surface_vertex_map[f.v2()];
         auto const v3 = tet_to_surface_vertex_map[f.v3()];
-        triangle_t const triangle{v1, v2, v3};
+        topology::triangle_t const triangle{v1, v2, v3};
         surface_triangles.push_back(triangle);
     }
 
@@ -328,7 +328,7 @@ void hybrid_mesh_meshless_mls_body_t::initialize_physical_model()
     for (std::size_t i = 0u; i < volumetric_topology_.tetrahedron_count(); ++i)
     {
         index_type const ti       = static_cast<index_type>(i);
-        tetrahedron_t const& t    = volumetric_topology_.tetrahedron(ti);
+        topology::tetrahedron_t const& t = volumetric_topology_.tetrahedron(ti);
         Eigen::Vector3d const& X0 = mesh_x0_[t.v1()];
         Eigen::Vector3d const& X1 = mesh_x0_[t.v2()];
         Eigen::Vector3d const& X2 = mesh_x0_[t.v3()];
@@ -505,12 +505,12 @@ std::size_t hybrid_mesh_meshless_mls_body_t::mesh_shape_function_count() const
     return count;
 }
 
-tetrahedron_set_t const& hybrid_mesh_meshless_mls_body_t::topology() const
+topology::tetrahedron_set_t const& hybrid_mesh_meshless_mls_body_t::topology() const
 {
     return volumetric_topology_;
 }
 
-tetrahedron_set_t& hybrid_mesh_meshless_mls_body_t::topology()
+topology::tetrahedron_set_t& hybrid_mesh_meshless_mls_body_t::topology()
 {
     return volumetric_topology_;
 }
@@ -696,7 +696,7 @@ mesh_tetrahedron_range_searcher_t::mesh_tetrahedron_range_searcher_t()
 }
 
 mesh_tetrahedron_range_searcher_t::mesh_tetrahedron_range_searcher_t(
-    tetrahedron_set_t const* topology,
+    topology::tetrahedron_set_t const* topology,
     std::vector<Eigen::Vector3d> const* mesh_nodes,
     std::vector<Eigen::Matrix4d> const* Ainv)
     : base_type(topology->tetrahedron_count()),
@@ -726,7 +726,7 @@ index_type mesh_tetrahedron_range_searcher_t::in_tetrahedron(Eigen::Vector3d con
     };
 
     auto const is_point_in_tetrahedron =
-        [this](Eigen::Vector3d const& point, tetrahedron_t const& t) {
+        [this](Eigen::Vector3d const& point, topology::tetrahedron_t const& t) {
             auto const& face_copies = t.faces_copy();
             std::array<bool, 4u> is_inside{false, false, false, false};
             for (std::uint8_t i = 0u; i < 4u; ++i)
@@ -760,7 +760,7 @@ index_type mesh_tetrahedron_range_searcher_t::in_tetrahedron(Eigen::Vector3d con
         for (auto j = node.begin; j < node.begin + node.n; ++j)
         {
             index_type const ti    = static_cast<index_type>(m_lst[j]);
-            tetrahedron_t const& t = topology_->tetrahedron(ti);
+            topology::tetrahedron_t const& t = topology_->tetrahedron(ti);
 
             Eigen::Vector3d const& p1 = (*mesh_nodes_)[t.v1()];
             Eigen::Vector3d const& p2 = (*mesh_nodes_)[t.v2()];
@@ -815,7 +815,7 @@ void mesh_tetrahedron_range_searcher_t::computeHull(
     for (unsigned int i = b; i < n + b; ++i)
     {
         index_type const ti    = static_cast<index_type>(m_lst[i]);
-        tetrahedron_t const& t = topology_->tetrahedron(ti);
+        topology::tetrahedron_t const& t = topology_->tetrahedron(ti);
         for (index_type const vi : t.vertex_indices())
         {
             Eigen::Vector3d const& pi = (*mesh_nodes_)[vi];

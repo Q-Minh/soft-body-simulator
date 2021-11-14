@@ -107,7 +107,7 @@ void hybrid_mesh_meshless_mls_node_t::initialize(
     mesh_PXj_grad_phi_Xis.fill(Eigen::Vector4d{0., 0., 0., 0.});
     if (body_.is_boundary_mesh_tetrahedron(ti_))
     {
-        tetrahedron_t const& t = body_.topology().tetrahedron(ti_);
+        topology::tetrahedron_t const& t = body_.topology().tetrahedron(ti_);
         for (std::uint8_t i = 0u; i < 4u; ++i)
         {
             index_type const vi = t.vertex_indices()[i];
@@ -301,7 +301,7 @@ index_type hybrid_mesh_meshless_mls_node_t::ti() const
 
 std::array<index_type, 4u> const& hybrid_mesh_meshless_mls_node_t::vis() const
 {
-    tetrahedron_t const& t = body_.topology().tetrahedron(ti_);
+    topology::tetrahedron_t const& t = body_.topology().tetrahedron(ti_);
     return t.vertex_indices();
 }
 

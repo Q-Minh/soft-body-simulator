@@ -12,9 +12,17 @@ template <unsigned int NumNodes, class BasisFunctionType>
 class cell_t
 {
   public:
-    using node_count_value    = NumNodes;
-    using size_type           = std::size_t;
-    using basis_function_type = BasisFunctionType;
+    static constexpr unsigned int node_count_value = NumNodes;
+    using size_type                                = std::size_t;
+    using basis_function_type                      = BasisFunctionType;
+
+    cell_t() = default;
+    cell_t(
+        std::array<index_type, NumNodes> const& nodes,
+        std::array<basis_function_type, NumNodes> phis)
+        : nodes_(nodes), phis_(phis)
+    {
+    }
 
     // accessors
     size_type constexpr node_count() const { return nodes_.size(); }

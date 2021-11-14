@@ -9,7 +9,7 @@ namespace mechanics {
 meshless_sph_surface_t::meshless_sph_surface_t(
     meshless_sph_body_t* mechanical_model,
     std::vector<Eigen::Vector3d> const& vertices,
-    std::vector<triangle_t> const& triangles)
+    std::vector<topology::triangle_t> const& triangles)
     : render_vertices_(), triangles_(), vertices_(), mechanical_model_(mechanical_model)
 {
     render_vertices_.reserve(vertices.size());

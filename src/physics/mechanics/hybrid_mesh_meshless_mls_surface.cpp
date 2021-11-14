@@ -9,7 +9,7 @@ namespace mechanics {
 hybrid_mesh_meshless_sph_surface_t::hybrid_mesh_meshless_sph_surface_t(
     hybrid_mesh_meshless_mls_body_t* mechanical_model,
     std::vector<Eigen::Vector3d> const& vertices,
-    std::vector<triangle_t> const& triangles)
+    std::vector<topology::triangle_t> const& triangles)
     : render_vertices_(), triangles_(), vertices_(), mechanical_model_(mechanical_model)
 {
     render_vertices_.reserve(vertices.size());
@@ -147,7 +147,7 @@ void hybrid_mesh_meshless_sph_surface_t::compute_positions()
         if (meshless_surface_vertex.is_in_tetrahedron())
         {
             auto const& mesh_phi_js = meshless_surface_vertex.mesh_phi_js();
-            tetrahedron_t const& t =
+            topology::tetrahedron_t const& t =
                 mechanical_model_->topology().tetrahedron(meshless_surface_vertex.ti());
             auto const& vis = t.vertex_indices();
             for (std::uint8_t v = 0u; v < 4u; ++v)
@@ -268,7 +268,7 @@ void hybrid_mesh_meshless_mls_surface_vertex_t::initialize(
     // update rhs if there are mesh shape functions
     if (is_boundary_tet)
     {
-        tetrahedron_t const& t = mechanical_model.topology().tetrahedron(ti_);
+        topology::tetrahedron_t const& t = mechanical_model.topology().tetrahedron(ti_);
         for (std::uint8_t i = 0u; i < 4u; ++i)
         {
             index_type const vi = t.vertex_indices()[i];

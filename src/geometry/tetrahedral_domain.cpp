@@ -52,6 +52,12 @@ index_type tetrahedral_domain_t::in_tetrahedron(Eigen::Vector3d const& X) const
     return in_tetrahedron_query_.in_tetrahedron(X);
 }
 
+math::tetrahedron_barycentric_mapping_t const&
+tetrahedral_domain_t::barycentric_map(index_type ti) const
+{
+    return tet_maps_[ti];
+}
+
 tetrahedral_domain_t::in_tetrahedron_query_t::in_tetrahedron_query_t()
     : base_type(0u),
       topology_(nullptr),

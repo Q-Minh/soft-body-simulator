@@ -62,22 +62,27 @@ int main()
     double young_modulus = 1e6;
     double poisson_ratio = 0.35;
 
-    sbs::math::interpolation_op_t<sbs::math::linear_hat_basis_function_op_t> interpolate_op(
-        {x1, x2, x3, x4},
-        {phi1, phi2, phi3, phi4});
-    sbs::math::deformation_gradient_op_t<sbs::math::linear_hat_basis_function_op_t>
-        deformation_gradient_op(interpolate_op);
-    sbs::math::strain_op_t<sbs::math::linear_hat_basis_function_op_t> strain_op(
-        deformation_gradient_op);
-    sbs::math::strain_energy_density_op_t<sbs::math::linear_hat_basis_function_op_t>
-        strain_energy_density_op(strain_op, young_modulus, poisson_ratio);
+    using basis_function_type   = sbs::math::linear_hat_basis_function_op_t;
+    using interpolation_op_type = sbs::math::interpolation_op_t<basis_function_type>;
+    using deformation_gradient_op_type =
+        sbs::math::deformation_gradient_op_t<interpolation_op_type>;
+    using strain_op_type = sbs::math::strain_op_t<deformation_gradient_op_type>;
+
+    interpolation_op_type interpolate_op({x1, x2, x3, x4}, {phi1, phi2, phi3, phi4});
+    sbs::math::deformation_gradient_op_t<interpolation_op_type> deformation_gradient_op(
+        interpolate_op);
+    sbs::math::strain_op_t<deformation_gradient_op_type> strain_op(deformation_gradient_op);
+    sbs::math::strain_energy_density_op_t<strain_op_type> strain_energy_density_op(
+        strain_op,
+        young_modulus,
+        poisson_ratio);
 
     autodiff::Vector3dual refX1(0., 0., 0.);
     autodiff::Vector3dual refX2(1., 0., 0.);
     autodiff::Vector3dual refX3(0., 1., 0.);
     autodiff::Vector3dual refX4(0., 0., 1.);
 
-    sbs::math::tetrahedron_affine_mapping_t mapping(refX1, refX2, refX3, refX4, X1, X2, X3, X4);
+    sbs::math::tetrahedron_affine_mapping_t mapping(X1, X2, X3, X4);
     sbs::math::tetrahedron_1point_constant_quadrature_rule_t<
         sbs::math::tetrahedron_affine_mapping_t>
         quadrature_rule(mapping);

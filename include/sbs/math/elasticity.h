@@ -9,23 +9,21 @@
 namespace sbs {
 namespace math {
 
-template <class BasisFunctionType>
+template <class InterpolationFunctionType>
 struct deformation_gradient_op_t
 {
-    using interpolate_op_type = sbs::math::interpolation_op_t<BasisFunctionType>;
+    using interpolate_op_type = InterpolationFunctionType;
 
     deformation_gradient_op_t(interpolate_op_type const& interpolate) : interpolate_op(interpolate)
     {
     }
 
-    autodiff::Matrix3dual operator()(autodiff::Vector3dual X, Eigen::Vector3dual& u) const
+    autodiff::Matrix3dual operator()(autodiff::Vector3dual X) const
     {
         using autodiff::at;
         using autodiff::gradient;
         using autodiff::jacobian;
         using autodiff::wrt;
-
-        u = interpolate_op(X);
 
         autodiff::Matrix3dual F;
         F.setZero();
@@ -38,14 +36,25 @@ struct deformation_gradient_op_t
 
         return F;
     }
+    autodiff::Matrix3dual operator()(autodiff::Vector3dual X, Eigen::Vector3dual& u) const
+    {
+        using autodiff::at;
+        using autodiff::gradient;
+        using autodiff::jacobian;
+        using autodiff::wrt;
+
+        u = interpolate_op(X);
+
+        return (*this)(X);
+    }
 
     interpolate_op_type const& interpolate_op;
 };
 
-template <class BasisFunctionType>
+template <class DeformationGradientFunctionType>
 struct strain_op_t
 {
-    using deformation_gradient_op_type = deformation_gradient_op_t<BasisFunctionType>;
+    using deformation_gradient_op_type = DeformationGradientFunctionType;
 
     strain_op_t(deformation_gradient_op_type const& deformation_gradient)
         : deformation_gradient_op(deformation_gradient)
@@ -70,10 +79,10 @@ struct strain_op_t
     deformation_gradient_op_type const& deformation_gradient_op;
 };
 
-template <class BasisFunctionType>
+template <class StrainFunctionType>
 struct strain_energy_density_op_t
 {
-    using strain_op_type = strain_op_t<BasisFunctionType>;
+    using strain_op_type = StrainFunctionType;
 
     strain_energy_density_op_t(
         strain_op_type const& strain,
@@ -81,8 +90,9 @@ struct strain_energy_density_op_t
         double poisson_ratio)
         : strain_op(strain), mu(), lambda()
     {
-        mu     = (young_modulus) / (2. * (1. + poisson_ratio));
-        lambda = (young_modulus * poisson_ratio) / ((1. + poisson_ratio) * (1. - 2. * poisson_ratio));
+        mu = (young_modulus) / (2. * (1. + poisson_ratio));
+        lambda =
+            (young_modulus * poisson_ratio) / ((1. + poisson_ratio) * (1. - 2. * poisson_ratio));
     }
 
     autodiff::dual operator()(

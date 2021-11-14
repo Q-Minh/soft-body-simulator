@@ -21,6 +21,8 @@ meshless_sph_stvk_constraint_t::meshless_sph_stvk_constraint_t(
 {
     mu_     = (young_modulus) / (2. * (1 + poisson_ratio));
     lambda_ = (young_modulus * poisson_ratio) / ((1 + poisson_ratio) * (1 - 2 * poisson_ratio));
+    js_     = node_.neighbours();
+    bis_.resize(node_.neighbours().size(), bi);
 }
 
 void meshless_sph_stvk_constraint_t::project_positions(simulation_t& simulation, scalar_type dt)
@@ -40,7 +42,9 @@ void meshless_sph_stvk_constraint_t::project_positions(simulation_t& simulation,
     // l representing the component of xk, d (Fi) / d (xk)^(l) is a 3x3 matrix
     std::vector<Eigen::Vector3d> const gradC = dCdxk(dPsidFi);
 
-    scalar_type weighted_sum_of_gradients{0.};
+    this->project_positions_with_dampling(simulation, C, gradC, dt);
+
+    /*scalar_type weighted_sum_of_gradients{0.};
     scalar_type gradC_dot_displacement{0.};
     for (std::size_t a = 0u; a < neighbours.size(); ++a)
     {
@@ -71,7 +75,7 @@ void meshless_sph_stvk_constraint_t::project_positions(simulation_t& simulation,
         index_type const j = neighbours[a];
         particle_t& pj     = particles[j];
         pj.xi() += pj.invmass() * gradC[a] * delta_lagrange;
-    }
+    }*/
 }
 
 Eigen::Matrix3d meshless_sph_stvk_constraint_t::deformation_gradient(simulation_t& simulation) const

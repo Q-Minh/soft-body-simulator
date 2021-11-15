@@ -68,6 +68,12 @@ struct strain_op_t
         autodiff::Matrix3dual E = (*this)(F);
         return E;
     }
+    autodiff::Matrix3dual operator()(autodiff::Vector3dual X, autodiff::Matrix3dual& F) const
+    {
+        F                       = deformation_gradient_op(X);
+        autodiff::Matrix3dual E = (*this)(F);
+        return E;
+    }
 
     autodiff::Matrix3dual operator()(autodiff::Matrix3dual F) const
     {
@@ -102,6 +108,13 @@ struct strain_energy_density_op_t
         autodiff::Matrix3dual& E) const
     {
         E = strain_op(X, u, F);
+        return (*this)(E);
+    }
+
+    autodiff::dual
+    operator()(autodiff::Vector3dual X, autodiff::Matrix3dual& F, autodiff::Matrix3dual& E) const
+    {
+        E = strain_op(X, F);
         return (*this)(E);
     }
 

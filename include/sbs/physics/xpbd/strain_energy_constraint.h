@@ -93,13 +93,12 @@ inline void strain_energy_quadrature_constraint_t<InterpolationOpType>::project_
         young_modulus_,
         poisson_ratio_);
 
-    autodiff::Vector3dual x;
     autodiff::Matrix3dual F, E;
 
-    auto const total_energy = [&x, &F, &E, &strain_energy_density_op](
+    auto const total_energy = [&F, &E, &strain_energy_density_op](
                                   autodiff::dual wi,
                                   autodiff::Vector3dual Xi) -> autodiff::dual {
-        return wi * strain_energy_density_op(Xi, x, F, E);
+        return wi * strain_energy_density_op(Xi, F, E);
     };
 
     autodiff::dual wiPsi = total_energy(wi_, Xi_);

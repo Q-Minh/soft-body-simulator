@@ -12,6 +12,7 @@ namespace geometry {
 class grid_t
 {
   public:
+    grid_t() = default;
     grid_t(Eigen::AlignedBox3d const& aabb, Eigen::Vector3i const& dims)
         : bounding_box_(aabb), dims_(dims)
     {

@@ -29,10 +29,33 @@ class efg_tetrahedral_meshless_model_t : public math::meshless_model_t<
         geometry::grid_t const& grid,
         scalar_type support);
 
+    // Accessors
     geometry::tetrahedral_domain_t const& domain() const { return domain_; }
     geometry::grid_t const& grid() const { return grid_; }
+    std::size_t integration_point_count() const { return efg_integration_points_.size(); }
+    interpolation_function_type const&
+    interpolation_field_from_integration_point(index_type const i) const
+    {
+        return interpolation_fields_[i];
+    }
+    std::vector<index_type> const& neighbours_of_integration_point(index_type const i) const
+    {
+        return neighbours_of_integration_point_[i];
+    }
 
     interpolation_function_type interpolation_field_at(Eigen::Vector3d const& X) const;
+
+    // Mutators
+
+    /**
+     * @brief
+     * Adds an integration point Xi if it is in the tetrahedral domain.
+     * Also adds its associated interpolation field.
+     * @param Xi
+     * @return true if the integration point and its associated interpolation field were added.
+     * false otherwise
+     */
+    bool add_integration_point(Eigen::Vector3d const& Xi);
 
   private:
     geometry::tetrahedral_domain_t domain_; ///< The integration domain
@@ -43,6 +66,8 @@ class efg_tetrahedral_meshless_model_t : public math::meshless_model_t<
         efg_integration_points_; ///< The integration points over the tetrahedral domain
     std::vector<interpolation_function_type>
         interpolation_fields_; ///< Interpolation fields around the integration points
+    std::vector<std::vector<index_type>>
+        neighbours_of_integration_point_; ///< Precomputed neighbourhoods
 };
 
 template <class KernelFunctionType, unsigned int Order>
@@ -66,6 +91,7 @@ inline efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
     Eigen::Vector3d const& dX = grid_.delta();
     scalar_type const length  = dX.norm();
     scalar_type const h       = support * length;
+    this->set_support_radius(h);
     this->initialize_in_support_query(
         length * 1e-2); // Add a 1% tolerance to the spatial search data structure based on the
                         // grid cells' dimensions
@@ -101,26 +127,6 @@ inline efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
         basis_function_type phi(Xi, Wi, Xjs, Wjs);
         this->add_basis_function(phi);
     }
-
-    auto const& topology         = domain.topology();
-    auto const tetrahedron_count = topology.tetrahedron_count();
-    for (index_type ti = 0u; ti < tetrahedron_count; ++ti)
-    {
-        topology::tetrahedron_t const& t = topology.tetrahedron(ti);
-        Eigen::Vector3d const& p1        = domain.position(t.v1());
-        Eigen::Vector3d const& p2        = domain.position(t.v2());
-        Eigen::Vector3d const& p3        = domain.position(t.v3());
-        Eigen::Vector3d const& p4        = domain.position(t.v4());
-
-        // Insert integration point at the barycenter of the integration domain's tetrahedra
-        Eigen::Vector3d const integration_point = 0.25 * (p1 + p2 + p3 + p4);
-        this->efg_integration_points_.push_back(integration_point);
-
-        // Precompute the interpolation field around the integration point
-        interpolation_function_type const interpolation_op =
-            interpolation_field_at(integration_point);
-        this->interpolation_fields_.push_back(interpolation_op);
-    }
 }
 
 template <class KernelFunctionType, unsigned int Order>
@@ -129,7 +135,7 @@ inline typename efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
     efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::interpolation_field_at(
         Eigen::Vector3d const& X) const
 {
-    std::vector<index_type> nodes = this->in_support_of_nodes(X);
+    std::vector<index_type> const nodes = this->in_support_of_nodes(X);
     std::vector<autodiff::Vector3dual> xjs{};
     std::vector<basis_function_type> phijs{};
     xjs.reserve(nodes.size());
@@ -153,9 +159,30 @@ inline typename efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
         });
 
     interpolation_function_type interpolation_op(xjs, phijs);
-    interpolation_op.cache_grad_phis(integration_point);
+    interpolation_op.cache_grad_phis(X);
 
     return interpolation_op;
+}
+
+template <class KernelFunctionType, unsigned int Order>
+inline bool efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::add_integration_point(
+    Eigen::Vector3d const& Xi)
+{
+    if (!domain_.contains(Xi))
+        return false;
+
+    Eigen::Vector3d const& integration_point = Xi;
+    this->efg_integration_points_.push_back(integration_point);
+
+    // Precompute the interpolation field around the integration point
+    interpolation_function_type const interpolation_op = interpolation_field_at(integration_point);
+    this->interpolation_fields_.push_back(interpolation_op);
+
+    // Precompute neighbourhoods also
+    std::vector<index_type> const nodes = this->in_support_of_nodes(integration_point);
+    this->neighbours_of_integration_point_.push_back(nodes);
+
+    return true;
 }
 
 } // namespace mechanics

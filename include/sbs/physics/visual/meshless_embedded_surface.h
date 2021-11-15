@@ -23,6 +23,7 @@ class meshless_embedded_surface_t : public interpolated_embedded_surface_t<
         meshless_model_type const* mechanical_model);
 
     meshless_model_type const* mechanical_model() const;
+    std::vector<index_type> const& meshless_neighbours_of_vertex(index_type const vi) const;
 
     /**
      * @brief
@@ -32,6 +33,9 @@ class meshless_embedded_surface_t : public interpolated_embedded_surface_t<
 
   private:
     meshless_model_type const* mechanical_model_;
+    std::vector<std::vector<index_type>>
+        neighbours_of_; ///< Precomputed neighbourhoods of each surface vertex to each surrounding
+                        ///< meshless node
 };
 
 template <class MeshlessModelType>
@@ -51,6 +55,10 @@ inline meshless_embedded_surface_t<MeshlessModelType>::meshless_embedded_surface
         interpolation_function_type const interpolation_function =
             this->mechanical_model_->interpolation_field_at(X);
         interpolation_functions.push_back(interpolation_function);
+
+        // Get neighbours of surface vertex vi
+        std::vector<index_type> const neighbours = this->mechanical_model_->in_support_of_nodes(X);
+        neighbours_of_.push_back(neighbours);
     }
 
     this->use_interpolation_operators(interpolation_functions);
@@ -62,6 +70,14 @@ inline MeshlessModelType const*
 meshless_embedded_surface_t<MeshlessModelType>::mechanical_model() const
 {
     return mechanical_model_;
+}
+
+template <class MeshlessModelType>
+inline std::vector<index_type> const&
+meshless_embedded_surface_t<MeshlessModelType>::meshless_neighbours_of_vertex(
+    index_type const vi) const
+{
+    return this->neighbours_of_[vi];
 }
 
 template <class MeshlessModelType>

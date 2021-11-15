@@ -25,12 +25,9 @@ class tetrahedral_domain_t
         std::vector<index_type> const& indices,
         scalar_type const query_error = 1e-2);
 
-    tetrahedral_domain_t(tetrahedral_domain_t const& other) = default;
-    tetrahedral_domain_t(tetrahedral_domain_t&& other)      = default;
+    tetrahedral_domain_t(tetrahedral_domain_t const& other);
 
-    tetrahedral_domain_t&
-    tetrahedral_domain_t::operator=(tetrahedral_domain_t const& other) = default;
-    tetrahedral_domain_t& tetrahedral_domain_t::operator=(tetrahedral_domain_t&& other) = default;
+    tetrahedral_domain_t& tetrahedral_domain_t::operator=(tetrahedral_domain_t const& other);
 
     // Accessors
     topology::tetrahedron_t const& tetrahedron(index_type ti) const;
@@ -70,6 +67,8 @@ class tetrahedral_domain_t
         virtual Eigen::Vector3d entityPosition(unsigned int i) const override final;
         virtual void computeHull(unsigned int b, unsigned int n, Discregrid::BoundingSphere& hull)
             const override final;
+
+        friend class tetrahedral_domain_t;
 
       private:
         topology::tetrahedron_set_t const* topology_;

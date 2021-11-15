@@ -35,6 +35,32 @@ tetrahedral_domain_t::tetrahedral_domain_t(
     in_tetrahedron_query_ = in_tetrahedron_query_t(&mesh_, &positions_, &tet_maps_, query_error);
 }
 
+tetrahedral_domain_t::tetrahedral_domain_t(tetrahedral_domain_t const& other)
+    : positions_(other.positions_),
+      mesh_(other.mesh_),
+      tet_maps_(other.tet_maps_),
+      in_tetrahedron_query_()
+{
+    in_tetrahedron_query_ = in_tetrahedron_query_t(
+        &mesh_,
+        &positions_,
+        &tet_maps_,
+        other.in_tetrahedron_query_.tolerance_);
+}
+
+tetrahedral_domain_t& tetrahedral_domain_t::operator=(tetrahedral_domain_t const& other)
+{
+    positions_            = other.positions_;
+    mesh_                 = other.mesh_;
+    tet_maps_             = other.tet_maps_;
+    in_tetrahedron_query_ = in_tetrahedron_query_t(
+        &mesh_,
+        &positions_,
+        &tet_maps_,
+        other.in_tetrahedron_query_.tolerance_);
+    return *this;
+}
+
 topology::tetrahedron_t const& tetrahedral_domain_t::tetrahedron(index_type ti) const
 {
     return mesh_.tetrahedron(ti);

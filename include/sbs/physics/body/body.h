@@ -1,5 +1,5 @@
-#ifndef SBS_PHYSICS_BODY_H
-#define SBS_PHYSICS_BODY_H
+#ifndef SBS_PHYSICS_BODY_BODY_H
+#define SBS_PHYSICS_BODY_BODY_H
 
 #include "sbs/aliases.h"
 #include "sbs/common/node.h"
@@ -55,4 +55,4 @@ class body_t
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_BODY_H
+#endif // SBS_PHYSICS_BODY_BODY_H

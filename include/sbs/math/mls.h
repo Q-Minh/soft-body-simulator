@@ -17,6 +17,7 @@ struct mls_interpolation_op_t
     using self_type            = mls_interpolation_op_t<KernelFunctionType, Order>;
     using basis_function_type  = mls_basis_function_t<kernel_function_type, Order>;
 
+    mls_interpolation_op_t() = default;
     mls_interpolation_op_t(
         std::vector<autodiff::Vector3dual> const& uis,
         std::vector<basis_function_type> const& phis)
@@ -62,6 +63,7 @@ struct mls_deformation_gradient_op_t
 {
     using mls_interpolation_op_type = MlsInterpolationType;
 
+    mls_deformation_gradient_op_t() = default;
     mls_deformation_gradient_op_t(mls_interpolation_op_type const& op) : interpolate_op(op) {}
 
     /**

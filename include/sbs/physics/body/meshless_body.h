@@ -1,5 +1,5 @@
-#ifndef SBS_PHYSICS_BODY_H
-#define SBS_PHYSICS_BODY_H
+#ifndef SBS_PHYSICS_BODY_MESHLESS_BODY_H
+#define SBS_PHYSICS_BODY_MESHLESS_BODY_H
 
 #include "sbs/aliases.h"
 #include "sbs/common/geometry.h"
@@ -70,7 +70,10 @@ inline meshless_body_t<MeshlessModelType>::meshless_body_t(
     geometry::tetrahedral_domain_t const domain(tet_points, tet_indices);
     geometry::grid_t const grid(
         domain,
-        Eigen::Vector3i{resolution[0], resolution[1], resolution[2]});
+        Eigen::Vector3i{
+            static_cast<int>(resolution[0]),
+            static_cast<int>(resolution[1]),
+            static_cast<int>(resolution[2])});
 
     mechanical_model_ = meshless_model_type(domain, grid, support);
 
@@ -133,13 +136,13 @@ inline void meshless_body_t<MeshlessModelType>::update_physical_model()
 }
 
 template <class MeshlessModelType>
-inline meshless_model_type const& meshless_body_t<MeshlessModelType>::get_mechanical_model() const
+inline MeshlessModelType const& meshless_body_t<MeshlessModelType>::get_mechanical_model() const
 {
     return mechanical_model_;
 }
 
 template <class MeshlessModelType>
-inline embedded_visual_surface_type const&
+inline typename meshless_body_t<MeshlessModelType>::embedded_visual_surface_type const&
 meshless_body_t<MeshlessModelType>::get_visual_model() const
 {
     return visual_model_;
@@ -153,13 +156,14 @@ meshless_body_t<MeshlessModelType>::get_collision_model() const
 }
 
 template <class MeshlessModelType>
-inline meshless_model_type& meshless_body_t<MeshlessModelType>::get_mechanical_model()
+inline MeshlessModelType& meshless_body_t<MeshlessModelType>::get_mechanical_model()
 {
     return mechanical_model_;
 }
 
 template <class MeshlessModelType>
-inline embedded_visual_surface_type& meshless_body_t<MeshlessModelType>::get_visual_model()
+inline typename meshless_body_t<MeshlessModelType>::embedded_visual_surface_type&
+meshless_body_t<MeshlessModelType>::get_visual_model()
 {
     return visual_model_;
 }
@@ -174,4 +178,4 @@ inline collision::point_bvh_model_t& meshless_body_t<MeshlessModelType>::get_col
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_BODY_H
+#endif // SBS_PHYSICS_BODY_MESHLESS_BODY_H

@@ -10,8 +10,8 @@ namespace geometry {
 grid_t::grid_t(tetrahedral_domain_t const& domain, Eigen::Vector3i const& dims)
     : bounding_box_(), dims_(dims)
 {
-    auto constexpr min  = std::numeric_limits<scalar_type>::lowest();
-    auto constexpr max  = std::numeric_limits<scalar_type>::max();
+    auto constexpr min  = std::numeric_limits<scalar_type>::max();
+    auto constexpr max  = std::numeric_limits<scalar_type>::lowest();
     bounding_box_.min() = Eigen::Vector3d{min, min, min};
     bounding_box_.max() = Eigen::Vector3d{max, max, max};
 

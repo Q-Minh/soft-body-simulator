@@ -31,6 +31,8 @@ class efg_tetrahedral_meshless_model_t : public math::meshless_model_t<
     geometry::tetrahedral_domain_t const& domain() const { return domain_; }
     geometry::grid_t const& grid() const { return grid_; }
 
+    interpolation_function_type interpolation_field_at(Eigen::Vector3d const& X) const;
+
   private:
     geometry::tetrahedral_domain_t domain_; ///< The integration domain
     geometry::grid_t grid_; ///< The sampling grid used to sample meshless nodes and basis functions
@@ -114,33 +116,45 @@ inline efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
         this->efg_integration_points_.push_back(integration_point);
 
         // Precompute the interpolation field around the integration point
-        std::vector<index_type> nodes = this->in_support_of_nodes(integration_point);
-        std::vector<autodiff::Vector3dual> xjs{};
-        std::vector<basis_function_type> phijs{};
-        xjs.reserve(nodes.size());
-        phijs.reserve(nodes.size());
-
-        std::transform(
-            nodes.begin(),
-            nodes.end(),
-            std::back_inserter(xjs),
-            [this](index_type const nj) {
-                autodiff::Vector3dual const& xj = this->dof(ni);
-                return xj;
-            });
-        std::transform(
-            nodes.begin(),
-            nodes.end(),
-            std::back_inserter(phijs),
-            [this](index_type const nj) {
-                basis_function_type const& phij = this->phi(nj);
-                return phij;
-            });
-
-        interpolation_function_type interpolation_op(xjs, phijs);
-        interpolation_op.cache_grad_phis(integration_point);
+        interpolation_function_type const interpolation_op =
+            interpolation_field_at(integration_point);
         this->interpolation_fields_.push_back(interpolation_op);
     }
+}
+
+template <class KernelFunctionType, unsigned int Order>
+inline typename efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
+    interpolation_function_type
+    efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::interpolation_field_at(
+        Eigen::Vector3d const& X) const
+{
+    std::vector<index_type> nodes = this->in_support_of_nodes(X);
+    std::vector<autodiff::Vector3dual> xjs{};
+    std::vector<basis_function_type> phijs{};
+    xjs.reserve(nodes.size());
+    phijs.reserve(nodes.size());
+
+    std::transform(
+        nodes.begin(),
+        nodes.end(),
+        std::back_inserter(xjs),
+        [this](index_type const nj) {
+            autodiff::Vector3dual const& xj = this->dof(nj);
+            return xj;
+        });
+    std::transform(
+        nodes.begin(),
+        nodes.end(),
+        std::back_inserter(phijs),
+        [this](index_type const nj) {
+            basis_function_type const& phij = this->phi(nj);
+            return phij;
+        });
+
+    interpolation_function_type interpolation_op(xjs, phijs);
+    interpolation_op.cache_grad_phis(integration_point);
+
+    return interpolation_op;
 }
 
 } // namespace mechanics

@@ -3,6 +3,7 @@
 
 #include "sbs/aliases.h"
 
+#include <Eigen/Core>
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/dual/eigen.hpp>
 

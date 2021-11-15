@@ -21,9 +21,6 @@ struct poly6_kernel_t
     autodiff::dual operator()(autodiff::Vector3dual X) const
     {
         autodiff::dual r = (X - Xi).norm();
-        if (r > h)
-            return 0.;
-
         autodiff::dual r2   = r * r;
         autodiff::dual h_r  = (h2 - r2);
         autodiff::dual h_r3 = h_r * h_r * h_r;

@@ -33,6 +33,11 @@ class efg_tetrahedral_meshless_model_t : public math::meshless_model_t<
     geometry::tetrahedral_domain_t const& domain() const { return domain_; }
     geometry::grid_t const& grid() const { return grid_; }
     std::size_t integration_point_count() const { return efg_integration_points_.size(); }
+
+    Eigen::Vector3d const& integration_point(index_type const i) const
+    {
+        return efg_integration_points_[i];
+    }
     interpolation_function_type const&
     interpolation_field_from_integration_point(index_type const i) const
     {

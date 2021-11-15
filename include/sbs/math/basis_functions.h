@@ -107,8 +107,23 @@ struct mls_basis_function_t
         {
             autodiff::Vector3dual const& Xj                    = Xjs[k];
             kernel_type const& Wj                              = Wjs[k];
-            Eigen::Vector<autodiff::dual, num_coefficients> P1 = polynomial3d<Order>(Xj);
-            A += Wj(X) * P1 * P1.transpose(); // W(X-Xj) P(Xj) P(Xj)^T
+            Eigen::Vector<autodiff::dual, num_coefficients> Pj = polynomial3d<Order>(Xj);
+            autodiff::dual WjX                                 = Wj(X);
+            Eigen::Matrix<autodiff::dual, num_coefficients, num_coefficients> PjPjT =
+                Pj * Pj.transpose();
+            moment_matrix_type Ainc = WjX * Pj * Pj.transpose();
+            // moment matrix gradient will be singular when Xj == Xi
+            if (Xj.isApprox(X))
+            {
+                for (auto i = 0; i < num_coefficients; ++i)
+                {
+                    for (auto j = 0; j < num_coefficients; ++j)
+                    {
+                        Ainc(i, j).grad = 0.;
+                    }
+                }
+            }
+            A += Ainc; // W(X-Xj) P(Xj) P(Xj)^T
         }
 
         Eigen::Vector<autodiff::dual, num_coefficients> P  = polynomial3d<Order>(X);
@@ -119,8 +134,13 @@ struct mls_basis_function_t
         bool const invertible = std::abs(det) > sbs::eps();
         assert(invertible);
 #endif
-        moment_matrix_type Ainv                                  = A.inverse();
-        Eigen::Vector<autodiff::dual, num_coefficients> WiPi     = Wi(X) * Pi;
+        moment_matrix_type Ainv = A.inverse();
+        autodiff::dual WiX      = Wi(X);
+        if (X.isApprox(Xi))
+        {
+            WiX.grad = 0.;
+        }
+        Eigen::Vector<autodiff::dual, num_coefficients> WiPi     = WiX * Pi;
         Eigen::Vector<autodiff::dual, num_coefficients> AinvWiPi = Ainv * WiPi;
         // phi = P^T A(X)^-1 W(X-Xi) P(Xi)
         autodiff::dual phi = P.dot(AinvWiPi);

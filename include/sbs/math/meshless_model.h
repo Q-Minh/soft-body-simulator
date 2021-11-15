@@ -6,6 +6,7 @@
 #include <Discregrid/acceleration/bounding_sphere.hpp>
 #include <Discregrid/acceleration/kd_tree.hpp>
 #include <Eigen/Core>
+#include <algorithm>
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/dual/eigen.hpp>
 #include <vector>
@@ -176,6 +177,9 @@ meshless_model_t<DofType, BasisFunctionType>::in_support_query_t::neighbours_in_
         };
 
     this->traverseBreadthFirst(intersects, get_neighbours);
+    std::sort(neighbours.begin(), neighbours.end());
+    auto it = std::unique(neighbours.begin(), neighbours.end());
+    neighbours.erase(it, neighbours.end());
     return neighbours;
 }
 

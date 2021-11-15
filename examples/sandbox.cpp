@@ -4,135 +4,77 @@
 #include <autodiff/forward/dual/eigen.hpp>
 #include <cassert>
 #include <iostream>
+#include <sbs/geometry/get_simple_bar_model.h>
+#include <sbs/geometry/grid.h>
+#include <sbs/geometry/tetrahedral_domain.h>
 #include <sbs/math/basis_functions.h>
 #include <sbs/math/elasticity.h>
 #include <sbs/math/interpolation.h>
 #include <sbs/math/mapping.h>
+#include <sbs/math/mls.h>
 #include <sbs/math/quadrature.h>
-
-std::tuple<
-    sbs::math::linear_hat_basis_function_op_t,
-    sbs::math::linear_hat_basis_function_op_t,
-    sbs::math::linear_hat_basis_function_op_t,
-    sbs::math::linear_hat_basis_function_op_t>
-get_basis_functions(
-    autodiff::Vector3dual X1,
-    autodiff::Vector3dual X2,
-    autodiff::Vector3dual X3,
-    autodiff::Vector3dual X4,
-    autodiff::Vector3dual x1,
-    autodiff::Vector3dual x2,
-    autodiff::Vector3dual x3,
-    autodiff::Vector3dual x4)
-{
-    autodiff::Matrix4dual A;
-    unsigned int constexpr order = 1;
-    A.col(0)                     = sbs::math::polynomial3d<order>(X1);
-    A.col(1)                     = sbs::math::polynomial3d<order>(X2);
-    A.col(2)                     = sbs::math::polynomial3d<order>(X3);
-    A.col(3)                     = sbs::math::polynomial3d<order>(X4);
-
-    autodiff::Matrix4dual Ainv;
-    Ainv = A.inverse();
-
-    sbs::math::linear_hat_basis_function_op_t phi1(Ainv.row(0u)), phi2(Ainv.row(1u)),
-        phi3(Ainv.row(2u)), phi4(Ainv.row(3u));
-
-    return {phi1, phi2, phi3, phi4};
-}
+#include <sbs/physics/mechanics/efg_tetrahedral_meshless_model.h>
 
 int main()
 {
-    autodiff::Vector3dual X1, X2, X3, X4;
-    X1 << 0., 0., 0.;
-    X2 << 1., 0., 0.;
-    X3 << 0., 1., 0.;
-    X4 << 0., 0., 1.;
+    using kernel_function_type   = sbs::math::quartic_spline_kernel_t;
+    unsigned int constexpr order = 1u;
+    using meshless_model_type =
+        sbs::physics::mechanics::efg_tetrahedral_meshless_model_t<kernel_function_type, order>;
+    using basis_function_type         = typename meshless_model_type::basis_function_type;
+    using interpolation_function_type = typename meshless_model_type::interpolation_function_type;
 
-    autodiff::Matrix3dual S;
-    S = 2. * autodiff::Matrix3dual::Identity();
+    sbs::scalar_type const hmultiplier             = 1.1;
+    sbs::common::geometry_t const geometry         = sbs::geometry::get_simple_bar_model(2, 2, 2);
+    std::vector<Eigen::Vector3d> const tet_points  = sbs::common::to_points(geometry);
+    std::vector<sbs::index_type> const tet_indices = sbs::common::to_indices(geometry);
+    sbs::geometry::tetrahedral_domain_t const domain(tet_points, tet_indices);
+    Eigen::Vector3i const resolution{3, 3, 3};
+    sbs::geometry::grid_t const grid(domain, resolution);
 
-    autodiff::Vector3dual x1 = S * X1;
-    autodiff::Vector3dual x2 = S * X2;
-    autodiff::Vector3dual x3 = S * X3;
-    autodiff::Vector3dual x4 = S * X4;
-
-    auto const [phi1, phi2, phi3, phi4] = get_basis_functions(X1, X2, X3, X4, x1, x2, x3, x4);
-
-    double young_modulus = 1e6;
-    double poisson_ratio = 0.35;
-
-    using basis_function_type   = sbs::math::linear_hat_basis_function_op_t;
-    using interpolation_op_type = sbs::math::interpolation_op_t<basis_function_type>;
-    using deformation_gradient_op_type =
-        sbs::math::deformation_gradient_op_t<interpolation_op_type>;
-    using strain_op_type = sbs::math::strain_op_t<deformation_gradient_op_type>;
-
-    interpolation_op_type interpolate_op({x1, x2, x3, x4}, {phi1, phi2, phi3, phi4});
-    sbs::math::deformation_gradient_op_t<interpolation_op_type> deformation_gradient_op(
-        interpolate_op);
-    sbs::math::strain_op_t<deformation_gradient_op_type> strain_op(deformation_gradient_op);
-    sbs::math::strain_energy_density_op_t<strain_op_type> strain_energy_density_op(
-        strain_op,
-        young_modulus,
-        poisson_ratio);
-
-    autodiff::Vector3dual refX1(0., 0., 0.);
-    autodiff::Vector3dual refX2(1., 0., 0.);
-    autodiff::Vector3dual refX3(0., 1., 0.);
-    autodiff::Vector3dual refX4(0., 0., 1.);
-
-    sbs::math::tetrahedron_affine_mapping_t mapping(X1, X2, X3, X4);
-    sbs::math::tetrahedron_1point_constant_quadrature_rule_t<
-        sbs::math::tetrahedron_affine_mapping_t>
-        quadrature_rule(mapping);
-
-    using autodiff::at;
-    using autodiff::gradient;
-    using autodiff::wrt;
-
-    for (auto i = 0u; i < quadrature_rule.points.size(); ++i)
+    meshless_model_type meshless_model(domain, grid, hmultiplier);
+    auto const& topology         = domain.topology();
+    auto const tetrahedron_count = topology.tetrahedron_count();
+    for (sbs::index_type ti = 0u; ti < tetrahedron_count; ++ti)
     {
-        autodiff::Vector3dual x;
-        autodiff::Matrix3dual F, E;
+        sbs::topology::tetrahedron_t const& t = topology.tetrahedron(ti);
+        Eigen::Vector3d const& p1             = domain.position(t.v1());
+        Eigen::Vector3d const& p2             = domain.position(t.v2());
+        Eigen::Vector3d const& p3             = domain.position(t.v3());
+        Eigen::Vector3d const& p4             = domain.position(t.v4());
 
-        auto const f = [&x, &F, &E, &strain_energy_density_op](
-                           autodiff::Vector3dual Xi,
-                           autodiff::dual wi) -> autodiff::dual {
-            return wi * strain_energy_density_op(Xi, x, F, E);
-        };
+        // Insert integration point at the barycenter of the integration domain's tetrahedra
 
-        autodiff::Vector3dual Xi = quadrature_rule.points[i];
-        autodiff::dual wi        = quadrature_rule.weights[i];
+        sbs::math::tetrahedron_affine_mapping_t const mapping(p1, p2, p3, p4);
+        sbs::math::tetrahedron_1point_constant_quadrature_rule_t<decltype(mapping)> quadrature_rule{
+            mapping};
 
-        autodiff::dual wiPsi = f(Xi, wi);
-
-        autodiff::Vector3dual f1 = autodiff::gradient(f, wrt(interpolate_op.uis[0]), at(Xi, wi));
-        autodiff::Vector3dual f2 = autodiff::gradient(f, wrt(interpolate_op.uis[1]), at(Xi, wi));
-        autodiff::Vector3dual f3 = autodiff::gradient(f, wrt(interpolate_op.uis[2]), at(Xi, wi));
-        autodiff::Vector3dual f4 = autodiff::gradient(f, wrt(interpolate_op.uis[3]), at(Xi, wi));
-
-        std::cout << "Xi\n" << Xi << "\n";
-        std::cout << "wi=" << wi << "\n";
-        std::cout << "Psi:\n" << (wiPsi.val / wi.val) << "\n";
-        std::cout << "f1:\n" << f1 << "\n";
-        std::cout << "f2:\n" << f2 << "\n";
-        std::cout << "f3:\n" << f3 << "\n";
-        std::cout << "f4:\n" << f4 << "\n";
-
-        F = deformation_gradient_op(Xi, x);
-        autodiff::Matrix3dual dPsidF;
-        for (int i = 0; i < 3; ++i)
+        for (auto i = 0u; i < quadrature_rule.points.size(); ++i)
         {
-            for (int j = 0; j < 3; ++j)
-            {
-                autodiff::dual dPsidFij =
-                    autodiff::derivative(strain_energy_density_op, wrt(F(i, j)), at(F, E));
-                dPsidF(i, j) = dPsidFij;
-            }
-        }
+            auto const Xi = quadrature_rule.points[i];
+            auto const wi = quadrature_rule.weights[i];
 
-        std::cout << "Piola stress:\n" << dPsidF << "\n";
+            Eigen::Vector3d const integration_point = Xi.cast<sbs::scalar_type>();
+            sbs::index_type const integration_point_idx =
+                static_cast<sbs::index_type>(meshless_model.integration_point_count());
+            bool const was_integration_point_added =
+                meshless_model.add_integration_point(integration_point);
+        }
+    }
+    for (auto i = 0u; i < meshless_model.integration_point_count(); ++i)
+    {
+        Eigen::Vector3d const& integration_point = meshless_model.integration_point(i);
+        interpolation_function_type const& interpolate =
+            meshless_model.interpolation_field_from_integration_point(i);
+        autodiff::Vector3dual const x = interpolate(integration_point);
+
+        sbs::math::mls_deformation_gradient_op_t<interpolation_function_type>
+            deformation_gradient_function(interpolate);
+        autodiff::Matrix3dual F = deformation_gradient_function(integration_point);
+
+        std::cout << "Integration point " << i << ":\n" << integration_point << "\n";
+        std::cout << "x" << i << ":\n" << x << "\n";
+        //std::cout << "F" << i << ":\n" << F << "\n\n";
     }
 
     return 0;

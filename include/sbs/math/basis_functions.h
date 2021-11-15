@@ -106,13 +106,19 @@ struct mls_basis_function_t
         for (auto k = 0u; k < Xjs.size(); ++k)
         {
             autodiff::Vector3dual const& Xj                    = Xjs[k];
-            quartic_spline_kernel_t const& Wj                  = Wjs[k];
+            kernel_type const& Wj                              = Wjs[k];
             Eigen::Vector<autodiff::dual, num_coefficients> P1 = polynomial3d<Order>(Xj);
             A += Wj(X) * P1 * P1.transpose(); // W(X-Xj) P(Xj) P(Xj)^T
         }
 
-        Eigen::Vector<autodiff::dual, num_coefficients> P        = polynomial3d<Order>(X);
-        Eigen::Vector<autodiff::dual, num_coefficients> Pi       = polynomial3d<Order>(Xi);
+        Eigen::Vector<autodiff::dual, num_coefficients> P  = polynomial3d<Order>(X);
+        Eigen::Vector<autodiff::dual, num_coefficients> Pi = polynomial3d<Order>(Xi);
+
+#if defined(_DEBUG)
+        scalar_type const det = A.cast<scalar_type>().determinant();
+        bool const invertible = std::abs(det) > sbs::eps();
+        assert(invertible);
+#endif
         moment_matrix_type Ainv                                  = A.inverse();
         Eigen::Vector<autodiff::dual, num_coefficients> WiPi     = Wi(X) * Pi;
         Eigen::Vector<autodiff::dual, num_coefficients> AinvWiPi = Ainv * WiPi;

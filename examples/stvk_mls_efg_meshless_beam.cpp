@@ -31,17 +31,17 @@ int main(int argc, char** argv)
     // Load geometry
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 4u);
     beam_geometry.set_color(255, 255, 0);
-    Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -1.)};
-    beam_transform.rotate(
-        Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1.0, 0.8, 2.});
-    beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
-    sbs::scalar_type const support = 1.5;
+    //Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -1.)};
+    //beam_transform.rotate(
+    //    Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    //beam_transform.scale(Eigen::Vector3d{1.0, 0.8, 2.});
+    //beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
+    sbs::scalar_type const support = 1.3;
     std::array<unsigned int, 3u> const resolution{6u, 6u, 6u};
 
     // Initialize soft body
     unsigned int constexpr order = 1u;
-    using kernel_function_type   = sbs::math::quartic_spline_kernel_t;
+    using kernel_function_type   = sbs::math::poly6_kernel_t;
     using meshless_model_type =
         sbs::physics::mechanics::efg_tetrahedral_meshless_model_t<kernel_function_type, order>;
     using body_type = sbs::physics::body::meshless_body_t<meshless_model_type>;

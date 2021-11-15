@@ -62,7 +62,11 @@ inline meshless_embedded_surface_t<MeshlessModelType>::meshless_embedded_surface
     }
 
     this->use_interpolation_operators(interpolation_functions);
-    this->update();
+    for (auto i = 0u; i < Xs.size(); ++i)
+    {
+        auto const& Xi    = Xs[i];
+        this->position(i) = Xi;
+    }
 }
 
 template <class MeshlessModelType>

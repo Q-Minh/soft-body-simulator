@@ -55,6 +55,13 @@ index_type tetrahedral_domain_t::in_tetrahedron(Eigen::Vector3d const& X) const
     return in_tetrahedron_query_.in_tetrahedron(X);
 }
 
+bool tetrahedral_domain_t::contains(Eigen::Vector3d const& X) const
+{
+    index_type const ti  = in_tetrahedron_query_.in_tetrahedron(X);
+    bool const is_in_tet = ti != std::numeric_limits<index_type>::max();
+    return is_in_tet;
+}
+
 math::tetrahedron_barycentric_mapping_t const&
 tetrahedral_domain_t::barycentric_map(index_type ti) const
 {

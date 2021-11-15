@@ -37,6 +37,7 @@ class tetrahedral_domain_t
     Eigen::Vector3d const& position(index_type i) const;
     topology::tetrahedron_set_t const& topology() const;
     index_type in_tetrahedron(Eigen::Vector3d const& X) const;
+    bool contains(Eigen::Vector3d const& X) const;
     math::tetrahedron_barycentric_mapping_t const& barycentric_map(index_type ti) const;
 
   private:

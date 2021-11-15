@@ -23,6 +23,7 @@ class efg_tetrahedral_meshless_model_t : public math::meshless_model_t<
     using interpolation_function_type = math::mls_interpolation_op_t<kernel_function_type, Order>;
     using self_type = efg_tetrahedral_meshless_model_t<kernel_function_type, Order>;
 
+    efg_tetrahedral_meshless_model_t() = default;
     efg_tetrahedral_meshless_model_t(
         geometry::tetrahedral_domain_t const& domain,
         geometry::grid_t const& grid,

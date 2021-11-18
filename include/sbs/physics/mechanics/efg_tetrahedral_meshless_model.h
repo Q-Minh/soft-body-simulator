@@ -47,10 +47,15 @@ class efg_tetrahedral_meshless_model_t : public math::meshless_model_t<
     {
         return neighbours_of_integration_point_[i];
     }
+    std::vector<index_type> const& neighbours_of_meshless_node(index_type const i) const
+    {
+        return neighbours_of_meshless_nodes_[i];
+    }
 
     interpolation_function_type interpolation_field_at(Eigen::Vector3d const& X) const;
 
     // Mutators
+    void update();
 
     /**
      * @brief
@@ -73,6 +78,8 @@ class efg_tetrahedral_meshless_model_t : public math::meshless_model_t<
         interpolation_fields_; ///< Interpolation fields around the integration points
     std::vector<std::vector<index_type>>
         neighbours_of_integration_point_; ///< Precomputed neighbourhoods
+    std::vector<std::vector<index_type>>
+        neighbours_of_meshless_nodes_; ///< Precomputed neighbourhoods
 };
 
 template <class KernelFunctionType, unsigned int Order>
@@ -101,7 +108,7 @@ inline efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
         length * 1e-2); // Add a 1% tolerance to the spatial search data structure based on the
                         // grid cells' dimensions
 
-    // Create node shape functions
+    // Create node shape functions and nodal neighbourhoods
     for (auto i = 0u; i < this->point_count(); ++i)
     {
         autodiff::Vector3dual const& Xi = this->point(i);
@@ -131,6 +138,7 @@ inline efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::
 
         basis_function_type phi(Xi, Wi, Xjs, Wjs);
         this->add_basis_function(phi);
+        this->neighbours_of_meshless_nodes_.push_back(nodes);
     }
 }
 
@@ -188,6 +196,12 @@ inline bool efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::add_int
     this->neighbours_of_integration_point_.push_back(nodes);
 
     return true;
+}
+
+template <class KernelFunctionType, unsigned int Order>
+inline void efg_tetrahedral_meshless_model_t<KernelFunctionType, Order>::update()
+{
+
 }
 
 } // namespace mechanics

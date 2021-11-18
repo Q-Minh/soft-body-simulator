@@ -1,4 +1,4 @@
-#include <Eigen/Geometry>
+#include <Eigen/SVD>
 #include <array>
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/dual/eigen.hpp>
@@ -25,11 +25,11 @@ int main()
     using interpolation_function_type = typename meshless_model_type::interpolation_function_type;
 
     sbs::scalar_type const hmultiplier             = 1.1;
-    sbs::common::geometry_t const geometry         = sbs::geometry::get_simple_bar_model(2, 2, 2);
+    sbs::common::geometry_t const geometry         = sbs::geometry::get_simple_bar_model(3, 3, 3);
     std::vector<Eigen::Vector3d> const tet_points  = sbs::common::to_points(geometry);
     std::vector<sbs::index_type> const tet_indices = sbs::common::to_indices(geometry);
     sbs::geometry::tetrahedral_domain_t const domain(tet_points, tet_indices);
-    Eigen::Vector3i const resolution{3, 3, 3};
+    Eigen::Vector3i const resolution{4, 4, 4};
     sbs::geometry::grid_t const grid(domain, resolution);
 
     meshless_model_type meshless_model(domain, grid, hmultiplier);
@@ -61,20 +61,66 @@ int main()
                 meshless_model.add_integration_point(integration_point);
         }
     }
-    for (auto i = 0u; i < meshless_model.integration_point_count(); ++i)
+    // for (auto i = 0u; i < meshless_model.integration_point_count(); ++i)
+    //{
+    //     Eigen::Vector3d const& integration_point = meshless_model.integration_point(i);
+    //     interpolation_function_type const& interpolate =
+    //         meshless_model.interpolation_field_from_integration_point(i);
+    //     autodiff::Vector3dual const x = interpolate(integration_point);
+
+    //    sbs::math::mls_deformation_gradient_op_t<interpolation_function_type>
+    //        deformation_gradient_function(interpolate);
+    //    autodiff::Matrix3dual F = deformation_gradient_function(integration_point);
+
+    //    std::cout << "Integration point " << i << ":\n" << integration_point << "\n";
+    //    std::cout << "x" << i << ":\n" << x << "\n";
+    //    // std::cout << "F" << i << ":\n" << F << "\n\n";
+    //}
+
+    // Set up system to solve for coefficients ui
+    auto const num_meshless_nodes = meshless_model.point_count();
+    Eigen::MatrixXd A(num_meshless_nodes, num_meshless_nodes);
+    A.setZero();
+    Eigen::VectorXd x(num_meshless_nodes);
+    Eigen::VectorXd y(num_meshless_nodes);
+    Eigen::VectorXd z(num_meshless_nodes);
+
+    for (auto i = 0u; i < num_meshless_nodes; ++i)
     {
-        Eigen::Vector3d const& integration_point = meshless_model.integration_point(i);
-        interpolation_function_type const& interpolate =
-            meshless_model.interpolation_field_from_integration_point(i);
-        autodiff::Vector3dual const x = interpolate(integration_point);
+        auto const& Xi = meshless_model.point(i);
+        std::vector<sbs::index_type> const neighbour_indices =
+            meshless_model.neighbours_of_meshless_node(i);
+        for (auto const j : neighbour_indices)
+        {
+            sbs::math::mls_basis_function_t<sbs::math::quartic_spline_kernel_t, 1> const& phi =
+                meshless_model.phi(j);
+            A(i, j) = static_cast<sbs::scalar_type>(phi(Xi));
+        }
+        x(i) = static_cast<sbs::scalar_type>(Xi.x());
+        y(i) = static_cast<sbs::scalar_type>(Xi.y());
+        z(i) = static_cast<sbs::scalar_type>(Xi.z());
+    }
 
-        sbs::math::mls_deformation_gradient_op_t<interpolation_function_type>
-            deformation_gradient_function(interpolate);
-        autodiff::Matrix3dual F = deformation_gradient_function(integration_point);
+    auto SVD                 = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+    Eigen::VectorXd const xx = SVD.solve(x);
+    Eigen::VectorXd const xy = SVD.solve(y);
+    Eigen::VectorXd const xz = SVD.solve(z);
 
-        std::cout << "Integration point " << i << ":\n" << integration_point << "\n";
-        std::cout << "x" << i << ":\n" << x << "\n";
-        //std::cout << "F" << i << ":\n" << F << "\n\n";
+    for (auto i = 0u; i < num_meshless_nodes; ++i)
+    {
+        meshless_model.dof(i) = Eigen::Vector3d{xx(i), xy(i), xz(i)};
+    }
+
+    for (auto i = 0u; i < num_meshless_nodes; ++i)
+    {
+        auto const& Xi = meshless_model.point(i);
+        Eigen::Vector3d const ui{xx(i), xy(i), xz(i)};
+        std::cout << "Meshless point " << i << ":\n" << Xi.cast<sbs::scalar_type>() << "\n";
+        std::cout << "Meshless coefficient " << i << ":\n" << ui << "\n";
+        auto const& interpolate =
+            meshless_model.interpolation_field_at(Xi.cast<sbs::scalar_type>());
+        auto const xi = interpolate(Xi);
+        std::cout << "Particle point " << i << ":\n" << xi.cast<sbs::scalar_type>() << "\n";
     }
 
     return 0;

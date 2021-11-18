@@ -107,7 +107,7 @@ struct mls_basis_function_t
         {
             autodiff::Vector3dual const& Xj                    = Xjs[k];
             kernel_type const& Wj                              = Wjs[k];
-            Eigen::Vector<autodiff::dual, num_coefficients> Pj = polynomial3d<Order>(Xj);
+            Eigen::Vector<autodiff::dual, num_coefficients> Pj = polynomial3d<Order>(X - Xj);
             autodiff::dual WjX                                 = Wj(X);
             Eigen::Matrix<autodiff::dual, num_coefficients, num_coefficients> PjPjT =
                 Pj * Pj.transpose();
@@ -126,8 +126,8 @@ struct mls_basis_function_t
             A += Ainc; // W(X-Xj) P(Xj) P(Xj)^T
         }
 
-        Eigen::Vector<autodiff::dual, num_coefficients> P  = polynomial3d<Order>(X);
-        Eigen::Vector<autodiff::dual, num_coefficients> Pi = polynomial3d<Order>(Xi);
+        Eigen::Vector<autodiff::dual, num_coefficients> P  = polynomial3d<Order>(X - X);
+        Eigen::Vector<autodiff::dual, num_coefficients> Pi = polynomial3d<Order>(X - Xi);
 
 #if defined(_DEBUG)
         scalar_type const det = A.cast<scalar_type>().determinant();

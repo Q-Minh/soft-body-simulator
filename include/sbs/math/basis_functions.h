@@ -140,10 +140,10 @@ struct mls_basis_function_t
         {
             WiX.grad = 0.;
         }
-        Eigen::Vector<autodiff::dual, num_coefficients> WiPi     = WiX * Pi;
-        Eigen::Vector<autodiff::dual, num_coefficients> AinvWiPi = Ainv * WiPi;
+        Eigen::Vector<autodiff::dual, num_coefficients> WiP     = WiX * P;
+        Eigen::Vector<autodiff::dual, num_coefficients> AinvWiP = Ainv * WiP;
         // phi = P^T A(X)^-1 W(X-Xi) P(Xi)
-        autodiff::dual phi = P.dot(AinvWiPi);
+        autodiff::dual phi = Pi.dot(AinvWiP);
         return phi;
     }
 
@@ -151,6 +151,23 @@ struct mls_basis_function_t
     kernel_type Wi;
     std::vector<autodiff::Vector3dual> Xjs;
     std::vector<kernel_type> Wjs;
+};
+
+template <class KernelType = poly6_kernel_t>
+struct sph_basis_function_t
+{
+    using kernel_type      = KernelType;
+    sph_basis_function_t() = default;
+    sph_basis_function_t(kernel_type const& Wi, scalar_type const Vi) : Wi(Wi), Vi(Vi) {}
+
+    autodiff::dual operator()(autodiff::Vector3dual X) const
+    {
+        auto const Wij = Wi(X);
+        return Vi * Wij;
+    }
+
+    kernel_type Wi;
+    autodiff::dual Vi;
 };
 
 } // namespace math

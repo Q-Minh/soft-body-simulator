@@ -65,7 +65,6 @@ class interpolated_embedded_surface_t : public common::shared_vertex_surface_mes
     virtual void prepare_vertices_for_rendering() override;
     virtual void prepare_indices_for_rendering() override;
 
-  protected:
     std::vector<interpolation_op_type>& interpolation_operators() { maps_; }
     std::vector<Eigen::Vector3d>& reference_positions() { return X_; }
     std::vector<vertex_type>& vertices() { return vertices_; }
@@ -98,6 +97,7 @@ interpolated_embedded_surface_t<InterpolationFunctionType>::interpolated_embedde
         Eigen::Vector3d const xi = interpolate(Xi).cast<scalar_type>();
         vertices_[i].position    = xi;
     }
+    compute_normals();
 }
 template <class InterpolationFunctionType>
 inline interpolated_embedded_surface_t<InterpolationFunctionType>::interpolated_embedded_surface_t(
@@ -110,6 +110,7 @@ inline interpolated_embedded_surface_t<InterpolationFunctionType>::interpolated_
     {
         vertices_[i].position = X_[i];
     }
+    compute_normals();
 }
 
 template <class InterpolationFunctionType>

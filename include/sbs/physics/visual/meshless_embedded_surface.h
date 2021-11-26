@@ -20,9 +20,10 @@ class meshless_embedded_surface_t : public interpolated_embedded_surface_t<
     meshless_embedded_surface_t(
         std::vector<Eigen::Vector3d> const& points,
         std::vector<index_type> const& indices,
-        meshless_model_type const* mechanical_model);
+        meshless_model_type* mechanical_model);
 
     meshless_model_type const* mechanical_model() const;
+    meshless_model_type* mechanical_model();
     std::vector<index_type> const& meshless_neighbours_of_vertex(index_type const vi) const;
 
     /**
@@ -32,7 +33,7 @@ class meshless_embedded_surface_t : public interpolated_embedded_surface_t<
     void update();
 
   private:
-    meshless_model_type const* mechanical_model_;
+    meshless_model_type* mechanical_model_;
     std::vector<std::vector<index_type>>
         neighbours_of_; ///< Precomputed neighbourhoods of each surface vertex to each surrounding
                         ///< meshless node
@@ -42,7 +43,7 @@ template <class MeshlessModelType>
 inline meshless_embedded_surface_t<MeshlessModelType>::meshless_embedded_surface_t(
     std::vector<Eigen::Vector3d> const& points,
     std::vector<index_type> const& indices,
-    meshless_model_type const* mechanical_model)
+    meshless_model_type* mechanical_model)
     : base_type(points, indices), mechanical_model_(mechanical_model)
 {
     std::vector<interpolation_function_type> interpolation_functions{};
@@ -77,6 +78,12 @@ meshless_embedded_surface_t<MeshlessModelType>::mechanical_model() const
 }
 
 template <class MeshlessModelType>
+inline MeshlessModelType* meshless_embedded_surface_t<MeshlessModelType>::mechanical_model()
+{
+    return mechanical_model_;
+}
+
+template <class MeshlessModelType>
 inline std::vector<index_type> const&
 meshless_embedded_surface_t<MeshlessModelType>::meshless_neighbours_of_vertex(
     index_type const vi) const
@@ -95,6 +102,7 @@ inline void meshless_embedded_surface_t<MeshlessModelType>::update()
         auto const xi     = interpolate(Xi);
         this->position(i) = xi.cast<scalar_type>();
     }
+    compute_normals();
 }
 
 } // namespace visual

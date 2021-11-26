@@ -55,14 +55,20 @@ class constraint_t
      */
     std::vector<index_type> const& bs() const;
 
+    std::vector<index_type>& js();
+    std::vector<index_type>& bs();
+
+    void set_indices(std::vector<index_type> const& js);
+    void set_bodies(std::vector<index_type> const& bis);
+
   protected:
     virtual void prepare_for_projection_impl(simulation_t& simulation) {}
 
     scalar_type alpha_;           ///< Compliance coefficient
     scalar_type beta_;            ///< Damping coefficient
     scalar_type lagrange_;        ///< Lagrange multiplier
-    std::vector<index_type> bis_; ///< Body indices
     std::vector<index_type> js_;  ///< Particle indices
+    std::vector<index_type> bis_; ///< Body indices
 };
 
 } // namespace xpbd

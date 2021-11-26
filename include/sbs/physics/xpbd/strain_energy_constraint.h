@@ -83,15 +83,13 @@ inline void strain_energy_quadrature_constraint_t<InterpolationOpType>::project_
     }
 
     using deformation_gradient_op_type =
-        sbs::math::deformation_gradient_op_t<interpolation_op_type>;
-    using strain_op_type = sbs::math::strain_op_t<deformation_gradient_op_type>;
+        sbs::math::differentiable::deformation_gradient_op_t<interpolation_op_type>;
+    using strain_op_type = sbs::math::differentiable::strain_op_t<deformation_gradient_op_type>;
 
     deformation_gradient_op_type deformation_gradient_op(this->interpolation_op_);
     strain_op_type strain_op(deformation_gradient_op);
-    sbs::math::strain_energy_density_op_t<strain_op_type> strain_energy_density_op(
-        strain_op,
-        young_modulus_,
-        poisson_ratio_);
+    sbs::math::differentiable::stvk_strain_energy_density_op_t<strain_op_type>
+        strain_energy_density_op(strain_op, young_modulus_, poisson_ratio_);
 
     autodiff::Matrix3dual F, E;
 

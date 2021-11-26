@@ -1,7 +1,7 @@
 #include "sbs/physics/xpbd/gauss_seidel_solver.h"
 
-#include "sbs/physics/xpbd/simulation.h"
 #include "sbs/physics/xpbd/constraint.h"
+#include "sbs/physics/xpbd/simulation.h"
 
 namespace sbs {
 namespace physics {

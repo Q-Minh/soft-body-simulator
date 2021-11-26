@@ -6,7 +6,10 @@ namespace sbs {
 namespace physics {
 namespace xpbd {
 
-constraint_t::constraint_t(scalar_type alpha, scalar_type beta) : alpha_(alpha), beta_(beta) {}
+constraint_t::constraint_t(scalar_type alpha, scalar_type beta)
+    : alpha_(alpha), beta_(beta), lagrange_(0.), js_(), bis_()
+{
+}
 
 constraint_t::constraint_t(
     scalar_type alpha,
@@ -45,10 +48,6 @@ void constraint_t::project_positions_with_dampling(
         weighted_sum_of_gradients += pj.invmass() * gradC[i].squaredNorm();
         gradC_dot_displacement += gradC[i].dot(pj.xi() - pj.xn());
     }
-
-    // scalar_type constexpr epsilon = 1e-20;
-    // if (weighted_sum_of_gradients < epsilon)
-    //     return;
 
     scalar_type const dt2         = dt * dt;
     scalar_type const alpha_tilde = alpha() / dt2;
@@ -101,6 +100,25 @@ std::vector<index_type> const& constraint_t::js() const
 std::vector<index_type> const& constraint_t::bs() const
 {
     return bis_;
+}
+std::vector<index_type>& constraint_t::js()
+{
+    return js_;
+}
+
+std::vector<index_type>& constraint_t::bs()
+{
+    return bis_;
+}
+
+void constraint_t::set_indices(std::vector<index_type> const& js)
+{
+    js_ = js;
+}
+
+void constraint_t::set_bodies(std::vector<index_type> const& bis)
+{
+    bis_ = bis;
 }
 
 } // namespace xpbd

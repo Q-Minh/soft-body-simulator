@@ -7,19 +7,18 @@
 #include <Discregrid/acceleration/kd_tree.hpp>
 #include <Eigen/Core>
 #include <algorithm>
-#include <autodiff/forward/dual.hpp>
-#include <autodiff/forward/dual/eigen.hpp>
 #include <vector>
 
 namespace sbs {
 namespace math {
 
-template <class DofType, class BasisFunctionType>
+template <class DofType, class PointType, class BasisFunctionType>
 class meshless_model_t
 {
   public:
-    using self_type           = meshless_model_t<DofType, BasisFunctionType>;
+    using self_type           = meshless_model_t<DofType, PointType, BasisFunctionType>;
     using dof_type            = DofType;
+    using point_type          = PointType;
     using basis_function_type = BasisFunctionType;
 
     meshless_model_t() = default;
@@ -29,19 +28,21 @@ class meshless_model_t
 
     // Accessors
     dof_type const& dof(index_type i) const { return dofs_[i]; }
-    autodiff::Vector3dual const& point(index_type i) const { return points_[i]; }
+    point_type const& point(index_type i) const { return points_[i]; }
     basis_function_type const& phi(index_type i) const { return phis_[i]; }
 
     dof_type& dof(index_type i) { return dofs_[i]; }
+    basis_function_type& phi(index_type i) { return phis_[i]; }
 
     std::size_t dof_count() const { return dofs_.size(); }
     std::size_t point_count() const { return points_.size(); }
 
+    scalar_type h() const { return h_; }
     std::vector<index_type> in_support_of_nodes(Eigen::Vector3d const& X) const;
 
     // Modifiers
     void add_dof(dof_type const& dof) { dofs_.push_back(dof); }
-    void add_point(autodiff::Vector3dual const& point) { points_.push_back(point); }
+    void add_point(point_type const& point) { points_.push_back(point); }
     void add_basis_function(basis_function_type const& phi) { phis_.push_back(phi); }
     void set_support_radius(scalar_type h) { h_ = h; }
 
@@ -57,9 +58,19 @@ class meshless_model_t
 
     class in_support_query_t;
 
+  protected:
+    std::vector<dof_type> const& dofs() const { return dofs_; }
+    std::vector<dof_type>& dofs() { return dofs_; }
+
+    std::vector<point_type> const& points() const { return points_; }
+    std::vector<point_type>& points() { return points_; }
+
+    std::vector<basis_function_type> const& phis() const { return phis_; }
+    std::vector<basis_function_type>& phis() { return phis_; }
+
   private:
     std::vector<dof_type> dofs_;
-    std::vector<autodiff::Vector3dual> points_;
+    std::vector<point_type> points_;
     std::vector<basis_function_type> phis_;
     scalar_type h_;
 
@@ -67,10 +78,11 @@ class meshless_model_t
     class in_support_query_t : public Discregrid::KDTree<Discregrid::BoundingSphere>
     {
       public:
-        using base_type = Discregrid::KDTree<Discregrid::BoundingSphere>;
+        using base_type           = Discregrid::KDTree<Discregrid::BoundingSphere>;
+        using meshless_model_type = meshless_model_t<dof_type, point_type, basis_function_type>;
 
         in_support_query_t();
-        in_support_query_t(std::vector<autodiff::Vector3dual> const* points, scalar_type tolerance);
+        in_support_query_t(std::vector<point_type> const* points, scalar_type tolerance);
 
         in_support_query_t(in_support_query_t const& other) = default;
         in_support_query_t(in_support_query_t&& other)      = default;
@@ -85,10 +97,10 @@ class meshless_model_t
         virtual void computeHull(unsigned int b, unsigned int n, Discregrid::BoundingSphere& hull)
             const override final;
 
-        friend class meshless_model_t<DofType, BasisFunctionType>;
+        friend class meshless_model_t<DofType, PointType, BasisFunctionType>;
 
       private:
-        std::vector<autodiff::Vector3dual> const* points_;
+        std::vector<point_type> const* points_;
         scalar_type tolerance_;
     };
 
@@ -96,16 +108,17 @@ class meshless_model_t
     in_support_query_t in_support_query_;
 };
 
-template <class DofType, class BasisFunctionType>
-inline meshless_model_t<DofType, BasisFunctionType>::meshless_model_t(meshless_model_t const& other)
+template <class DofType, class PointType, class BasisFunctionType>
+inline meshless_model_t<DofType, PointType, BasisFunctionType>::meshless_model_t(
+    meshless_model_t const& other)
     : dofs_(other.dofs_), points_(other.points_), phis_(other.phis_), h_(other.h_)
 {
     in_support_query_ = in_support_query_t(&points_, other.in_support_query_.tolerance_);
 }
 
-template <class DofType, class BasisFunctionType>
-inline meshless_model_t<DofType, BasisFunctionType>&
-meshless_model_t<DofType, BasisFunctionType>::operator=(meshless_model_t const& other)
+template <class DofType, class PointType, class BasisFunctionType>
+inline meshless_model_t<DofType, PointType, BasisFunctionType>&
+meshless_model_t<DofType, PointType, BasisFunctionType>::operator=(meshless_model_t const& other)
 {
     dofs_             = other.dofs_;
     points_           = other.points_;
@@ -115,38 +128,39 @@ meshless_model_t<DofType, BasisFunctionType>::operator=(meshless_model_t const& 
     return *this;
 }
 
-template <class DofType, class BasisFunctionType>
+template <class DofType, class PointType, class BasisFunctionType>
 inline std::vector<index_type>
-meshless_model_t<DofType, BasisFunctionType>::in_support_of_nodes(Eigen::Vector3d const& X) const
+meshless_model_t<DofType, PointType, BasisFunctionType>::in_support_of_nodes(
+    Eigen::Vector3d const& X) const
 {
     return in_support_query_.neighbours_in_support(X, h_);
 }
 
-template <class DofType, class BasisFunctionType>
-inline void
-meshless_model_t<DofType, BasisFunctionType>::initialize_in_support_query(scalar_type tolerance)
+template <class DofType, class PointType, class BasisFunctionType>
+inline void meshless_model_t<DofType, PointType, BasisFunctionType>::initialize_in_support_query(
+    scalar_type tolerance)
 {
     in_support_query_ = in_support_query_t(&points_, tolerance);
 }
 
-template <class DofType, class BasisFunctionType>
-inline meshless_model_t<DofType, BasisFunctionType>::in_support_query_t::in_support_query_t()
+template <class DofType, class PointType, class BasisFunctionType>
+inline meshless_model_t<DofType, PointType, BasisFunctionType>::in_support_query_t::
+    in_support_query_t()
     : base_type(0u), points_(nullptr), tolerance_(0.)
 {
 }
 
-template <class DofType, class BasisFunctionType>
-inline meshless_model_t<DofType, BasisFunctionType>::in_support_query_t::in_support_query_t(
-    std::vector<autodiff::Vector3dual> const* points,
-    scalar_type tolerance)
+template <class DofType, class PointType, class BasisFunctionType>
+inline meshless_model_t<DofType, PointType, BasisFunctionType>::in_support_query_t::
+    in_support_query_t(std::vector<PointType> const* points, scalar_type tolerance)
     : base_type(points->size()), points_(points), tolerance_(tolerance)
 {
     this->construct();
 }
 
-template <class DofType, class BasisFunctionType>
+template <class DofType, class PointType, class BasisFunctionType>
 inline std::vector<index_type>
-meshless_model_t<DofType, BasisFunctionType>::in_support_query_t::neighbours_in_support(
+meshless_model_t<DofType, PointType, BasisFunctionType>::in_support_query_t::neighbours_in_support(
     Eigen::Vector3d const& X,
     scalar_type radius) const
 {
@@ -183,16 +197,17 @@ meshless_model_t<DofType, BasisFunctionType>::in_support_query_t::neighbours_in_
     return neighbours;
 }
 
-template <class DofType, class BasisFunctionType>
+template <class DofType, class PointType, class BasisFunctionType>
 inline Eigen::Vector3d
-meshless_model_t<DofType, BasisFunctionType>::in_support_query_t::entityPosition(
+meshless_model_t<DofType, PointType, BasisFunctionType>::in_support_query_t::entityPosition(
     unsigned int i) const
 {
     return (*points_)[i].cast<scalar_type>();
 }
 
-template <class DofType, class BasisFunctionType>
-inline void meshless_model_t<DofType, BasisFunctionType>::in_support_query_t::computeHull(
+template <class DofType, class PointType, class BasisFunctionType>
+inline void
+meshless_model_t<DofType, PointType, BasisFunctionType>::in_support_query_t::computeHull(
     unsigned int b,
     unsigned int n,
     Discregrid::BoundingSphere& hull) const

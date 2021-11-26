@@ -38,7 +38,7 @@ void timestep_t::step(simulation_t& simulation)
     //{
     //     std::cout << "Collisions: " << simulation.collision_constraints().size() << "\n";
     // }
-
+    
     for (std::size_t s = 0u; s < substeps_; ++s)
     {
         // move particles using semi-implicit integration

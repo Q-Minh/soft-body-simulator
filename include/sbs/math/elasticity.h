@@ -8,6 +8,7 @@
 
 namespace sbs {
 namespace math {
+namespace differentiable {
 
 template <class InterpolationFunctionType>
 struct deformation_gradient_op_t
@@ -86,11 +87,11 @@ struct strain_op_t
 };
 
 template <class StrainFunctionType>
-struct strain_energy_density_op_t
+struct stvk_strain_energy_density_op_t
 {
     using strain_op_type = StrainFunctionType;
 
-    strain_energy_density_op_t(
+    stvk_strain_energy_density_op_t(
         strain_op_type const& strain,
         double young_modulus,
         double poisson_ratio)
@@ -134,6 +135,48 @@ struct strain_energy_density_op_t
 
     strain_op_type const& strain_op;
     double mu, lambda;
+};
+
+} // namespace differentiable
+
+struct green_strain_op_t
+{
+    Eigen::Matrix3d operator()(Eigen::Matrix3d const& F) const
+    {
+        Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+        Eigen::Matrix3d E = 0.5 * (F.transpose() * F - I);
+        return E;
+    }
+};
+
+struct stvk_strain_energy_density_op_t
+{
+    stvk_strain_energy_density_op_t(scalar_type young_modulus, scalar_type poisson_ratio)
+        : mu(), lambda()
+    {
+        mu = (young_modulus) / (2. * (1. + poisson_ratio));
+        lambda =
+            (young_modulus * poisson_ratio) / ((1. + poisson_ratio) * (1. - 2. * poisson_ratio));
+    }
+
+    scalar_type operator()(Eigen::Matrix3d const& E) const
+    {
+        scalar_type const trace = E.trace();
+        auto tr2                = trace * trace;
+        scalar_type const EdotE = (E.array() * E.array()).sum(); // contraction
+        return mu * EdotE + 0.5 * lambda * tr2;
+    }
+
+    // Piola kirchhoff stress tensor: dPsi/dF
+    Eigen::Matrix3d stress(Eigen::Matrix3d const& F, Eigen::Matrix3d const& E) const
+    {
+        scalar_type const tr        = E.trace();
+        Eigen::Matrix3d const I     = Eigen::Matrix3d::Identity();
+        Eigen::Matrix3d const sigma = F * ((2. * mu * E) + (lambda * tr * I));
+        return sigma;
+    }
+
+    scalar_type mu, lambda;
 };
 
 } // namespace math

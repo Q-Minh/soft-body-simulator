@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
+#include <sbs/math/mapping.h>
 #include <sbs/physics/body/environment_body.h>
 #include <sbs/physics/body/meshless_body.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
@@ -23,10 +24,10 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance                  = 1e-4;
+    simulation.simulation_parameters().compliance                  = 1e-6;
     simulation.simulation_parameters().damping                     = 1e-2;
-    simulation.simulation_parameters().collision_compliance        = 1e-2;
-    simulation.simulation_parameters().collision_damping           = 1e-1;
+    simulation.simulation_parameters().collision_compliance        = 1e-4;
+    simulation.simulation_parameters().collision_damping           = 1e-2;
     simulation.simulation_parameters().poisson_ratio               = 0.45;
     simulation.simulation_parameters().young_modulus               = 1e6;
     simulation.simulation_parameters().positional_penalty_strength = 4.;
@@ -35,8 +36,8 @@ int main(int argc, char** argv)
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 4., 2.)};
-    //beam_transform.rotate(
-    //    Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    // beam_transform.rotate(
+    //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
     beam_transform.scale(Eigen::Vector3d{1.0, 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 2.;
@@ -55,17 +56,22 @@ int main(int argc, char** argv)
     body_type& beam = *dynamic_cast<body_type*>(simulation.bodies()[beam_idx].get());
 
     meshless_model_type& mechanical_model = beam.get_mechanical_model();
-    sbs::scalar_type const mass_density   = 1.;
+    sbs::scalar_type const mass_density   = 3.;
     for (auto i = 0u; i < mechanical_model.dof_count(); ++i)
     {
         Eigen::Vector3d const& Xi = mechanical_model.dof(i).cast<sbs::scalar_type>();
         sbs::physics::xpbd::particle_t p{Xi};
-        sbs::scalar_type const Vi = mechanical_model.V(i);
-        p.mass()                  = mass_density * Vi;
+        sbs::index_type const ti   = mechanical_model.englobing_tetrahedron_of_particle(i);
+        auto const N               = mechanical_model.particles_in_tetrahedron(ti).size();
+        sbs::scalar_type const det = static_cast<sbs::scalar_type>(
+            mechanical_model.domain().barycentric_map(ti).determinant());
+        sbs::scalar_type const Vtet = (1. / 6.) * det;
+        sbs::scalar_type const Vi   = Vtet / static_cast<sbs::scalar_type>(N);
+        // sbs::scalar_type const Vi = mechanical_model.V(i);
+        p.mass() = mass_density * Vi;
         simulation.add_particle(p, beam_idx);
     }
 
-    // Use direct nodal integration
     for (sbs::index_type i = 0u; i < mechanical_model.dof_count(); ++i)
     {
         auto const alpha = simulation.simulation_parameters().compliance;
@@ -73,7 +79,18 @@ int main(int argc, char** argv)
         auto const nu    = simulation.simulation_parameters().poisson_ratio;
         auto const E     = simulation.simulation_parameters().young_modulus;
 
-        sbs::scalar_type const Vi = mechanical_model.V(i);
+        // Use direct nodal integration with Shepard coefficient as "volume"
+        // sbs::scalar_type const Vi   = mechanical_model.V(i);
+
+        // Use direct nodal integration with uniform volume based on particle
+        // sampling in tetrahedron. If N particles shared the same tet, then
+        // the volume of each particle is Vi = Volume(tet) / N.
+        sbs::index_type const ti   = mechanical_model.englobing_tetrahedron_of_particle(i);
+        auto const N               = mechanical_model.particles_in_tetrahedron(ti).size();
+        sbs::scalar_type const det = static_cast<sbs::scalar_type>(
+            mechanical_model.domain().barycentric_map(ti).determinant());
+        sbs::scalar_type const Vtet = (1. / 6.) * det;
+        sbs::scalar_type const Vi   = Vtet / static_cast<sbs::scalar_type>(N);
 
         auto constraint =
             std::make_unique<sbs::physics::xpbd::stvk_sph_nodal_integration_constraint_t<
@@ -124,8 +141,8 @@ int main(int argc, char** argv)
 
             using interpolation_op_type = typename visual_model_type::interpolation_function_type;
 
-            auto const alpha = simulation.simulation_parameters().compliance;
-            auto const beta  = simulation.simulation_parameters().damping;
+            auto const alpha = simulation.simulation_parameters().collision_compliance;
+            auto const beta  = simulation.simulation_parameters().collision_damping;
 
             using collision_constraint_type =
                 sbs::physics::xpbd::sph_collision_constraint_t<visual_model_type>;

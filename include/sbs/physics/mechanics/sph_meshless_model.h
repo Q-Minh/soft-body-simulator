@@ -64,6 +64,15 @@ class sph_meshless_model_t
         return deformation_gradient_functions_[i];
     }
 
+    std::vector<index_type> const& particles_in_tetrahedron(index_type const ti) const
+    {
+        return particles_in_tet_[ti];
+    }
+    index_type englobing_tetrahedron_of_particle(index_type const i) const
+    {
+        return particle_tets_[i];
+    }
+
   private:
     geometry::tetrahedral_domain_t domain_; ///< The integration domain
     geometry::grid_t grid_;                 ///< The particle sampling grid
@@ -74,6 +83,8 @@ class sph_meshless_model_t
         interpolation_fields_; ///< Interpolation fields at points
     std::vector<deformation_gradient_function_type>
         deformation_gradient_functions_; ///< Nodal deformation gradient callable functors
+    std::vector<std::vector<index_type>> particles_in_tet_; ///< Particles in each tetrahedron
+    std::vector<index_type> particle_tets_; ///< The englobing tetrahedron of each particle
 };
 
 template <class KernelType>
@@ -81,7 +92,15 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
     geometry::tetrahedral_domain_t const& domain,
     geometry::grid_t const& grid,
     scalar_type support)
-    : domain_(domain), grid_(grid), interpolation_fields_()
+    : domain_(domain),
+      grid_(grid),
+      Vis_(),
+      Wis_(),
+      Fis_(),
+      interpolation_fields_(),
+      deformation_gradient_functions_(),
+      particles_in_tet_(),
+      particle_tets_()
 {
     // Sample meshless nodes
     grid_.walk([this](Eigen::Vector3d const& X) {
@@ -108,6 +127,9 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
     std::vector<std::vector<index_type>> Nijs{};
     Nijs.reserve(this->point_count());
 
+    particles_in_tet_.resize(domain_.topology().tetrahedron_count());
+    particle_tets_.reserve(this->point_count());
+
     // Create node shape functions and nodal neighbourhoods
     for (auto i = 0u; i < this->point_count(); ++i)
     {
@@ -117,6 +139,11 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
 
         std::vector<index_type> nodes = this->in_support_of_nodes(Xi);
         Nijs.push_back(nodes);
+
+        index_type const ti = domain_.in_tetrahedron(Xi);
+        assert(ti != std::numeric_limits<index_type>::max());
+        particles_in_tet_[ti].push_back(i);
+        particle_tets_.push_back(ti);
     }
     for (auto i = 0u; i < this->point_count(); ++i)
     {
@@ -172,7 +199,9 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(self_type const& o
       Wis_(other.Wis_),
       Fis_(other.Fis_),
       interpolation_fields_(),
-      deformation_gradient_functions_()
+      deformation_gradient_functions_(),
+      particles_in_tet_(other.particles_in_tet_),
+      particle_tets_(other.particle_tets_)
 {
     interpolation_fields_.reserve(other.point_count());
     deformation_gradient_functions_.reserve(other.point_count());
@@ -232,6 +261,8 @@ sph_meshless_model_t<KernelType>::operator=(self_type const& other)
             this->interpolation_fields_[i]);
         this->deformation_gradient_functions_.push_back(deformation_gradient_function);
     }
+    particles_in_tet_ = other.particles_in_tet_;
+    particle_tets_    = other.particle_tets_;
     return *this;
 }
 

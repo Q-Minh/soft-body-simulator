@@ -122,7 +122,7 @@ struct sph_interpolation_t
             scalar_type const& Vj          = (*Vjs)[j];
             kernel_function_type const& Wj = (*Wjs)[j];
             scalar_type const Wkj          = static_cast<scalar_type>(Wj(Xk));
-            scalar_type const dxdxj        = sk * Vj * Wkj;
+            scalar_type const dxdxj        = /*sk * */ Vj * Wkj;
             dxdxjs.push_back(dxdxj);
         }
         return dxdxjs;

@@ -26,14 +26,7 @@ struct sph_interpolation_t
         std::vector<Eigen::Matrix3d> const* Fjs)
         : sk(0.), Xk(Xk), js(js), Xjs(Xjs), xjs(xjs), Vjs(Vjs), Wjs(Wjs), Fjs(Fjs)
     {
-        for (index_type const j : js)
-        {
-            scalar_type const& Vj          = (*Vjs)[j];
-            kernel_function_type const& Wj = (*Wjs)[j];
-            scalar_type const Wkj          = static_cast<scalar_type>(Wj(Xk));
-            sk += Vj * Wkj;
-        }
-        sk = (1. / sk);
+        sk = compute_shepard_coefficient(Xk);
     }
 
     Eigen::Vector3d operator()(Eigen::Vector3d const& X) const
@@ -48,25 +41,7 @@ struct sph_interpolation_t
         }
     }
 
-    Eigen::Vector3d eval() const
-    {
-        Eigen::Vector3d xk{0., 0., 0.};
-
-        for (index_type const j : js)
-        {
-            scalar_type const& Vj          = (*Vjs)[j];
-            Eigen::Vector3d const& Xj      = (*Xjs)[j];
-            Eigen::Vector3d const& xj      = (*xjs)[j];
-            Eigen::Matrix3d const& Fj      = (*Fjs)[j];
-            kernel_function_type const& Wj = (*Wjs)[j];
-            scalar_type const Wkj          = static_cast<scalar_type>(Wj(Xk));
-            Eigen::Vector3d const Xkj      = Xk - Xj;
-            xk += Vj * (Fj * Xkj + xj) * Wkj;
-        }
-        xk = sk * xk;
-
-        return xk;
-    }
+    Eigen::Vector3d eval() const { return eval(Xk, sk); }
 
     scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
     {
@@ -85,7 +60,11 @@ struct sph_interpolation_t
     Eigen::Vector3d eval(Eigen::Vector3d const& X) const
     {
         scalar_type const s = compute_shepard_coefficient(X);
+        return eval(X, s);
+    }
 
+    Eigen::Vector3d eval(Eigen::Vector3d const& X, scalar_type s) const
+    {
         Eigen::Vector3d x{0., 0., 0.};
 
         for (index_type const j : js)
@@ -122,7 +101,7 @@ struct sph_interpolation_t
             scalar_type const& Vj          = (*Vjs)[j];
             kernel_function_type const& Wj = (*Wjs)[j];
             scalar_type const Wkj          = static_cast<scalar_type>(Wj(Xk));
-            scalar_type const dxdxj        = /*sk * */ Vj * Wkj;
+            scalar_type const dxdxj        = sk * Vj * Wkj;
             dxdxjs.push_back(dxdxj);
         }
         return dxdxjs;
@@ -161,11 +140,12 @@ struct sph_nodal_deformation_gradient_op_t
 
     void store_L_and_gradWijs()
     {
+        auto const& js = sph_interpolation_op.js;
         // Cache basis function gradients and correction matrix L
         gradWijs.clear();
-        auto const& js = sph_interpolation_op.js;
         gradWijs.reserve(js.size());
         Li.setZero();
+
         for (index_type const j : js)
         {
             using autodiff::at;
@@ -211,7 +191,7 @@ struct sph_nodal_deformation_gradient_op_t
             Eigen::Vector3d const xji      = xj - xi;
             scalar_type const Vj           = (*sph_interpolation_op.Vjs)[j];
             Eigen::Vector3d const& gradWij = gradWijs[a];
-            F += (Vj * xji) * (Li * gradWij).transpose();
+            F += xji * (Vj * Li * gradWij).transpose();
         }
 
         return F;

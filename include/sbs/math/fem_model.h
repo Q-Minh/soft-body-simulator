@@ -30,6 +30,7 @@ class fem_model_t
 {
   public:
     using dof_type     = DofType;
+    using point_type   = Eigen::Vector3d;
     using cell_type    = CellType;
     using element_type = ElementType;
     using size_type    = std::size_t;
@@ -38,7 +39,7 @@ class fem_model_t
 
     // Accessors
     dof_type const& dof(index_type i) const { return dofs_[i]; }
-    autodiff::Vector3dual const& point(index_type i) const { return points_[i]; }
+    point_type const& point(index_type i) const { return points_[i]; }
     element_type const& element(index_type e) const { return elements_[e]; }
     cell_type const& cell(index_type e) const { return cells_[e]; }
 
@@ -51,7 +52,7 @@ class fem_model_t
 
     // Modifiers
     void add_dof(dof_type const& dof) { dofs_.push_back(dof); }
-    void add_point(autodiff::Vector3dual const& point) { points_.push_back(point); }
+    void add_point(point_type const& point) { points_.push_back(point); }
     void add_element(element_type const& element) { elements_.push_back(element); }
     void add_cell(cell_type const& cell) { cells_.push_back(cell); }
 
@@ -69,7 +70,7 @@ class fem_model_t
 
   private:
     std::vector<dof_type> dofs_;
-    std::vector<autodiff::Vector3dual> points_;
+    std::vector<point_type> points_;
     std::vector<element_type> elements_;
     std::vector<cell_type> cells_;
 };
@@ -142,7 +143,7 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
     // Create first-order DOFS and points first, since they need to be shared by elements
     for (auto i = 0u; i < vertex_count; ++i)
     {
-        autodiff::Vector3dual const Xi = domain_.position(i);
+        point_type const Xi = domain_.position(i);
 
         this->add_point(Xi);
         this->add_dof(dof_type{});
@@ -156,10 +157,10 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
         index_type const v2                        = tetrahedron.v2();
         index_type const v3                        = tetrahedron.v3();
         index_type const v4                        = tetrahedron.v4();
-        autodiff::Vector3dual const X1             = domain_.position(v1);
-        autodiff::Vector3dual const X2             = domain_.position(v2);
-        autodiff::Vector3dual const X3             = domain_.position(v3);
-        autodiff::Vector3dual const X4             = domain_.position(v4);
+        Eigen::Vector3d const X1                   = domain_.position(v1);
+        Eigen::Vector3d const X2                   = domain_.position(v2);
+        Eigen::Vector3d const X3                   = domain_.position(v3);
+        Eigen::Vector3d const X4                   = domain_.position(v4);
 
         element_type element(X1, X2, X3, X4);
         unsigned int constexpr node_count = cell_type::node_count_value;
@@ -204,7 +205,7 @@ void tetrahedral_fem_model_t<DofType, Order>::build_model()
                     auto const dY = j * deltaX;
                     auto const dZ = k * deltaX;
 
-                    autodiff::Vector3dual const Xi = X1 + autodiff::Vector3dual(dX, dY, dZ);
+                    point_type const Xi = X1 + point_type(dX, dY, dZ);
                     Xis.push_back(Xi);
 
                     auto global_idx            = static_cast<index_type>(this->dof_count());

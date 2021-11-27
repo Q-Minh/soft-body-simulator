@@ -44,7 +44,7 @@ class cd_system_t
 
   private:
     std::vector<collision_model_t*> collision_objects_;
-    std::unique_ptr<contact_handler_t> contact_handler_;
+    std::unique_ptr<contact_handler_t> contact_handler_{nullptr};
 };
 
 } // namespace collision

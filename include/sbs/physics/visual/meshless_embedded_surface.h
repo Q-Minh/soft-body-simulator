@@ -98,7 +98,7 @@ inline void meshless_embedded_surface_t<MeshlessModelType>::update()
     for (auto i = 0u; i < Xs.size(); ++i)
     {
         auto const& Xi    = Xs[i];
-        auto& interpolate = this->interpolation_operator(i);
+        auto const& interpolate = this->interpolation_operator(i);
         auto const xi     = interpolate(Xi);
         this->position(i) = xi.cast<scalar_type>();
     }

@@ -30,15 +30,19 @@ void timestep_t::step(simulation_t& simulation)
     // cut(simulation);
     // body->update_physical_model();
     auto const& cd_system = simulation.collision_detection_system();
-    cd_system->contact_handler()->on_cd_starting();
-    cd_system->execute();
-    cd_system->contact_handler()->on_cd_ending();
+
+    if (static_cast<bool>(cd_system) && static_cast<bool>(cd_system->contact_handler()))
+    {
+        cd_system->contact_handler()->on_cd_starting();
+        cd_system->execute();
+        cd_system->contact_handler()->on_cd_ending();
+    }
 
     // if (!simulation.collision_constraints().empty())
     //{
     //     std::cout << "Collisions: " << simulation.collision_constraints().size() << "\n";
     // }
-    
+
     for (std::size_t s = 0u; s < substeps_; ++s)
     {
         // move particles using semi-implicit integration
@@ -75,7 +79,11 @@ void timestep_t::step(simulation_t& simulation)
     }
 
     simulation.collision_constraints().clear();
-    cd_system->update(simulation);
+
+    if (static_cast<bool>(cd_system) && static_cast<bool>(cd_system->contact_handler()))
+    {
+        cd_system->update(simulation);
+    }
 }
 
 scalar_type timestep_t::dt() const

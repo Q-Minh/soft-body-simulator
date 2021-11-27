@@ -38,6 +38,8 @@ struct num_nodes_for_tetrahedron_cell_of_order_t
     static constexpr unsigned int value = num_nodes_for_tetrahedron_cell_of_order<Order>();
 };
 
+namespace differentiable {
+
 struct linear_hat_basis_function_op_t
 {
     linear_hat_basis_function_op_t(autodiff::Vector4dual const& a) : a(a) {}
@@ -168,6 +170,43 @@ struct sph_basis_function_t
 
     kernel_type Wi;
     autodiff::dual Vi;
+};
+
+} // namespace differentiable
+
+template <unsigned int Order>
+struct polynomial_hat_basis_function_t
+{
+    using coefficients_type =
+        Eigen::Vector<scalar_type, num_nodes_for_tetrahedron_cell_of_order_t<Order>::value>;
+    static_assert(
+        num_nodes_for_tetrahedron_cell_of_order_t<Order>::value ==
+            num_coefficients_for_polynomial_of_order_t<Order>::value,
+        "Number of nodes required in the tetrahedron should be same number of coefficients "
+        "required in polynomial interpolation");
+
+    polynomial_hat_basis_function_t() = default;
+    polynomial_hat_basis_function_t(coefficients_type const& a) : a(a) {}
+
+    scalar_type operator()(Eigen::Vector3d const& X) const { return eval(X); }
+
+    scalar_type eval(Eigen::Vector3d const& X) const
+    {
+        auto const p = polynomial3d<Order>(X);
+        return p.dot(a);
+    }
+
+    Eigen::Vector3d grad(Eigen::Vector3d const& X) const
+    {
+        static_assert(
+            Order == 1u,
+            "Gradient of higher-order polynomial functions not yet implemented");
+
+        // a0 + a1*X + a2*Y + a3*Z;
+        return Eigen::Vector3d{a(1), a(2), a(3)};
+    }
+
+    coefficients_type a;
 };
 
 } // namespace math

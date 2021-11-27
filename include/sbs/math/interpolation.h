@@ -11,6 +11,8 @@ namespace math {
 
 enum interpolation_op_variant { dynamic_owning = -1, dynamic_non_owning = -2 };
 
+namespace differentiable {
+
 template <class BasisFunctionType, int NumBasisFunctions = -1>
 struct interpolation_op_t
 {
@@ -94,6 +96,7 @@ struct interpolation_op_t<BasisFunctionType, -2>
     std::vector<index_type> is;
 };
 
+} // namespace differentiable
 } // namespace math
 } // namespace sbs
 

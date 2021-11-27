@@ -74,10 +74,11 @@ int main(int argc, char** argv)
 
         for (auto i = 0u; i < quadrature_rule.points.size(); ++i)
         {
-            auto const Xi = quadrature_rule.points[i];
-            auto const wi = quadrature_rule.weights[i];
+            auto const& Xi = quadrature_rule.points[i];
+            auto const& wi = quadrature_rule.weights[i];
 
-            using basis_function_type = sbs::math::polynomial_hat_basis_function_t<1>;
+            using basis_function_type =
+                sbs::math::differentiable::polynomial_hat_basis_function_t<1>;
             unsigned int constexpr num_basis_functions = 4u;
 
             std::array<autodiff::Vector3dual, num_basis_functions> xis{};
@@ -89,8 +90,9 @@ int main(int argc, char** argv)
                 phis[r]                    = cell.phi(r);
             }
 
-            using interpolation_op_type =
-                sbs::math::interpolation_op_t<sbs::math::polynomial_hat_basis_function_t<1>, 4u>;
+            using interpolation_op_type = sbs::math::differentiable::interpolation_op_t<
+                sbs::math::differentiable::polynomial_hat_basis_function_t<1>,
+                4u>;
             interpolation_op_type interpolation_op{xis, phis};
 
             using constraint_type =
@@ -166,7 +168,7 @@ int main(int argc, char** argv)
         sbs::index_type const e = surface.cell_containing_vertex(vi);
         auto const& cell        = beam.get_mechanical_model().cell(e);
 
-        using basis_function_type                  = sbs::math::polynomial_hat_basis_function_t<1>;
+        using basis_function_type = sbs::math::differentiable::polynomial_hat_basis_function_t<1>;
         unsigned int constexpr num_basis_functions = 4u;
 
         std::array<autodiff::Vector3dual, num_basis_functions> xis{};
@@ -178,8 +180,8 @@ int main(int argc, char** argv)
             phis[r]                    = cell.phi(r);
         }
 
-        using interpolation_op_type =
-            sbs::math::interpolation_op_t<sbs::math::polynomial_hat_basis_function_t<1>, 4u>;
+        using interpolation_op_type = sbs::math::differentiable::
+            interpolation_op_t<sbs::math::differentiable::polynomial_hat_basis_function_t<1>, 4u>;
         interpolation_op_type interpolation_op{xis, phis};
 
         auto const alpha = simulation.simulation_parameters().compliance;

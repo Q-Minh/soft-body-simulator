@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <imgui/imgui.h>
+#include <implot/implot.h>
 #include <iostream>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>

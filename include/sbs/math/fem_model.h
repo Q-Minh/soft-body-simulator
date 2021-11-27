@@ -50,6 +50,11 @@ class fem_model_t
     size_type element_count() const { return elements_.size(); }
     size_type cell_count() const { return cells_.size(); }
 
+    std::vector<point_type> const& points() const { return points_; }
+    std::vector<dof_type> const& dofs() const { return dofs_; }
+    std::vector<dof_type>& dofs() { return dofs_; }
+    std::vector<cell_type> const& cells() const { return cells_; }
+
     // Modifiers
     void add_dof(dof_type const& dof) { dofs_.push_back(dof); }
     void add_point(point_type const& point) { points_.push_back(point); }
@@ -84,13 +89,167 @@ class fem_model_t
  * of this model.
  * @tparam DofType Type of the unknown coefficients to solve for
  */
-template <class DofType, unsigned int Order>
+template <class DofType, unsigned int Order, bool Differentiable = true>
 class tetrahedral_fem_model_t : public fem_model_t<
                                     DofType,
                                     tetrahedral_element_t,
                                     cell_t<
                                         num_nodes_for_tetrahedron_cell_of_order_t<Order>::value,
-                                        polynomial_hat_basis_function_t<Order>>>
+                                        differentiable::polynomial_hat_basis_function_t<Order>>>
+{
+  public:
+    using base_type = fem_model_t<
+        DofType,
+        tetrahedral_element_t,
+        cell_t<
+            num_nodes_for_tetrahedron_cell_of_order_t<Order>::value,
+            differentiable::polynomial_hat_basis_function_t<Order>>>;
+
+    using dof_type = DofType;
+
+    using cell_type = cell_t<
+        num_nodes_for_tetrahedron_cell_of_order_t<Order>::value,
+        differentiable::polynomial_hat_basis_function_t<Order>>;
+
+    using element_type        = tetrahedral_element_t;
+    using basis_function_type = differentiable::polynomial_hat_basis_function_t<Order>;
+    using self_type           = tetrahedral_fem_model_t<dof_type, Order>;
+
+    tetrahedral_fem_model_t() = default;
+    tetrahedral_fem_model_t(geometry::tetrahedral_domain_t const& domain) : domain_(domain)
+    {
+        build_model();
+    }
+
+    // Accessors
+    geometry::tetrahedral_domain_t const& domain() const { return domain_; }
+
+    // Mutators
+    void build_model()
+    {
+        this->clear();
+
+        auto const& topology     = domain_.topology();
+        auto const element_count = topology.tetrahedron_count();
+        auto const vertex_count  = topology.vertex_count();
+
+        // Create first-order DOFS and points first, since they need to be shared by elements
+        for (auto i = 0u; i < vertex_count; ++i)
+        {
+            point_type const Xi = domain_.position(i);
+
+            this->add_point(Xi);
+            this->add_dof(dof_type{});
+        }
+
+        // Create elements, cells, points and dofs by traversing the domain's tetrahedra
+        for (auto e = 0u; e < element_count; ++e)
+        {
+            topology::tetrahedron_t const& tetrahedron = topology.tetrahedron(e);
+            index_type const v1                        = tetrahedron.v1();
+            index_type const v2                        = tetrahedron.v2();
+            index_type const v3                        = tetrahedron.v3();
+            index_type const v4                        = tetrahedron.v4();
+            Eigen::Vector3d const X1                   = domain_.position(v1);
+            Eigen::Vector3d const X2                   = domain_.position(v2);
+            Eigen::Vector3d const X3                   = domain_.position(v3);
+            Eigen::Vector3d const X4                   = domain_.position(v4);
+
+            element_type element(X1, X2, X3, X4);
+            unsigned int constexpr node_count = cell_type::node_count_value;
+
+            std::unordered_map<index_type, index_type> local_to_global{};
+            local_to_global[0u] = v1;
+            local_to_global[1u] = v2;
+            local_to_global[2u] = v3;
+            local_to_global[3u] = v4;
+
+            std::vector<point_type> Xis{};
+            Xis.reserve(node_count);
+            Xis.push_back(X1);
+            Xis.push_back(X2);
+            Xis.push_back(X3);
+            Xis.push_back(X4);
+
+            // Sample interior nodes uniformly in the tetrahedral element
+            unsigned int const num_segments_on_edge = Order;
+            scalar_type deltaX = 1. / static_cast<scalar_type>(num_segments_on_edge);
+            unsigned int constexpr num_samples_on_edge = Order + 1u;
+            for (auto k = 0u; k < num_samples_on_edge; ++k)
+            {
+                auto const j_samples = num_samples_on_edge - k;
+                for (auto j = 0u; j < j_samples; ++j)
+                {
+                    auto const i_samples = num_samples_on_edge - k - j;
+                    for (auto i = 0u; i < i_samples; ++i)
+                    {
+                        // clang-format off
+                    bool const is_tet_vertex =
+                        (k == 0u && j == 0u && i == 0u) || 
+                        (k == 0u && j == 0u && i == num_samples_on_edge - 1u) ||
+                        (k == 0u && j == num_samples_on_edge - 1u && i == 0u) || 
+                        (k == num_samples_on_edge - 1u && j == 0u && i == 0u);
+                        // clang-format on
+
+                        if (is_tet_vertex)
+                            continue;
+
+                        auto const dX = i * deltaX;
+                        auto const dY = j * deltaX;
+                        auto const dZ = k * deltaX;
+
+                        point_type const Xi = X1 + point_type(dX, dY, dZ);
+                        Xis.push_back(Xi);
+
+                        auto global_idx = static_cast<index_type>(this->dof_count());
+                        auto local_idx  = static_cast<index_type>(local_to_global.size());
+                        local_to_global[local_idx] = global_idx;
+                        this->add_dof(dof_type{});
+                        this->add_point(Xi);
+                    }
+                }
+            }
+
+            using PolynomialMatrixType = Eigen::Matrix<autodiff::dual, node_count, node_count>;
+
+            // Build the polynomial hat basis functions for each sampled node
+            PolynomialMatrixType P{};
+            for (auto i = 0u; i < node_count; ++i)
+            {
+                P.row(i) = differentiable::polynomial3d<Order>(Xis[i]);
+            }
+
+            PolynomialMatrixType const Pinv = P.inverse(); // LU-decomposition based inverse
+
+            auto const node_index_offset = this->point_count();
+            cell_type cell{};
+            for (auto r = 0u; r < node_count; ++r)
+            {
+                basis_function_type const phi(Pinv.col(r));
+                index_type const i = local_to_global[r];
+
+                cell.set_node(r, i);
+                cell.set_phi(r, phi);
+            }
+
+            // build fem model
+            this->add_element(element);
+            this->add_cell(cell);
+        }
+    }
+
+  private:
+    geometry::tetrahedral_domain_t domain_;
+};
+
+template <class DofType, unsigned int Order>
+class tetrahedral_fem_model_t<DofType, Order, false>
+    : public fem_model_t<
+          DofType,
+          tetrahedral_element_t,
+          cell_t<
+              num_nodes_for_tetrahedron_cell_of_order_t<Order>::value,
+              polynomial_hat_basis_function_t<Order>>>
 {
   public:
     using base_type = fem_model_t<
@@ -111,139 +270,131 @@ class tetrahedral_fem_model_t : public fem_model_t<
     using self_type           = tetrahedral_fem_model_t<dof_type, Order>;
 
     tetrahedral_fem_model_t() = default;
-    tetrahedral_fem_model_t(geometry::tetrahedral_domain_t const& domain);
+    tetrahedral_fem_model_t(geometry::tetrahedral_domain_t const& domain) : domain_(domain)
+    {
+        build_model();
+    }
 
     // Accessors
     geometry::tetrahedral_domain_t const& domain() const { return domain_; }
 
     // Mutators
-    void build_model();
-
-  private:
-    geometry::tetrahedral_domain_t domain_;
-};
-
-template <class DofType, unsigned int Order>
-tetrahedral_fem_model_t<DofType, Order>::tetrahedral_fem_model_t(
-    geometry::tetrahedral_domain_t const& domain)
-    : domain_(domain)
-{
-    build_model();
-}
-
-template <class DofType, unsigned int Order>
-void tetrahedral_fem_model_t<DofType, Order>::build_model()
-{
-    this->clear();
-
-    auto const& topology     = domain_.topology();
-    auto const element_count = topology.tetrahedron_count();
-    auto const vertex_count  = topology.vertex_count();
-
-    // Create first-order DOFS and points first, since they need to be shared by elements
-    for (auto i = 0u; i < vertex_count; ++i)
+    void build_model()
     {
-        point_type const Xi = domain_.position(i);
+        this->clear();
 
-        this->add_point(Xi);
-        this->add_dof(dof_type{});
-    }
+        auto const& topology     = domain_.topology();
+        auto const element_count = topology.tetrahedron_count();
+        auto const vertex_count  = topology.vertex_count();
 
-    // Create elements, cells, points and dofs by traversing the domain's tetrahedra
-    for (auto e = 0u; e < element_count; ++e)
-    {
-        topology::tetrahedron_t const& tetrahedron = topology.tetrahedron(e);
-        index_type const v1                        = tetrahedron.v1();
-        index_type const v2                        = tetrahedron.v2();
-        index_type const v3                        = tetrahedron.v3();
-        index_type const v4                        = tetrahedron.v4();
-        Eigen::Vector3d const X1                   = domain_.position(v1);
-        Eigen::Vector3d const X2                   = domain_.position(v2);
-        Eigen::Vector3d const X3                   = domain_.position(v3);
-        Eigen::Vector3d const X4                   = domain_.position(v4);
-
-        element_type element(X1, X2, X3, X4);
-        unsigned int constexpr node_count = cell_type::node_count_value;
-
-        std::unordered_map<index_type, index_type> local_to_global{};
-        local_to_global[0u] = v1;
-        local_to_global[1u] = v2;
-        local_to_global[2u] = v3;
-        local_to_global[3u] = v4;
-
-        std::vector<autodiff::Vector3dual> Xis{};
-        Xis.reserve(node_count);
-        Xis.push_back(X1);
-        Xis.push_back(X2);
-        Xis.push_back(X3);
-        Xis.push_back(X4);
-
-        // Sample interior nodes uniformly in the tetrahedral element
-        unsigned int const num_segments_on_edge = Order;
-        scalar_type deltaX = 1. / static_cast<scalar_type>(num_segments_on_edge);
-        unsigned int constexpr num_samples_on_edge = Order + 1u;
-        for (auto k = 0u; k < num_samples_on_edge; ++k)
+        // Create first-order DOFS and points first, since they need to be shared by elements
+        for (auto i = 0u; i < vertex_count; ++i)
         {
-            auto const j_samples = num_samples_on_edge - k;
-            for (auto j = 0u; j < j_samples; ++j)
+            point_type const Xi = domain_.position(i);
+
+            this->add_point(Xi);
+            this->add_dof(dof_type{});
+        }
+
+        // Create elements, cells, points and dofs by traversing the domain's tetrahedra
+        for (auto e = 0u; e < element_count; ++e)
+        {
+            topology::tetrahedron_t const& tetrahedron = topology.tetrahedron(e);
+            index_type const v1                        = tetrahedron.v1();
+            index_type const v2                        = tetrahedron.v2();
+            index_type const v3                        = tetrahedron.v3();
+            index_type const v4                        = tetrahedron.v4();
+            Eigen::Vector3d const X1                   = domain_.position(v1);
+            Eigen::Vector3d const X2                   = domain_.position(v2);
+            Eigen::Vector3d const X3                   = domain_.position(v3);
+            Eigen::Vector3d const X4                   = domain_.position(v4);
+
+            element_type element(X1, X2, X3, X4);
+            unsigned int constexpr node_count = cell_type::node_count_value;
+
+            std::unordered_map<index_type, index_type> local_to_global{};
+            local_to_global[0u] = v1;
+            local_to_global[1u] = v2;
+            local_to_global[2u] = v3;
+            local_to_global[3u] = v4;
+
+            std::vector<point_type> Xis{};
+            Xis.reserve(node_count);
+            Xis.push_back(X1);
+            Xis.push_back(X2);
+            Xis.push_back(X3);
+            Xis.push_back(X4);
+
+            // Sample interior nodes uniformly in the tetrahedral element
+            unsigned int const num_segments_on_edge = Order;
+            scalar_type deltaX = 1. / static_cast<scalar_type>(num_segments_on_edge);
+            unsigned int constexpr num_samples_on_edge = Order + 1u;
+            for (auto k = 0u; k < num_samples_on_edge; ++k)
             {
-                auto const i_samples = num_samples_on_edge - k - j;
-                for (auto i = 0u; i < i_samples; ++i)
+                auto const j_samples = num_samples_on_edge - k;
+                for (auto j = 0u; j < j_samples; ++j)
                 {
-                    // clang-format off
+                    auto const i_samples = num_samples_on_edge - k - j;
+                    for (auto i = 0u; i < i_samples; ++i)
+                    {
+                        // clang-format off
                     bool const is_tet_vertex =
                         (k == 0u && j == 0u && i == 0u) || 
                         (k == 0u && j == 0u && i == num_samples_on_edge - 1u) ||
                         (k == 0u && j == num_samples_on_edge - 1u && i == 0u) || 
                         (k == num_samples_on_edge - 1u && j == 0u && i == 0u);
-                    // clang-format on
+                        // clang-format on
 
-                    if (is_tet_vertex)
-                        continue;
+                        if (is_tet_vertex)
+                            continue;
 
-                    auto const dX = i * deltaX;
-                    auto const dY = j * deltaX;
-                    auto const dZ = k * deltaX;
+                        auto const dX = i * deltaX;
+                        auto const dY = j * deltaX;
+                        auto const dZ = k * deltaX;
 
-                    point_type const Xi = X1 + point_type(dX, dY, dZ);
-                    Xis.push_back(Xi);
+                        point_type const Xi = X1 + point_type(dX, dY, dZ);
+                        Xis.push_back(Xi);
 
-                    auto global_idx            = static_cast<index_type>(this->dof_count());
-                    auto local_idx             = static_cast<index_type>(local_to_global.size());
-                    local_to_global[local_idx] = global_idx;
-                    this->add_dof(dof_type{});
-                    this->add_point(Xi);
+                        auto global_idx = static_cast<index_type>(this->dof_count());
+                        auto local_idx  = static_cast<index_type>(local_to_global.size());
+                        local_to_global[local_idx] = global_idx;
+                        this->add_dof(dof_type{});
+                        this->add_point(Xi);
+                    }
                 }
             }
+
+            using PolynomialMatrixType = Eigen::Matrix<scalar_type, node_count, node_count>;
+
+            // Build the polynomial hat basis functions for each sampled node
+            PolynomialMatrixType P{};
+            for (auto i = 0u; i < node_count; ++i)
+            {
+                P.row(i) = polynomial3d<Order>(Xis[i]);
+            }
+
+            PolynomialMatrixType const Pinv = P.inverse(); // LU-decomposition based inverse
+
+            auto const node_index_offset = this->point_count();
+            cell_type cell{};
+            for (auto r = 0u; r < node_count; ++r)
+            {
+                basis_function_type const phi(Pinv.col(r));
+                index_type const i = local_to_global[r];
+
+                cell.set_node(r, i);
+                cell.set_phi(r, phi);
+            }
+
+            // build fem model
+            this->add_element(element);
+            this->add_cell(cell);
         }
-
-        // Build the polynomial hat basis functions for each sampled node
-        Eigen::Matrix<autodiff::dual, node_count, node_count> P{};
-        for (auto i = 0u; i < node_count; ++i)
-        {
-            P.row(i) = polynomial3d<Order>(Xis[i]);
-        }
-
-        using PolynomialMatrixType      = Eigen::Matrix<autodiff::dual, node_count, node_count>;
-        PolynomialMatrixType const Pinv = P.inverse(); // LU-decomposition based inverse
-
-        auto const node_index_offset = this->point_count();
-        cell_type cell{};
-        for (auto r = 0u; r < node_count; ++r)
-        {
-            basis_function_type const phi(Pinv.col(r));
-            autodiff::Vector3dual const& Xr = Xis[r];
-            index_type const i              = local_to_global[r];
-
-            cell.set_node(r, i);
-            cell.set_phi(r, phi);
-        }
-
-        // build fem model
-        this->add_element(element);
-        this->add_cell(cell);
     }
-}
+
+  private:
+    geometry::tetrahedral_domain_t domain_;
+};
 
 } // namespace math
 } // namespace sbs

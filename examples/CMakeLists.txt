@@ -14,6 +14,10 @@ add_executable(mls-shape-function-approximation-error)
 target_sources(mls-shape-function-approximation-error PRIVATE "mls_shape_function_approximation_error.cpp")
 target_link_libraries(mls-shape-function-approximation-error PRIVATE sbs::sbs)
 
+add_executable(stvk-fem-sph-beam)
+target_sources(stvk-fem-sph-beam PRIVATE "stvk_fem_sph_beam.cpp")
+target_link_libraries(stvk-fem-sph-beam PRIVATE sbs::sbs)
+
 add_executable(sandbox)
 target_sources(sandbox PRIVATE "sandbox.cpp")
 target_link_libraries(sandbox PRIVATE sbs::sbs)

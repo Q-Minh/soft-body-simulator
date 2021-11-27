@@ -15,18 +15,21 @@ namespace physics {
 namespace mechanics {
 
 template <class KernelType>
-class sph_meshless_model_t
-    : public math::
-          meshless_model_t<Eigen::Vector3d, Eigen::Vector3d, math::sph_basis_function_t<KernelType>>
+class sph_meshless_model_t : public math::meshless_model_t<
+                                 Eigen::Vector3d,
+                                 Eigen::Vector3d,
+                                 math::differentiable::sph_basis_function_t<KernelType>>
 {
   public:
-    using kernel_function_type        = KernelType;
-    using basis_function_type         = math::sph_basis_function_t<kernel_function_type>;
+    using kernel_function_type = KernelType;
+    using basis_function_type  = math::differentiable::sph_basis_function_t<kernel_function_type>;
     using interpolation_function_type = math::sph_interpolation_t<kernel_function_type>;
     using deformation_gradient_function_type =
         math::sph_nodal_deformation_gradient_op_t<kernel_function_type>;
-    using base_type = math::
-        meshless_model_t<Eigen::Vector3d, Eigen::Vector3d, math::sph_basis_function_t<KernelType>>;
+    using base_type = math::meshless_model_t<
+        Eigen::Vector3d,
+        Eigen::Vector3d,
+        math::differentiable::sph_basis_function_t<KernelType>>;
     using self_type = sph_meshless_model_t<kernel_function_type>;
 
     sph_meshless_model_t() = default;
@@ -184,7 +187,6 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
         this->interpolation_fields_.push_back(sph_interpolation);
         deformation_gradient_function_type sph_nodal_deformation_gradient(
             i,
-            Xi,
             this->interpolation_fields_[i]);
         this->deformation_gradient_functions_.push_back(sph_nodal_deformation_gradient);
     }
@@ -221,7 +223,6 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(self_type const& o
 
         deformation_gradient_function_type deformation_gradient_function(
             i,
-            Xi,
             this->interpolation_fields_[i]);
         this->deformation_gradient_functions_.push_back(deformation_gradient_function);
     }
@@ -257,7 +258,6 @@ sph_meshless_model_t<KernelType>::operator=(self_type const& other)
 
         deformation_gradient_function_type deformation_gradient_function(
             i,
-            Xi,
             this->interpolation_fields_[i]);
         this->deformation_gradient_functions_.push_back(deformation_gradient_function);
     }

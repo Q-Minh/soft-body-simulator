@@ -5,7 +5,7 @@ namespace physics {
 namespace collision {
 
 cd_system_t::cd_system_t(std::vector<collision_model_t*> const& collision_objects)
-    : collision_objects_(collision_objects)
+    : collision_objects_(collision_objects), contact_handler_(nullptr)
 {
 }
 std::vector<collision_model_t*> const& cd_system_t::collision_objects() const

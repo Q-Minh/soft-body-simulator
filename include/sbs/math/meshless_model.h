@@ -58,7 +58,6 @@ class meshless_model_t
 
     class in_support_query_t;
 
-  protected:
     std::vector<dof_type> const& dofs() const { return dofs_; }
     std::vector<dof_type>& dofs() { return dofs_; }
 

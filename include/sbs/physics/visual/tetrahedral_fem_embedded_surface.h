@@ -13,12 +13,12 @@ namespace physics {
 namespace visual {
 
 class tetrahedral_fem_embedded_surface
-    : public interpolated_embedded_surface_t<
-          math::interpolation_op_t<math::polynomial_hat_basis_function_t<1>>>
+    : public interpolated_embedded_surface_t<math::differentiable::interpolation_op_t<
+          math::differentiable::polynomial_hat_basis_function_t<1>>>
 {
   public:
-    using basis_function_type   = math::polynomial_hat_basis_function_t<1>;
-    using interpolation_op_type = math::interpolation_op_t<basis_function_type>;
+    using basis_function_type   = math::differentiable::polynomial_hat_basis_function_t<1>;
+    using interpolation_op_type = math::differentiable::interpolation_op_t<basis_function_type>;
     using base_type             = interpolated_embedded_surface_t<interpolation_op_type>;
 
     tetrahedral_fem_embedded_surface() = default;

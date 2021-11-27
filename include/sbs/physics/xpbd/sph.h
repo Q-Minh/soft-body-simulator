@@ -70,6 +70,14 @@ inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::proje
     simulation_t& simulation,
     scalar_type dt)
 {
+    auto const& js        = this->js();
+    auto const& particles = simulation.particles()[b_];
+    for (index_type const j : js)
+    {
+        Eigen::Vector3d const& xj = particles[j].xi();
+        sph_model_.dof(j)         = xj;
+    }
+
     auto const& deformation_gradient_op = sph_model_.deformation_gradient_function(i_);
     Eigen::Matrix3d const F             = deformation_gradient_op.eval();
     Eigen::Matrix3d const E             = strain_op_(F);
@@ -78,7 +86,6 @@ inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::proje
 
     Eigen::Matrix3d const sigma               = strain_energy_density_op_.stress(F, E);
     std::vector<Eigen::Vector3d> const dFdxjs = deformation_gradient_op.dFdx();
-    auto const& js                            = this->js();
     assert(js.size() == dFdxjs.size());
     std::vector<Eigen::Vector3d> gradC{};
     gradC.reserve(dFdxjs.size());
@@ -93,13 +100,6 @@ inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::proje
     }
 
     this->project_positions_with_dampling(simulation, C, gradC, dt);
-
-    auto const& particles = simulation.particles()[b_];
-    for (index_type const j : js)
-    {
-        Eigen::Vector3d const& xj = particles[j].xi();
-        sph_model_.dof(j)         = xj;
-    }
     sph_model_.F(i_) = F;
 }
 

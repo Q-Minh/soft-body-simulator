@@ -15,7 +15,7 @@ struct mls_interpolation_op_t
 {
     using kernel_function_type = KernelFunctionType;
     using self_type            = mls_interpolation_op_t<KernelFunctionType, Order>;
-    using basis_function_type  = mls_basis_function_t<kernel_function_type, Order>;
+    using basis_function_type  = differentiable::mls_basis_function_t<kernel_function_type, Order>;
 
     mls_interpolation_op_t() = default;
     mls_interpolation_op_t(

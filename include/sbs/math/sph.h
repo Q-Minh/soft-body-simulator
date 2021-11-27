@@ -125,7 +125,6 @@ struct sph_nodal_deformation_gradient_op_t
 
     sph_nodal_deformation_gradient_op_t(
         index_type i,
-        Eigen::Vector3d const& X,
         sph_interpolation_op_type const& sph_interpolation_op)
         : idx_of_i(), i(i), sph_interpolation_op(sph_interpolation_op), gradWijs(), Li()
     {

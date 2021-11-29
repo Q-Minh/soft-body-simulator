@@ -1,5 +1,6 @@
 #include "sbs/geometry/tetrahedral_domain.h"
 
+#include <Eigen/Geometry>
 #include <unordered_map>
 
 namespace sbs {
@@ -232,6 +233,21 @@ void tetrahedral_domain_t::in_tetrahedron_query_t::computeHull(
 
     hull.x() = s.x();
     hull.r() = s.r() + tolerance_;
+}
+
+scalar_type tetrahedron_volume(
+    Eigen::Vector3d const& p1,
+    Eigen::Vector3d const& p2,
+    Eigen::Vector3d const& p3,
+    Eigen::Vector3d const& p4)
+{
+    Eigen::Matrix3d M;
+    M.col(0) = p2 - p1;
+    M.col(1) = p3 - p1;
+    M.col(2) = p4 - p1;
+
+    scalar_type const det = M.determinant();
+    return (1. / 6.) * std::abs(det);
 }
 
 std::pair<std::vector<Eigen::Vector3d>, std::vector<index_type>>

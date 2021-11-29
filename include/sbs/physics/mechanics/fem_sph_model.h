@@ -72,7 +72,11 @@ class fem_sph_model_t
     {
         return mixed_interpolation_fields_[j];
     }
-    mixed_interpolation_function_type mixed_interpolation_field_at(Eigen::Vector3d const& X) const;
+    mixed_interpolation_function_type& mixed_interpolation_field_at(index_type j)
+    {
+        return mixed_interpolation_fields_[j];
+    }
+    mixed_interpolation_function_type mixed_interpolation_field_at(Eigen::Vector3d const& X);
 
     mixed_deformation_gradient_function_type const&
     mixed_deformation_gradient_function(index_type j) const
@@ -94,6 +98,8 @@ class fem_sph_model_t
     {
         return mixed_interpolation_fields_[j].js;
     }
+
+    bool has_basis_function(index_type const i) const { return has_basis_function_[i]; }
 
   private:
     sph_model_type sph_model_; ///< SPH particles in the tetrahedral domain
@@ -158,7 +164,10 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
     this->fem_interpolation_fields_.reserve(this->cell_count());
     for (auto e = 0u; e < this->cell_count(); ++e)
     {
-        fem_interpolation_function_type const fem_interpolation(this->cell(e), &(this->dofs()));
+        fem_interpolation_function_type const fem_interpolation(
+            e,
+            &(this->cells()),
+            &(this->dofs()));
         this->fem_interpolation_fields_.push_back(fem_interpolation);
     }
 
@@ -168,6 +177,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
         if (!is_grid_cell_center_in_domain)
             return;
 
+        // Remove to test with particles everywhere in the domain
         index_type const ti = this->domain().in_tetrahedron(X);
         bool const is_in_boundary_tetrahedron =
             this->domain().topology().is_boundary_tetrahedron(ti);
@@ -311,7 +321,10 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(self_type const& oth
     this->fem_interpolation_fields_.reserve(this->cell_count());
     for (auto e = 0u; e < this->cell_count(); ++e)
     {
-        fem_interpolation_function_type const fem_interpolation(this->cell(e), &(this->dofs()));
+        fem_interpolation_function_type const fem_interpolation(
+            e,
+            &(this->cells()),
+            &(this->dofs()));
         this->fem_interpolation_fields_.push_back(fem_interpolation);
     }
 }
@@ -364,7 +377,10 @@ fem_sph_model_t<KernelFunctionType>::operator=(self_type const& other)
     this->fem_interpolation_fields_.reserve(this->cell_count());
     for (auto e = 0u; e < this->cell_count(); ++e)
     {
-        fem_interpolation_function_type const fem_interpolation(this->cell(e), &(this->dofs()));
+        fem_interpolation_function_type const fem_interpolation(
+            e,
+            &(this->cells()),
+            &(this->dofs()));
         this->fem_interpolation_fields_.push_back(fem_interpolation);
     }
 
@@ -373,7 +389,7 @@ fem_sph_model_t<KernelFunctionType>::operator=(self_type const& other)
 
 template <class KernelFunctionType>
 inline typename fem_sph_model_t<KernelFunctionType>::mixed_interpolation_function_type
-fem_sph_model_t<KernelFunctionType>::mixed_interpolation_field_at(Eigen::Vector3d const& X) const
+fem_sph_model_t<KernelFunctionType>::mixed_interpolation_field_at(Eigen::Vector3d const& X)
 {
     auto const& fem_domain             = this->domain();
     index_type const e                 = fem_domain.in_tetrahedron(X);

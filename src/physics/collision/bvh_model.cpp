@@ -88,8 +88,8 @@ void point_bvh_model_t::collide(collision_model_t& other, contact_handler_t& han
 
                     surface_mesh_particle_to_sdf_contact_t contact(
                         contact_t::type_t::surface_particle_to_sdf,
-                        this->id(),
                         sdf_model.id(),
+                        this->id(),
                         contact_point,
                         contact_normal,
                         vi);

@@ -82,11 +82,7 @@ inline fem_mixed_embedded_surface_t<FemMixedModelType>::fem_mixed_embedded_surfa
     }
 
     this->use_interpolation_operators(interpolation_functions);
-    for (auto i = 0u; i < Xs.size(); ++i)
-    {
-        auto const& Xi    = Xs[i];
-        this->position(i) = Xi;
-    }
+    update();
 }
 
 template <class FemMixedModelType>

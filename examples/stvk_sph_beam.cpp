@@ -25,8 +25,8 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance                  = 1e-6;
-    simulation.simulation_parameters().damping                     = 1e-2;
+    simulation.simulation_parameters().compliance                  = 1e-8;
+    simulation.simulation_parameters().damping                     = 1e-4;
     simulation.simulation_parameters().collision_compliance        = 1e-4;
     simulation.simulation_parameters().collision_damping           = 1e-2;
     simulation.simulation_parameters().poisson_ratio               = 0.45;
@@ -37,8 +37,8 @@ int main(int argc, char** argv)
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 4., 2.)};
-    // beam_transform.rotate(
-    //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    //  beam_transform.rotate(
+    //      Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
     beam_transform.scale(Eigen::Vector3d{1.0, 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 2.;
@@ -60,7 +60,7 @@ int main(int argc, char** argv)
     sbs::scalar_type const mass_density   = 3.;
     for (auto i = 0u; i < mechanical_model.dof_count(); ++i)
     {
-        Eigen::Vector3d const& Xi = mechanical_model.dof(i).cast<sbs::scalar_type>();
+        Eigen::Vector3d const& Xi = mechanical_model.point(i);
         sbs::physics::xpbd::particle_t p{Xi};
         sbs::index_type const ti   = mechanical_model.englobing_tetrahedron_of_particle(i);
         auto const N               = mechanical_model.particles_in_tetrahedron(ti).size();
@@ -72,6 +72,7 @@ int main(int argc, char** argv)
         p.mass() = mass_density * Vi;
         simulation.add_particle(p, beam_idx);
     }
+    beam.get_visual_model().update();
 
     for (sbs::index_type i = 0u; i < mechanical_model.dof_count(); ++i)
     {
@@ -292,6 +293,17 @@ int main(int argc, char** argv)
             {
                 throttler_ptr->deactivate_physics();
             }
+
+            if (ImGui::Button("Step##Physics"))
+            {
+                timestep.step(simulation);
+            }
+            ImGui::Button("Hold Step##Physics");
+            if (ImGui::IsItemActive())
+            {
+                timestep.step(simulation);
+            }
+
             static std::size_t windowed_fps_sum     = 0u;
             static std::size_t num_frames           = 0u;
             static std::size_t windowed_average_fps = 0u;
@@ -320,25 +332,21 @@ int main(int argc, char** argv)
         if (should_render_points)
         {
             renderer.clear_points();
-            for (auto const& particles : s.particles())
+            auto const& particles = s.particles()[beam_idx];
+            for (auto j = 0; j < mechanical_model.dof_count(); ++j)
             {
-                for (auto const& p : particles)
-                {
-                    // if (p.fixed())
-                    //{
-                    std::array<float, 9u> const vertex_attributes{
-                        static_cast<float>(p.x().x()),
-                        static_cast<float>(p.x().y()),
-                        static_cast<float>(p.x().z()),
-                        0.f,
-                        0.f,
-                        0.f,
-                        1.f,
-                        0.f,
-                        0.f};
-                    renderer.add_point(vertex_attributes);
-                    //}
-                }
+                auto const& p = particles[j];
+                std::array<float, 9u> const vertex_attributes{
+                    static_cast<float>(p.x().x()),
+                    static_cast<float>(p.x().y()),
+                    static_cast<float>(p.x().z()),
+                    0.f,
+                    0.f,
+                    0.f,
+                    1.f,
+                    0.f,
+                    0.f};
+                renderer.add_point(vertex_attributes);
             }
         }
     };

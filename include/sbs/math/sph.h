@@ -159,14 +159,7 @@ struct sph_nodal_deformation_gradient_op_t
 
             Eigen::Vector3d gradWij{0., 0., 0.};
             // Sph weight functions have nan gradients when Xi == Xj
-            if (!Xi.isApprox(Xj, sbs::eps()))
-            {
-                // BUG: Using autodiff does not yield the same gradient as the manual gradient
-                // computation? Why?
-                // autodiff::Vector3dual const dualGradWij = gradient(Wj, wrt(dualXi), at(dualXi));
-                // gradWij                                 = dualGradWij.cast<scalar_type>();
-                gradWij = Wj.grad(Xi);
-            }
+            gradWij = Wj.grad(Xi);
             gradWijs.push_back(gradWij);
             Eigen::Vector3d const Xji = (Xj - Xi);
             Li += Vj * gradWij * Xji.transpose();

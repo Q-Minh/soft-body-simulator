@@ -32,6 +32,22 @@ class constraint_t
         std::vector<Eigen::Vector3d> const& gradC,
         scalar_type dt);
 
+    /**
+     * @brief
+     * Debug method to inspect what the values for the position corrections are
+     * in subclasses.
+     * @param simulation
+     * @param C
+     * @param gradC
+     * @param dt
+     * @return
+     */
+    std::vector<Eigen::Vector3d> get_position_corrections(
+        simulation_t& simulation,
+        scalar_type const C,
+        std::vector<Eigen::Vector3d> const& gradC,
+        scalar_type dt);
+
     virtual ~constraint_t() = default;
 
     scalar_type alpha() const;

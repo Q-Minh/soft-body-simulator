@@ -70,6 +70,53 @@ void constraint_t::project_positions_with_dampling(
     }
 }
 
+std::vector<Eigen::Vector3d> constraint_t::get_position_corrections(
+    simulation_t& simulation,
+    scalar_type const C,
+    std::vector<Eigen::Vector3d> const& gradC,
+    scalar_type dt)
+{
+    scalar_type weighted_sum_of_gradients{0.};
+    scalar_type gradC_dot_displacement{0.};
+
+    assert(js_.size() == gradC.size());
+    assert(bis_.size() == js_.size());
+
+    auto& particles = simulation.particles();
+    for (auto i = 0u; i < js_.size(); ++i)
+    {
+        index_type const j   = js_[i];
+        index_type const b   = bis_[i];
+        particle_t const& pj = particles[b][j];
+        weighted_sum_of_gradients += pj.invmass() * gradC[i].squaredNorm();
+        gradC_dot_displacement += gradC[i].dot(pj.xi() - pj.xn());
+    }
+
+    scalar_type const dt2         = dt * dt;
+    scalar_type const alpha_tilde = alpha() / dt2;
+    scalar_type const beta_tilde  = beta() * dt2;
+    scalar_type const gamma       = alpha_tilde * beta_tilde / dt;
+
+    scalar_type const delta_lagrange_num =
+        -(C + alpha_tilde * lagrange_) - gamma * gradC_dot_displacement;
+    scalar_type const delta_lagrange_den = (1. + gamma) * (weighted_sum_of_gradients) + alpha_tilde;
+    scalar_type const delta_lagrange     = delta_lagrange_num / delta_lagrange_den;
+
+    lagrange_ += delta_lagrange;
+
+    std::vector<Eigen::Vector3d> dxs;
+    for (auto i = 0u; i < js_.size(); ++i)
+    {
+        index_type const j       = js_[i];
+        index_type const b       = bis_[i];
+        particle_t& pj           = particles[b][j];
+        Eigen::Vector3d const dx = pj.invmass() * gradC[i] * delta_lagrange;
+        dxs.push_back(dx);
+    }
+
+    return dxs;
+}
+
 scalar_type constraint_t::alpha() const
 {
     return alpha_;

@@ -13,6 +13,12 @@
 namespace sbs {
 namespace geometry {
 
+scalar_type tetrahedron_volume(
+    Eigen::Vector3d const& p1,
+    Eigen::Vector3d const& p2,
+    Eigen::Vector3d const& p3,
+    Eigen::Vector3d const& p4);
+
 class tetrahedral_domain_t
 {
   public:

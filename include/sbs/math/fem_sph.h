@@ -25,15 +25,15 @@ struct fem_sph_interpolation_t
         index_type e,
         std::vector<cell_type> const* cells,
         std::vector<Eigen::Vector3d> const* Xis,
-        std::vector<Eigen::Vector3d> const* xis,
+        std::vector<Eigen::Vector3d>* xis,
         std::vector<bool> const* has_basis_function,
         // SPH parameters
         std::vector<index_type> const& js,
         std::vector<Eigen::Vector3d> const* Xjs,
-        std::vector<Eigen::Vector3d> const* xjs,
+        std::vector<Eigen::Vector3d>* xjs,
         std::vector<scalar_type> const* Vjs,
         std::vector<kernel_function_type> const* Wjs,
-        std::vector<Eigen::Matrix3d> const* Fjs)
+        std::vector<Eigen::Matrix3d>* Fjs)
         : sk(0.),
           Xk(Xk),
           e(e),
@@ -133,8 +133,8 @@ struct fem_sph_interpolation_t
             bool const has_phi = (*has_basis_function)[i];
             if (has_phi)
             {
-                auto const& phi   = cell.phi(r);
-                auto const& dxdxi = sk * phi(Xk);
+                auto const& phi  = cell.phi(r);
+                auto const dxdxi = sk * phi(Xk);
                 dxdxis.push_back(dxdxi);
             }
         }
@@ -146,7 +146,7 @@ struct fem_sph_interpolation_t
             scalar_type const dxdxj        = sk * Vj * Wkj;
             dxdxjs.push_back(dxdxj);
         }
-        return dxdxjs;
+        return std::make_pair(dxdxis, dxdxjs);
     }
 
     scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
@@ -200,14 +200,14 @@ struct fem_sph_interpolation_t
     std::vector<cell_type> const* cells;     ///< The cells of the fem model
     std::vector<index_type> is;              ///< Indices of the fem basis functions that are active
     std::vector<Eigen::Vector3d> const* Xis; ///< Points of the mesh model
-    std::vector<Eigen::Vector3d> const* xis; ///< Dofs of the mesh model
+    std::vector<Eigen::Vector3d>* xis;       ///< Dofs of the mesh model
     std::vector<bool> const* has_basis_function;  ///< Flags for if a dof is active or not
     std::vector<index_type> js;                   ///< indices of meshless neighbours
     std::vector<Eigen::Vector3d> const* Xjs;      ///< Points of the meshless model
-    std::vector<Eigen::Vector3d> const* xjs;      ///< Dofs of the meshless model
+    std::vector<Eigen::Vector3d>* xjs;            ///< Dofs of the meshless model
     std::vector<scalar_type> const* Vjs;          ///< Volumes of the meshless model
     std::vector<kernel_function_type> const* Wjs; ///< Kernels of the meshless nodes
-    std::vector<Eigen::Matrix3d> const* Fjs;      ///< Deformation gradients at the meshless nodes
+    std::vector<Eigen::Matrix3d>* Fjs;            ///< Deformation gradients at the meshless nodes
 };
 
 template <class FemCellType, class KernelFunctionType = poly6_kernel_t>
@@ -257,8 +257,7 @@ struct fem_sph_nodal_deformation_gradient_op_t
             if (has_phi)
             {
                 auto const& phi               = cell.phi(r);
-                Eigen::Vector3d X             = Xk;
-                Eigen::Vector3d const gradphi = phi.grad(X);
+                Eigen::Vector3d const gradphi = phi.grad(Xk);
                 gradphis.push_back(gradphi);
 
                 Eigen::Vector3d const& Xi = Xis[i];
@@ -290,10 +289,11 @@ struct fem_sph_nodal_deformation_gradient_op_t
         }
 #ifdef _DEBUG
         scalar_type const det = Lsph.determinant();
+        assert(std::abs(det) > sbs::eps());
 #endif
         Lsphinv = Lsph.inverse();
 
-        Lk = Lsphinv * Lfem;
+        Lk = Lfem * Lsphinv;
     }
 
     Eigen::Matrix3d eval() const
@@ -351,6 +351,7 @@ struct fem_sph_nodal_deformation_gradient_op_t
             index_type const i             = is[a];
             Eigen::Vector3d const& gradphi = gradphis[a];
             dFdxis[a]                      = gradphi;
+            dFdxjs[idx_of_k] -= gradphi;
         }
         for (auto a = 0u; a < js.size(); ++a)
         {

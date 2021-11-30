@@ -100,6 +100,16 @@ sbs::scalar_type interpolated_volume(fem_mixed_model_type& body)
     return V;
 }
 
+std::size_t num_boundary_tets(fem_mixed_model_type const& body)
+{
+    auto const& topology    = body.domain().topology();
+    std::size_t const count = std::count_if(
+        topology.tetrahedra().begin(),
+        topology.tetrahedra().end(),
+        [&](sbs::topology::tetrahedron_t const& t) { return topology.is_boundary_tetrahedron(t); });
+    return count;
+}
+
 int main(int argc, char** argv)
 {
     if (argc != 2)
@@ -112,24 +122,24 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance                  = 1e-8;
-    simulation.simulation_parameters().damping                     = 1e-4;
-    simulation.simulation_parameters().collision_compliance        = 1e-4;
+    simulation.simulation_parameters().compliance                  = 1e-12;
+    simulation.simulation_parameters().damping                     = 1e-6;
+    simulation.simulation_parameters().collision_compliance        = 1e-5;
     simulation.simulation_parameters().collision_damping           = 1e-2;
     simulation.simulation_parameters().poisson_ratio               = 0.45;
     simulation.simulation_parameters().young_modulus               = 1e6;
     simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(24u, 24u, 24u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
-    //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    //     Eigen::AngleAxisd(3.14159 / 20., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    beam_transform.scale(Eigen::Vector3d{.4, 0.2, .4});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 2.;
-    std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
+    std::array<unsigned int, 3u> const resolution{24u, 24u, 24u};
 
     // Initialize soft body
     auto const beam_idx = simulation.add_body();
@@ -383,7 +393,7 @@ int main(int argc, char** argv)
     sbs::physics::xpbd::timestep_t timestep{};
     timestep.dt()         = 0.016;
     timestep.iterations() = 10u;
-    timestep.substeps()   = 1u;
+    timestep.substeps()   = 3u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
@@ -523,6 +533,16 @@ int main(int argc, char** argv)
                 "SPH dofs: " + std::to_string(meshless_model.dof_count());
             ImGui::Text(fem_dofs_str.c_str());
             ImGui::Text(sph_dofs_str.c_str());
+
+            std::size_t const num_tetrahedra =
+                mechanical_model.domain().topology().tetrahedron_count();
+            std::string const num_tetrahedra_str = "Tets: " + std::to_string(num_tetrahedra);
+            ImGui::Text(num_tetrahedra_str.c_str());
+
+            std::size_t const num_boundary_tetrahedra = num_boundary_tets(mechanical_model);
+            std::string const num_boundary_tetrahedra_str =
+                "Boundary tets: " + std::to_string(num_boundary_tetrahedra);
+            ImGui::Text(num_boundary_tetrahedra_str.c_str());
 
             // sbs::scalar_type const V     = interpolated_volume(mechanical_model);
             // std::string const volume_str = "Volume: " + std::to_string(V);

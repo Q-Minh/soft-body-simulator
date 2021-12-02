@@ -101,6 +101,13 @@ class fem_sph_model_t
 
     bool has_basis_function(index_type const i) const { return has_basis_function_[i]; }
 
+    std::size_t num_active_nodes() const
+    {
+        return std::count(has_basis_function_.begin(), has_basis_function_.end(), true);
+    }
+    std::size_t num_sph_nodes() const { return sph_model_.dof_count(); }
+    std::size_t total_dof_count() const { return num_active_nodes() + sph_model_.dof_count(); }
+
   private:
     sph_model_type sph_model_; ///< SPH particles in the tetrahedral domain
 

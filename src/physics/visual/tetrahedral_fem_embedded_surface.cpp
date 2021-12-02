@@ -7,11 +7,69 @@ namespace visual {
 tetrahedral_fem_embedded_surface::tetrahedral_fem_embedded_surface(
     std::vector<Eigen::Vector3d> const& points,
     std::vector<index_type> const& indices,
-    mechanics::linear_tetrahedral_fem_model_t const* mechanical_model)
+    mechanics::linear_tetrahedral_fem_model_t* mechanical_model)
     : base_type(points, indices), mechanical_model_(mechanical_model)
 {
     using dof_type  = typename mechanics::linear_tetrahedral_fem_model_t::dof_type;
     using cell_type = typename mechanics::linear_tetrahedral_fem_model_t::cell_type;
+
+    std::vector<interpolation_op_type> interpolation_ops{};
+    interpolation_ops.reserve(this->vertex_count());
+
+    auto const& Xs = this->reference_positions();
+    cell_containing_vertex_.resize(Xs.size());
+
+    geometry::tetrahedral_domain_t const& domain = mechanical_model_->domain();
+    for (auto vi = 0u; vi < Xs.size(); ++vi)
+    {
+        auto const& X                              = Xs[vi];
+        interpolation_op_type const& interpolation = mechanical_model_->interpolation_field_at(X);
+        interpolation_ops.push_back(interpolation);
+
+        index_type const e          = domain.in_tetrahedron(X);
+        cell_containing_vertex_[vi] = e;
+    }
+
+    this->use_interpolation_operators(interpolation_ops);
+    this->update();
+}
+
+mechanics::linear_tetrahedral_fem_model_t const*
+tetrahedral_fem_embedded_surface::mechanical_model() const
+{
+    return mechanical_model_;
+}
+
+index_type tetrahedral_fem_embedded_surface::cell_containing_vertex(index_type vi) const
+{
+    return cell_containing_vertex_[vi];
+}
+
+void tetrahedral_fem_embedded_surface::update()
+{
+    auto const& Xs = this->reference_positions();
+
+    for (auto i = 0u; i < Xs.size(); ++i)
+    {
+        Eigen::Vector3d const& Xi = Xs[i];
+        auto& interpolate         = this->interpolation_operator(i);
+        auto const xi             = interpolate.eval(Xi);
+        this->position(i)         = xi.cast<scalar_type>();
+    }
+
+    this->compute_normals();
+}
+
+namespace differentiable {
+
+tetrahedral_fem_embedded_surface::tetrahedral_fem_embedded_surface(
+    std::vector<Eigen::Vector3d> const& points,
+    std::vector<index_type> const& indices,
+    typename tetrahedral_fem_embedded_surface::mechanical_model_type const* mechanical_model)
+    : base_type(points, indices), mechanical_model_(mechanical_model)
+{
+    using dof_type  = typename tetrahedral_fem_embedded_surface::mechanical_model_type::dof_type;
+    using cell_type = typename tetrahedral_fem_embedded_surface::mechanical_model_type::cell_type;
 
     std::vector<interpolation_op_type> interpolation_ops{};
     interpolation_ops.reserve(this->vertex_count());
@@ -52,7 +110,7 @@ tetrahedral_fem_embedded_surface::tetrahedral_fem_embedded_surface(
     this->update();
 }
 
-mechanics::linear_tetrahedral_fem_model_t const*
+typename tetrahedral_fem_embedded_surface::mechanical_model_type const*
 tetrahedral_fem_embedded_surface::mechanical_model() const
 {
     return mechanical_model_;
@@ -89,6 +147,7 @@ void tetrahedral_fem_embedded_surface::update()
     this->compute_normals();
 }
 
+} // namespace differentiable
 } // namespace visual
 } // namespace physics
 } // namespace sbs

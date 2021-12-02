@@ -25,7 +25,7 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance                  = 1e-8;
+    simulation.simulation_parameters().compliance                  = 1e-6;
     simulation.simulation_parameters().damping                     = 1e-4;
     simulation.simulation_parameters().collision_compliance        = 1e-4;
     simulation.simulation_parameters().collision_damping           = 1e-2;
@@ -36,10 +36,10 @@ int main(int argc, char** argv)
     // Load geometry
     sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
-    Eigen::Affine3d beam_transform{Eigen::Translation3d(-3., 4., 2.)};
-    //  beam_transform.rotate(
-    //      Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1.0, 0.4, 1.});
+    Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
+    // beam_transform.rotate(
+    //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 2.;
     std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
@@ -60,7 +60,7 @@ int main(int argc, char** argv)
     sbs::scalar_type const mass_density   = 3.;
     for (auto i = 0u; i < mechanical_model.dof_count(); ++i)
     {
-        Eigen::Vector3d const& Xi = mechanical_model.point(i);
+        Eigen::Vector3d const& Xi = mechanical_model.dof(i).cast<sbs::scalar_type>();
         sbs::physics::xpbd::particle_t p{Xi};
         sbs::index_type const ti   = mechanical_model.englobing_tetrahedron_of_particle(i);
         auto const N               = mechanical_model.particles_in_tetrahedron(ti).size();
@@ -69,7 +69,8 @@ int main(int argc, char** argv)
         sbs::scalar_type const Vtet = (1. / 6.) * det;
         sbs::scalar_type const Vi   = Vtet / static_cast<sbs::scalar_type>(N);
         // sbs::scalar_type const Vi = mechanical_model.V(i);
-        p.mass() = mass_density * Vi;
+        // p.mass() = mass_density * Vi;
+        p.mass() = 1.;
         simulation.add_particle(p, beam_idx);
     }
     beam.get_visual_model().update();
@@ -196,7 +197,7 @@ int main(int argc, char** argv)
     sbs::physics::xpbd::timestep_t timestep{};
     timestep.dt()         = 0.016;
     timestep.iterations() = 5u;
-    timestep.substeps()   = 1u;
+    timestep.substeps()   = 2u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
@@ -208,7 +209,7 @@ int main(int argc, char** argv)
     renderer.on_new_physics_timestep = throttler;
     renderer.camera().position().x   = 0.;
     renderer.camera().position().y   = 5.;
-    renderer.camera().position().z   = 25.;
+    renderer.camera().position().z   = 40.;
 
     renderer.pickers.clear();
     /*std::vector<sbs::common::shared_vertex_surface_mesh_i*> surfaces_to_pick{};
@@ -323,6 +324,15 @@ int main(int argc, char** argv)
             ImGui::Text(fps_str.c_str());
             std::string const fps_avg_str = "Mean FPS: " + std::to_string(windowed_average_fps);
             ImGui::Text(fps_avg_str.c_str());
+
+            std::size_t const num_dofs     = mechanical_model.dof_count();
+            std::string const num_dofs_str = "DOFs: " + std::to_string(num_dofs);
+            ImGui::Text(num_dofs_str.c_str());
+
+            std::size_t const num_constraints = simulation.constraints().size();
+            std::string const num_constraints_str =
+                "Constraints: " + std::to_string(num_constraints);
+            ImGui::Text(num_constraints_str.c_str());
         }
 
         ImGui::End();

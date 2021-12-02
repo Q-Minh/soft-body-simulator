@@ -123,6 +123,92 @@ inline void stvk_tetrahedral_quadrature_strain_constraint_t<CellType>::project_p
     this->project_positions_with_dampling(simulation, C, gradC, dt);
 }
 
+template <class InterpolationFunctionType>
+class fem_collision_constraint_t : public constraint_t
+{
+  public:
+    using interpolation_op_type = InterpolationFunctionType;
+
+    fem_collision_constraint_t(
+        scalar_type alpha /*compliance*/,
+        scalar_type beta /*damping*/,
+        std::vector<index_type> const& js /*particle indices*/,
+        index_type b /*body idx*/,
+        interpolation_op_type const&
+            interpolation_op /*function for interpolating the surface particle's position*/,
+        Eigen::Vector3d const& Xi /*evaluation point of the interpolation*/,
+        Eigen::Vector3d const& p, /*contact point*/
+        Eigen::Vector3d const& n /*surface normal of correction*/);
+
+    virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
+
+  private:
+    interpolation_op_type interpolation_op_;
+    index_type b_;
+    Eigen::Vector3d Xi_; ///< Evaluation point of the interpolation operator
+
+    Eigen::Vector3d qs_; ///< Intersection point
+    Eigen::Vector3d n_;  ///< Normal at intersection point
+};
+
+template <class InterpolationFunctionType>
+inline fem_collision_constraint_t<InterpolationFunctionType>::fem_collision_constraint_t(
+    scalar_type alpha,
+    scalar_type beta,
+    std::vector<index_type> const& js,
+    index_type b /*body idx*/,
+    interpolation_op_type const& interpolation_op,
+    Eigen::Vector3d const& Xi,
+    Eigen::Vector3d const& p,
+    Eigen::Vector3d const& n)
+    : constraint_t(alpha, beta), interpolation_op_(interpolation_op), b_(b), Xi_(Xi), qs_(p), n_(n)
+{
+    this->set_indices(js);
+    std::vector<index_type> bis{};
+    bis.resize(js.size(), b_);
+    this->set_bodies(bis);
+}
+
+template <class InterpolationFunctionType>
+inline void fem_collision_constraint_t<InterpolationFunctionType>::project_positions(
+    simulation_t& simulation,
+    scalar_type dt)
+{
+    auto const& particles = simulation.particles();
+
+    // Initialize interpolation field with latest particle positions
+    auto const e     = interpolation_op_.e;
+    auto const& cell = (*interpolation_op_.cells)[e];
+    for (auto r = 0u; r < cell.node_count(); ++r)
+    {
+        auto const i                = cell.node(r);
+        particle_t const& p         = particles[b_][i];
+        Eigen::Vector3d const& xi   = p.xi();
+        (*interpolation_op_.xis)[i] = xi;
+    }
+
+    Eigen::Vector3d const x = interpolation_op_.eval(Xi_);
+
+    scalar_type const C = (x - qs_).dot(n_);
+
+    if (C >= 0.)
+        return;
+
+    std::vector<scalar_type> const dxdxk = interpolation_op_.dxdxk(Xi_);
+    assert(dxdxk.size() == cell.node_count());
+
+    std::vector<Eigen::Vector3d> gradC{};
+    gradC.reserve(cell.node_count());
+
+    for (auto r = 0u; r < cell.node_count(); ++r)
+    {
+        Eigen::Vector3d const grad = dxdxk[r] * n_;
+        gradC.push_back(grad);
+    }
+
+    this->project_positions_with_dampling(simulation, C, gradC, dt);
+}
+
 } // namespace xpbd
 } // namespace physics
 } // namespace sbs

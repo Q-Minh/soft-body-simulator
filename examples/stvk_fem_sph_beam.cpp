@@ -123,23 +123,23 @@ int main(int argc, char** argv)
      */
     sbs::physics::xpbd::simulation_t simulation{};
     simulation.simulation_parameters().compliance                  = 1e-12;
-    simulation.simulation_parameters().damping                     = 1e-6;
-    simulation.simulation_parameters().collision_compliance        = 1e-5;
+    simulation.simulation_parameters().damping                     = 1e-2;
+    simulation.simulation_parameters().collision_compliance        = 1e-4;
     simulation.simulation_parameters().collision_damping           = 1e-2;
     simulation.simulation_parameters().poisson_ratio               = 0.45;
     simulation.simulation_parameters().young_modulus               = 1e6;
     simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(24u, 24u, 24u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
     //     Eigen::AngleAxisd(3.14159 / 20., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{.4, 0.2, .4});
+    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 2.;
-    std::array<unsigned int, 3u> const resolution{24u, 24u, 24u};
+    std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
 
     // Initialize soft body
     auto const beam_idx = simulation.add_body();
@@ -178,35 +178,42 @@ int main(int argc, char** argv)
     beam.get_visual_model().update();
 
     // Create mass distribution
-    // auto const& domain   = mechanical_model.domain();
-    // auto const& topology = domain.topology();
-    // for (auto t = 0u; t < topology.tetrahedron_count(); ++t)
-    //{
-    //    std::vector<sbs::index_type> const& meshless_particles_in_tet =
-    //        mechanical_model.particles_in_tetrahedron(t);
-    //    auto N                                  = meshless_particles_in_tet.size();
-    //    sbs::topology::tetrahedron_t const& tet = topology.tetrahedron(t);
-    //    N += tet.vertex_indices().size();
+    auto const& domain   = mechanical_model.domain();
+    auto const& topology = domain.topology();
+    /*for (auto t = 0u; t < topology.tetrahedron_count(); ++t)
+    {
+        std::vector<sbs::index_type> const& meshless_particles_in_tet =
+            mechanical_model.particles_in_tetrahedron(t);
+        bool const is_mixed_tet                 = !meshless_particles_in_tet.empty();
+        sbs::topology::tetrahedron_t const& tet = topology.tetrahedron(t);
+        auto N = is_mixed_tet ? meshless_particles_in_tet.size() : tet.vertex_indices().size();
 
-    //    sbs::scalar_type const det =
-    //        static_cast<sbs::scalar_type>(domain.barycentric_map(t).determinant());
-    //    sbs::scalar_type const Vtet = (1. / 6.) * det;
-    //    sbs::scalar_type const M    = (Vtet * mass_density);
-    //    sbs::scalar_type const dM   = M / static_cast<sbs::scalar_type>(N);
+        sbs::scalar_type const det =
+            static_cast<sbs::scalar_type>(domain.barycentric_map(t).determinant());
+        sbs::scalar_type const Vtet = (1. / 6.) * std::abs(det);
+        sbs::scalar_type const M    = (Vtet * mass_density);
+        sbs::scalar_type const dM   = M / static_cast<sbs::scalar_type>(N);
 
-    //    std::vector<sbs::physics::xpbd::particle_t>& beam_particles =
-    //        simulation.particles()[beam_idx];
-    //    for (sbs::index_type const i : tet.vertex_indices())
-    //    {
-    //        sbs::physics::xpbd::particle_t& p = beam_particles[fem_particle_index_offset + i];
-    //        p.mass() += dM;
-    //    }
-    //    for (sbs::index_type const j : meshless_particles_in_tet)
-    //    {
-    //        sbs::physics::xpbd::particle_t& p = beam_particles[meshless_particle_index_offset +
-    //        j]; p.mass() += dM;
-    //    }
-    //}
+        std::vector<sbs::physics::xpbd::particle_t>& beam_particles =
+            simulation.particles()[beam_idx];
+        if (is_mixed_tet)
+        {
+            for (sbs::index_type const j : meshless_particles_in_tet)
+            {
+                sbs::physics::xpbd::particle_t& p =
+                    beam_particles[meshless_particle_index_offset + j];
+                p.mass() += dM;
+            }
+        }
+        else
+        {
+            for (sbs::index_type const i : tet.vertex_indices())
+            {
+                sbs::physics::xpbd::particle_t& p = beam_particles[fem_particle_index_offset + i];
+                p.mass() += dM;
+            }
+        }
+    }*/
 
     auto const alpha = simulation.simulation_parameters().compliance;
     auto const beta  = simulation.simulation_parameters().damping;
@@ -214,12 +221,15 @@ int main(int argc, char** argv)
     auto const E     = simulation.simulation_parameters().young_modulus;
 
     // Create constraints
-    auto const& domain   = mechanical_model.domain();
-    auto const& topology = domain.topology();
     bool is_fully_mixed{true};
+    std::size_t num_fully_meshed_cells{0u};
+    std::size_t num_meshless_constraints{0u};
+    std::size_t num_boundary_unmixed_tets{0u};
+    std::size_t num_mixed_tets{0u};
     for (auto e = 0u; e < mechanical_model.element_count(); ++e)
     {
-        bool const is_mixed_tet = !mechanical_model.particles_in_tetrahedron(e).empty();
+        bool const is_mixed_tet    = !mechanical_model.particles_in_tetrahedron(e).empty();
+        bool const is_boundary_tet = topology.is_boundary_tetrahedron(e);
         if (is_mixed_tet)
         {
             using constraint_type =
@@ -251,11 +261,14 @@ int main(int argc, char** argv)
                     meshless_particle_index_offset);
 
                 simulation.add_constraint(std::move(constraint));
+                ++num_meshless_constraints;
             }
+            ++num_mixed_tets;
         }
-        else
+        else if (!is_boundary_tet)
         {
-            is_fully_mixed   = false;
+            is_fully_mixed = false;
+            ++num_fully_meshed_cells;
             auto const& cell = mechanical_model.cell(e);
 
             auto const v1 = cell.node(0u);
@@ -294,12 +307,21 @@ int main(int argc, char** argv)
 
             simulation.add_constraint(std::move(constraint));
         }
+        else
+        {
+            ++num_boundary_unmixed_tets;
+        }
     }
 
     if (is_fully_mixed)
         std::cout << "Full hybrid model\n";
     else
         std::cout << "Partial hybrid model\n";
+
+    std::cout << "Num mesh element constraints: " << num_fully_meshed_cells << "\n";
+    std::cout << "Num meshless constraints: " << num_meshless_constraints << "\n";
+    std::cout << "Num boundary unmixed tets: " << num_boundary_unmixed_tets << "\n";
+    std::cout << "Num mixed tets: " << num_mixed_tets << "\n";
 
     beam.get_visual_model().set_color({1.f, 1.f, 0.f});
 
@@ -392,8 +414,8 @@ int main(int argc, char** argv)
      */
     sbs::physics::xpbd::timestep_t timestep{};
     timestep.dt()         = 0.016;
-    timestep.iterations() = 10u;
-    timestep.substeps()   = 3u;
+    timestep.iterations() = 5u;
+    timestep.substeps()   = 2u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
@@ -405,7 +427,7 @@ int main(int argc, char** argv)
     renderer.on_new_physics_timestep = throttler;
     renderer.camera().position().x   = 0.;
     renderer.camera().position().y   = 5.;
-    renderer.camera().position().z   = 25.;
+    renderer.camera().position().z   = 40.;
 
     renderer.pickers.clear();
     /*std::vector<sbs::common::shared_vertex_surface_mesh_i*> surfaces_to_pick{};
@@ -528,9 +550,9 @@ int main(int argc, char** argv)
             ImGui::Text(fps_avg_str.c_str());
 
             std::string const fem_dofs_str =
-                "FEM dofs: " + std::to_string(mechanical_model.dof_count());
+                "FEM dofs: " + std::to_string(mechanical_model.num_active_nodes());
             std::string const sph_dofs_str =
-                "SPH dofs: " + std::to_string(meshless_model.dof_count());
+                "SPH dofs: " + std::to_string(mechanical_model.num_sph_nodes());
             ImGui::Text(fem_dofs_str.c_str());
             ImGui::Text(sph_dofs_str.c_str());
 
@@ -543,6 +565,11 @@ int main(int argc, char** argv)
             std::string const num_boundary_tetrahedra_str =
                 "Boundary tets: " + std::to_string(num_boundary_tetrahedra);
             ImGui::Text(num_boundary_tetrahedra_str.c_str());
+
+            std::size_t const num_constraints = simulation.constraints().size();
+            std::string const num_constraints_str =
+                "Constraints: " + std::to_string(num_constraints);
+            ImGui::Text(num_constraints_str.c_str());
 
             // sbs::scalar_type const V     = interpolated_volume(mechanical_model);
             // std::string const volume_str = "Volume: " + std::to_string(V);

@@ -1,28 +1,22 @@
 #include <algorithm>
 #include <array>
 #include <imgui/imgui.h>
-#include <implot/implot.h>
 #include <iostream>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
-#include <sbs/math/mapping.h>
 #include <sbs/math/quadrature.h>
 #include <sbs/physics/body/environment_body.h>
 #include <sbs/physics/body/linear_tetrahedral_fem_body.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
-#include <sbs/physics/mechanics/linear_tetrahedral_fem_model.h>
 #include <sbs/physics/xpbd/contact_handler.h>
-#include <sbs/physics/xpbd/fem.h>
 #include <sbs/physics/xpbd/gauss_seidel_solver.h>
+#include <sbs/physics/xpbd/interpolated_particle_collision_constraint.h>
 #include <sbs/physics/xpbd/simulation.h>
+#include <sbs/physics/xpbd/strain_energy_constraint.h>
 #include <sbs/physics/xpbd/timestep.h>
 #include <sbs/rendering/physics_timestep_throttler.h>
 #include <sbs/rendering/pick.h>
 #include <sbs/rendering/renderer.h>
-
-using mechanical_model_type = sbs::physics::mechanics::linear_tetrahedral_fem_model_t;
-using body_type             = sbs::physics::body::linear_tetrahedral_fem_body_t;
-using visual_model_type     = sbs::physics::visual::tetrahedral_fem_embedded_surface;
 
 int main(int argc, char** argv)
 {
@@ -30,18 +24,14 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance           = 1e-2;
-    simulation.simulation_parameters().damping              = 1e-4;
-    simulation.simulation_parameters().collision_compliance = 1e-4;
-    simulation.simulation_parameters().collision_damping    = 1e-2;
-    simulation.simulation_parameters().poisson_ratio        = 0.45;
-    simulation.simulation_parameters().young_modulus        = 1e6;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
-    Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
-    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    Eigen::Affine3d beam_transform{Eigen::Translation3d(-10., 5., -1.)};
+    beam_transform.rotate(
+        Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
+    beam_transform.scale(Eigen::Vector3d{1.0, 0.8, 2.});
     beam_geometry = sbs::common::transform(beam_geometry, beam_transform);
 
     // Initialize soft body
@@ -55,7 +45,7 @@ int main(int argc, char** argv)
         *dynamic_cast<sbs::physics::body::linear_tetrahedral_fem_body_t*>(
             simulation.bodies()[beam_idx].get());
 
-    auto& mechanical_model = beam.get_mechanical_model();
+    auto const mechanical_model = beam.get_mechanical_model();
     for (auto i = 0u; i < mechanical_model.dof_count(); ++i)
     {
         Eigen::Vector3d const& Xi = mechanical_model.point(i).cast<sbs::scalar_type>();
@@ -63,8 +53,6 @@ int main(int argc, char** argv)
         p.mass() = 1.;
         simulation.add_particle(p, beam_idx);
     }
-
-    // Setup constraints
     for (auto e = 0u; e < mechanical_model.element_count(); ++e)
     {
         auto const& cell = mechanical_model.cell(e);
@@ -86,12 +74,29 @@ int main(int argc, char** argv)
 
         for (auto i = 0u; i < quadrature_rule.points.size(); ++i)
         {
-            auto const& Xi = quadrature_rule.points[i].cast<sbs::scalar_type>();
-            auto const& wi = static_cast<sbs::scalar_type>(quadrature_rule.weights[i]);
+            auto const& Xi = quadrature_rule.points[i];
+            auto const& wi = quadrature_rule.weights[i];
+
+            using basis_function_type =
+                sbs::math::differentiable::polynomial_hat_basis_function_t<1>;
+            unsigned int constexpr num_basis_functions = 4u;
+
+            std::array<autodiff::Vector3dual, num_basis_functions> xis{};
+            std::array<basis_function_type, num_basis_functions> phis{};
+            for (auto r = 0u; r < cell.node_count(); ++r)
+            {
+                auto const global_node_idx = cell.node(r);
+                xis[r]                     = mechanical_model.dof(global_node_idx);
+                phis[r]                    = cell.phi(r);
+            }
+
+            using interpolation_op_type = sbs::math::differentiable::interpolation_op_t<
+                sbs::math::differentiable::polynomial_hat_basis_function_t<1>,
+                4u>;
+            interpolation_op_type interpolation_op{xis, phis};
 
             using constraint_type =
-                sbs::physics::xpbd::stvk_tetrahedral_quadrature_strain_constraint_t<
-                    typename mechanical_model_type::cell_type>;
+                sbs::physics::xpbd::strain_energy_quadrature_constraint_t<interpolation_op_type>;
 
             std::vector<sbs::index_type> particle_indices{v1, v2, v3, v4};
             std::vector<sbs::index_type> particle_body_indices{
@@ -100,15 +105,12 @@ int main(int argc, char** argv)
                 beam_idx,
                 beam_idx};
 
-            auto const& interpolation_function = mechanical_model.interpolation_field_at(Xi);
-
             auto constraint = std::make_unique<constraint_type>(
                 alpha,
                 beta,
-                0u,
                 particle_indices,
                 particle_body_indices,
-                interpolation_function,
+                interpolation_op,
                 wi,
                 Xi,
                 E,
@@ -166,22 +168,36 @@ int main(int argc, char** argv)
         sbs::index_type const e = surface.cell_containing_vertex(vi);
         auto const& cell        = beam.get_mechanical_model().cell(e);
 
-        auto const alpha = simulation.simulation_parameters().collision_compliance;
-        auto const beta  = simulation.simulation_parameters().collision_damping;
+        using basis_function_type = sbs::math::differentiable::polynomial_hat_basis_function_t<1>;
+        unsigned int constexpr num_basis_functions = 4u;
+
+        std::array<autodiff::Vector3dual, num_basis_functions> xis{};
+        std::array<basis_function_type, num_basis_functions> phis{};
+        for (auto r = 0u; r < cell.node_count(); ++r)
+        {
+            auto const global_node_idx = cell.node(r);
+            xis[r]                     = mechanical_model.dof(global_node_idx);
+            phis[r]                    = cell.phi(r);
+        }
+
+        using interpolation_op_type = sbs::math::differentiable::
+            interpolation_op_t<sbs::math::differentiable::polynomial_hat_basis_function_t<1>, 4u>;
+        interpolation_op_type interpolation_op{xis, phis};
+
+        auto const alpha = simulation.simulation_parameters().compliance;
+        auto const beta  = simulation.simulation_parameters().damping;
 
         std::vector<sbs::index_type> js{cell.node(0u), cell.node(1u), cell.node(2u), cell.node(3u)};
-
-        using interpolation_op_type        = typename visual_model_type::interpolation_op_type;
-        auto const& interpolation_function = surface.interpolation_operator(vi);
+        std::vector<sbs::index_type> bis{beam_idx, beam_idx, beam_idx, beam_idx};
 
         using constraint_type =
-            sbs::physics::xpbd::fem_collision_constraint_t<interpolation_op_type>;
+            sbs::physics::xpbd::interpolated_particle_collision_constraint_t<interpolation_op_type>;
         auto collision_constraint = std::make_unique<constraint_type>(
             alpha,
             beta,
             js,
-            beam_idx,
-            interpolation_function,
+            bis,
+            interpolation_op,
             Xi,
             contact.point(),
             contact.normal());
@@ -225,7 +241,7 @@ int main(int argc, char** argv)
     sbs::physics::xpbd::timestep_t timestep{};
     timestep.dt()         = 0.016;
     timestep.iterations() = 5u;
-    timestep.substeps()   = 2u;
+    timestep.substeps()   = 1u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
@@ -237,9 +253,39 @@ int main(int argc, char** argv)
     renderer.on_new_physics_timestep = throttler;
     renderer.camera().position().x   = 0.;
     renderer.camera().position().y   = 5.;
-    renderer.camera().position().z   = 40.;
+    renderer.camera().position().z   = 25.;
 
     renderer.pickers.clear();
+    /*std::vector<sbs::common::shared_vertex_surface_mesh_i*> surfaces_to_pick{};
+    surfaces_to_pick.push_back(
+        reinterpret_cast<sbs::common::shared_vertex_surface_mesh_i*>(&beam.surface_mesh()));
+
+    sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
+    fix_picker.should_picking_start = [](int button, int action, int mods) {
+        return (
+            button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action == GLFW_PRESS);
+    };
+    fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
+                                        bool right_mouse_button_pressed,
+                                        bool middle_mouse_button_pressed,
+                                        bool alt_key_pressed,
+                                        bool ctrl_key_pressed,
+                                        bool shift_key_pressed) {
+        return !ctrl_key_pressed;
+    };
+    fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
+        return true;
+    };
+    fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
+        auto* tet_mesh_boundary =
+            reinterpret_cast<sbs::physics::tetrahedral_mesh_boundary_t*>(node);
+        auto const tvi                    = tet_mesh_boundary->from_surface_vertex(vi);
+        auto const tet_mesh               = tet_mesh_boundary->tetrahedral_mesh();
+        sbs::physics::xpbd::particle_t& p = simulation.particles()[beam_idx][tvi];
+        p.mass()                          = p.fixed() ? 1. : 0.;
+    };
+
+    renderer.pickers.push_back(fix_picker);*/
     renderer.on_new_imgui_frame = [&](sbs::physics::xpbd::simulation_t& s) {
         ImGui::Begin("Soft Body Simulator");
 
@@ -306,22 +352,33 @@ int main(int argc, char** argv)
             ImGui::Text(fps_str.c_str());
             std::string const fps_avg_str = "Mean FPS: " + std::to_string(windowed_average_fps);
             ImGui::Text(fps_avg_str.c_str());
-
-            std::string const fem_dofs_str =
-                "FEM dofs: " + std::to_string(mechanical_model.dof_count());
-            ImGui::Text(fem_dofs_str.c_str());
-
-            std::size_t const num_tetrahedra     = mechanical_model.cell_count();
-            std::string const num_tetrahedra_str = "Tets: " + std::to_string(num_tetrahedra);
-            ImGui::Text(num_tetrahedra_str.c_str());
-
-            std::size_t const num_constraints = simulation.constraints().size();
-            std::string const num_constraints_str =
-                "Constraints: " + std::to_string(num_constraints);
-            ImGui::Text(num_constraints_str.c_str());
         }
 
         ImGui::End();
+    };
+
+    renderer.on_pre_render = [&](sbs::physics::xpbd::simulation_t& s) {
+        renderer.clear_points();
+        for (auto const& particles : s.particles())
+        {
+            for (auto const& p : particles)
+            {
+                if (p.fixed())
+                {
+                    std::array<float, 9u> const vertex_attributes{
+                        static_cast<float>(p.x().x()),
+                        static_cast<float>(p.x().y()),
+                        static_cast<float>(p.x().z()),
+                        0.f,
+                        0.f,
+                        0.f,
+                        1.f,
+                        0.f,
+                        0.f};
+                    renderer.add_point(vertex_attributes);
+                }
+            }
+        }
     };
 
     renderer.launch();

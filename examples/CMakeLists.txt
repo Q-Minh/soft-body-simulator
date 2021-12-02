@@ -2,6 +2,10 @@ add_executable(stvk-fem-beam)
 target_sources(stvk-fem-beam PRIVATE "stvk_fem_beam.cpp")
 target_link_libraries(stvk-fem-beam PRIVATE sbs::sbs)
 
+add_executable(stvk-fem-beam-autodiff)
+target_sources(stvk-fem-beam-autodiff PRIVATE "stvk_fem_beam_autodiff.cpp")
+target_link_libraries(stvk-fem-beam-autodiff PRIVATE sbs::sbs)
+
 add_executable(stvk-sph-beam)
 target_sources(stvk-sph-beam PRIVATE "stvk_sph_beam.cpp")
 target_link_libraries(stvk-sph-beam PRIVATE sbs::sbs)

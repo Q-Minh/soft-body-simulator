@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 
     sbs::geometry::bezier_curve_t<3, 2> bezier_curve_0{};
     bezier_curve_0.set_control_points(
-        {Eigen::Vector3d{0., 0., 0.}, Eigen::Vector3d{1., 1., 0.}, Eigen::Vector3d{2., 0., 0.}});
+        {Eigen::Vector3d{0., 0.5, 0.}, Eigen::Vector3d{1., 1., 0.}, Eigen::Vector3d{2., 0., 0.}});
     sbs::geometry::bezier_curve_t<3, 2> bezier_curve_1{};
     bezier_curve_1.set_control_points(
         {Eigen::Vector3d{2., 0., 0.}, Eigen::Vector3d{3., -1., 0.}, Eigen::Vector3d{4., 0., 0.}});
@@ -41,7 +41,7 @@ int main(int argc, char** argv)
     parametric_curve.add_segment(bezier_curve_1);
 
     sbs::geometry::line_segment_t<3> starting_line_segment{
-        Eigen::Vector3d{0., 0., 0.},
+        Eigen::Vector3d{0., 0.5, 0.},
         Eigen::Vector3d{0., 0., 1.5}};
 
     auto swept_surface =

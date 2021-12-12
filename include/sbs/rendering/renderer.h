@@ -8,6 +8,7 @@
 
 #include "camera.h"
 #include "light.h"
+#include "sbs/aliases.h"
 #include "sbs/common/node.h"
 #include "shader.h"
 
@@ -104,6 +105,25 @@ class renderer_t : public renderer_base_t
     void add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point);
     void clear_points();
 
+    void add_rendered_object(std::unique_ptr<common::renderable_node_t> rendered_object);
+    std::unique_ptr<common::renderable_node_t> const& rendered_object(index_type i) const
+    {
+        return rendered_objects_[i];
+    }
+    std::unique_ptr<common::renderable_node_t>& rendered_object(index_type i)
+    {
+        return rendered_objects_[i];
+    }
+    std::vector<std::unique_ptr<common::renderable_node_t>> const& rendered_objects() const
+    {
+        return rendered_objects_;
+    }
+    std::vector<std::unique_ptr<common::renderable_node_t>>& rendered_objects()
+    {
+        return rendered_objects_;
+    }
+    std::size_t rendered_object_count() const { return rendered_objects_.size(); }
+
     /**
      * Render loop hooks
      */
@@ -170,6 +190,8 @@ class renderer_t : public renderer_base_t
     bool should_render_points_;
     unsigned int point_vbo_;
     unsigned int point_vao_;
+
+    std::vector<std::unique_ptr<common::renderable_node_t>> rendered_objects_;
 };
 
 } // namespace rendering

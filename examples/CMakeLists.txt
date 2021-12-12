@@ -22,6 +22,10 @@ add_executable(stvk-fem-sph-beam)
 target_sources(stvk-fem-sph-beam PRIVATE "stvk_fem_sph_beam.cpp")
 target_link_libraries(stvk-fem-sph-beam PRIVATE sbs::sbs)
 
+add_executable(bezier-curve-swept-surface)
+target_sources(bezier-curve-swept-surface PRIVATE "bezier_curve_swept_surface.cpp")
+target_link_libraries(bezier-curve-swept-surface PRIVATE sbs::sbs)
+
 add_executable(sandbox)
 target_sources(sandbox PRIVATE "sandbox.cpp")
 target_link_libraries(sandbox PRIVATE sbs::sbs)

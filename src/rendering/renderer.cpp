@@ -28,7 +28,8 @@ renderer_t::renderer_t(
       points_(),
       should_render_points_(),
       point_vbo_(),
-      point_vao_()
+      point_vao_(),
+      rendered_objects_()
 {
     initialize();
 }
@@ -175,6 +176,11 @@ void renderer_t::launch()
             simulation_.bodies().end(),
             std::back_inserter(objects),
             [](std::unique_ptr<physics::body::body_t>& body) { return &body->visual_model(); });
+        std::transform(
+            rendered_objects_.begin(),
+            rendered_objects_.end(),
+            std::back_inserter(objects),
+            [](std::unique_ptr<common::renderable_node_t>& object) { return object.get(); });
         render_objects(objects);
 
         if (should_render_points_)
@@ -202,6 +208,13 @@ void renderer_t::close()
 
     delete_objects_from_opengl(simulation_.bodies());
 
+    for (std::unique_ptr<common::renderable_node_t>& object : rendered_objects_)
+    {
+        glDeleteVertexArrays(1, &(object->VAO()));
+        glDeleteBuffers(1, &(object->VBO()));
+        glDeleteBuffers(1, &(object->EBO()));
+    }
+
     mesh_shader_.destroy();
     wireframe_shader_.destroy();
     point_shader_.destroy();
@@ -224,6 +237,23 @@ void renderer_t::clear_points()
 {
     points_.clear();
     should_render_points_ = true;
+}
+
+void renderer_t::add_rendered_object(std::unique_ptr<common::renderable_node_t> rendered_object)
+{
+    rendered_objects_.push_back(std::move(rendered_object));
+
+    auto& object      = rendered_objects_.back();
+    unsigned int& VAO = object->VAO();
+    unsigned int& VBO = object->VBO();
+    unsigned int& EBO = object->EBO();
+
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
+    object->mark_vertices_dirty();
+    object->mark_indices_dirty();
 }
 
 void renderer_t::process_input(GLFWwindow* window, double dt)

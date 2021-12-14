@@ -4,6 +4,7 @@
 #include "sbs/math/kernels.h"
 
 #include <Eigen/Core>
+#include <array>
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/dual/eigen.hpp>
 #include <vector>
@@ -149,7 +150,340 @@ struct fem_sph_interpolation_t
         return std::make_pair(dxdxis, dxdxjs);
     }
 
-    scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
+    /**
+     * @brief
+     * Solves the optimization problem argmin_X f(X), where
+     * f(X) = 1/2 || x(X) - c ||^2 using Newton's method.
+     * An initial guess Xk must be provided, as well as the
+     * target point in world space c.
+     * Essentially, this method gives the inverse mapping x^-1(X).
+     * Given the point c in world space, we attempt to find the
+     * corresponding point in material space X and return it.
+     *
+     * @param c The world space position corresponding to x(X*), where X* is the solution to find.
+     * @param Xk The initial guess Xk.
+     * @return The material space point X* corresponding to c = x(X*). In other words, return
+     * x^{-1}(X).
+     */
+    Eigen::Vector3d
+    inverse(Eigen::Vector3d const& c, Eigen::Vector3d const& Xk, int iterations) const
+    {
+        int const K              = iterations;
+        Eigen::Vector3d const X0 = Xk;
+        for (int k = 0; k < K; ++k)
+        {
+            auto const [gradf, Hf] = hessian_f(c, Xk);
+#ifdef _DEBUG
+            scalar_type const det = Hf.determinant();
+            assert(std::abs(det) > sbs::eps());
+#endif
+            Eigen::Matrix3d const Hfinv = Hf.inverse();
+            Xk                          = Xk - Hfinv * gradf;
+        }
+
+#ifdef _DEBUG
+        Eigen::Vector3d const x = eval(Xk);
+        scalar_type const r     = (x - c).norm();
+#endif
+        return Xk_plus_1;
+    }
+
+    /**
+     * @brief
+     *
+     * @param c
+     * @param X
+     * @return
+     */
+    std::pair<Eigen::Vector3d, Eigen::Matrix3d>
+    hessian_f(Eigen::Vector3d const& c, Eigen::Vector3d const& X) const
+    {
+        Eigen::Vector3d gradf{};
+        gradf.setZero();
+        Eigen::Matrix3d Hf{};
+        Hf.setZero();
+
+        auto const [x, gradx, Hx] = hessian_x(X);
+
+        for (int j = 0; j < 3; ++j)
+        {
+            // gradf contributions
+            for (k = 0; k < 3; ++k)
+            {
+                gradf(j) += (x(k) - c(k)) * gradx[k](j);
+            }
+
+            // Hf contributions
+            for (int i = 0; i < 3; ++i)
+            {
+                for (k = 0; k < 3; ++k)
+                {
+                    scalar_type const c1 = gradx[k](i) * gradx[k](j);
+                    scalar_type const c2 = x(k) * Hx(i, j);
+                    scalar_type const c3 = c(k) * Hx(i, j);
+                    Hf(i, j) += c1 + c2 - c3;
+                }
+            }
+        }
+
+        return std::make_pair(gradf, Hf);
+    }
+
+    /**
+     * @brief
+     * Computes the hessian of the 0th-order reproducible version
+     * of this interpolation field.
+     *
+     * @param X Material space point at which to compute the hessian.
+     * @return Tuple (x(X), [grad x_1(X), grad x_2(X), grad x_3(X)], [Hx_1(X), Hx_2(X), Hx_3(X)] )
+     */
+    std::tuple<Eigen::Vector3d, std::array<Eigen::Vector3d, 3u>, std::array<Eigen::Matrix3d, 3u>>
+    hessian_x(Eigen::Vector3d const& X) const
+    {
+        std::array<Eigen::Vector3d, 3u> gradx{};
+        gradx[0].setZero();
+        gradx[1].setZero();
+        gradx[2].setZero();
+        std::array<Eigen::Matrix3d, 3u> Hx{};
+        Hx[0].setZero();
+        Hx[1].setZero();
+        Hx[2].setZero();
+
+        auto const [u, gradu, Hu] = hessian_u(X);
+        auto const [v, gradv, Hv] = hessian_v(X);
+
+        for (int k = 0; k < 3; ++k)
+        {
+            // grad contributions
+            scalar_type const v2 = v * v;
+            for (int j = 0; j < 3; ++j)
+            {
+                scalar_type const lhs = gradu[k](j) * v;
+                scalar_type const rhs = u(k) * gradv(j);
+                gradx[k] += (lhs - rhs) / v2
+            }
+
+            // Hessian contributions
+            scalar_type const v4 = v2 * v2;
+            for (int j = 0; j < 3; ++j)
+            {
+                for (int i = 0; i < 3; ++i)
+                {
+                    scalar_type const c1 = (Hu(i, j) * v + gradu[k](j) * gradv(i)) * v2;
+                    scalar_type const c2 = (gradu[k](i) * gradv(j) + u(k) * Hv(i, j)) * v2;
+                    scalar_type const c3 = (gradu[k](j) * v) * 2. * v * gradv(i);
+                    scalar_type const c4 = (u(k) * gradv(j)) * 2. * v * gradv(i);
+                    Hx(i, j) += (c1 - c2 - c3 + c4) / v4;
+                }
+            }
+        }
+
+        Eigen::Vector3d const x = u / v;
+        return std::make_tuple(x, gradx, Hx);
+    }
+
+    /**
+     * @brief
+     * Returns the hessians of each component of u(X).
+     * Also returns the gradients of each component of u(X).
+     *
+     * @param X Material space position X
+     * @return Tuple (u(X), (grad u_1, grad u_2, grad u_3), (Hu_1(X), Hu_2(X), Hu_3(X)))
+     */
+    std::tuple<Eigen::Vector3d, std::array<Eigen::Vector3d, 3u>, std::array<Eigen::Matrix3d, 3u>>
+    hessian_u(Eigen::Vector3d const& X) const
+    {
+        std::array<Eigen::Vector3d, 3u> gradu{};
+        gradu[0].setZero();
+        gradu[1].setZero();
+        gradu[2].setZero();
+        std::array<Eigen::Matrix3d, 3u> Hu{};
+        Hu[0].setZero();
+        Hu[1].setZero();
+        Hu[2].setZero();
+
+        // Compute FEM basis function contribution to gradu and Hu.
+        // Linear FEM basis functions do not have a second derivative, thus
+        // Hu = 0, and we only compute gradu contributions.
+        auto const& cell = (*cells)[e];
+        for (auto r = 0u; r < cell.node_count(); ++r)
+        {
+            auto const i       = cell.node(r);
+            bool const has_phi = (*has_basis_function)[i];
+            if (has_phi)
+            {
+                Eigen::Vector3d const& xi     = (*xis)[i];
+                auto const& phi               = cell.phi(r);
+                Eigen::Vector3d const gradphi = phi.grad(X);
+
+                for (int k = 0; k < 3; ++k)
+                {
+                    gradu[k] += xi(k) * gradphi;
+                    u += xi * phi.eval(X);
+                }
+            }
+        }
+
+        for (index_type const j : js)
+        {
+            scalar_type const& Vj          = (*Vjs)[j];
+            kernel_function_type const& Wj = (*Wjs)[j];
+            scalar_type const W            = static_cast<scalar_type>(Wj(X));
+            Eigen::Matrix3d const& Fj      = (*Fjs)[j];
+            Eigen::Vector3d const& Xj      = (*Xjs)[j];
+            Eigen::Vector3d const& xj      = (*xjs)[j];
+            Eigen::Vector3d const X_j      = X - Xj;
+
+            Eigen::Vector3d const& gradWj     = Wj.grad(X);
+            Eigen::Matrix3d const& hessian_Wj = Wj.hessian(X);
+
+            Eigen::Matrix3d const dX_dX = Eigen::Matrix3d::Identity();
+            for (int k = 0; k < 3; ++k)
+            {
+                for (int s = 0; s < 3; ++s)
+                {
+                    // gradu contributions
+                    gradu[k](s) += xj(k) * Vj * gradWj(s);
+                    for (int m = 0; m < 3; ++m)
+                    {
+                        gradu[k] += Fj(k, m) * dX_dX(m, s) * Vj * W;
+                        gradu[k] += Fj(k, m) * X(m) * Vj * gradWj(s);
+                        gradu[k] -= Fj(k, m) * Xj(m) * Vj * gradWj(s);
+                    }
+
+                    // Hu contributions
+                    for (int r = 0; r < 3; ++r)
+                    {
+                        Hu[k](r, s) += xj(k) * Vj * hessian_Wj(r, s);
+                        for (int m = 0; m < 3; ++m)
+                        {
+                            Hu[k](r, s) += Fj(k, m) * dX_dX(m, s) * Vj * gradWj(r);
+                            Hu[k](r, s) += Fj(k, m) * X(m) * Vj * hessian_Wj(r, s);
+                            Hu[k](r, s) -= Fj(k, m) * Xj(m) * Vj * hessian_Wj(r, s);
+                        }
+                    }
+                }
+            }
+        }
+
+        Eigen::Vector3d const u = get_u(X);
+        return std::make_tuple(u, gradu, Hu);
+    }
+
+    /**
+     * @brief
+     * Returns the hessian of v(X).
+     * Also returns the gradient of v(X).
+     *
+     * @param X Material space position X.
+     * @return Tuple (v, gradv, Hv)
+     */
+    std::tuple<scalar_type, Eigen::Vector3d, Eigen::Matrix3d>
+    hessian_v(Eigen::Vector3d const& X) const
+    {
+        Eigen::Vector3d gradv{};
+        gradv.setZero();
+        Eigen::Matrix3d Hv{};
+        Hv.setZero();
+
+        auto const& cell = (*cells)[e];
+        for (auto r = 0u; r < cell.node_count(); ++r)
+        {
+            auto const i       = cell.node(r);
+            bool const has_phi = (*has_basis_function)[i];
+            if (has_phi)
+            {
+                auto const& phi               = cell.phi(r);
+                Eigen::Vector3d const gradphi = phi.grad(X);
+                // gradv contributions
+                gradv += gradphi;
+            }
+        }
+
+        for (index_type const j : js)
+        {
+            scalar_type const& Vj          = (*Vjs)[j];
+            kernel_function_type const& Wj = (*Wjs)[j];
+            scalar_type const W            = static_cast<scalar_type>(Wj(X));
+            Eigen::Vector3d const& Xj      = (*Xjs)[j];
+            Eigen::Vector3d const X_j      = X - Xj;
+
+            Eigen::Vector3d const& gradWj     = Wj.grad(X);
+            Eigen::Matrix3d const& hessian_Wj = Wj.hessian(X);
+
+            // gradv contributions
+            gradv += Vj * gradWj;
+
+            // Hv contributions
+            for (int m = 0; m < 3; ++m)
+            {
+                for (int n = 0; n < 3; ++n)
+                {
+                    Hv(m, n) += Vj * hessian_Wj(m, n);
+                }
+            }
+        }
+
+        scalar_type const v = get_v(X);
+        return std::make_tuple(v, gradv, Hv);
+    }
+
+    /**
+     * @brief
+     * Let x(X) be the 0th-order reproducible version of this interpolation
+     * field. We reformulate x(X) as x(X) = u(X) / v(X), where
+     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
+     * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
+     * This method returns u(X).
+     *
+     * @param X Material space position.
+     * @return u(X)
+     */
+    Eigen::Vector3d get_u(Eigen::Vector3d const& X) const
+    {
+        auto const& cell = (*cells)[e];
+
+        Eigen::Vector3d xk{0., 0., 0.};
+
+        // sum_i x_i phi_i(X)
+        for (auto r = 0u; r < cell.node_count(); ++r)
+        {
+            auto const i       = cell.node(r);
+            bool const has_phi = (*has_basis_function)[i];
+            if (has_phi)
+            {
+                auto const& phi           = cell.phi(r);
+                Eigen::Vector3d const& xi = (*xis)[i];
+                xk += xi * phi(X);
+            }
+        }
+        // sum_j (F_j (X_k - X_j) + x_j) phi_j(X)
+        for (index_type const j : js)
+        {
+            scalar_type const& Vj          = (*Vjs)[j];
+            kernel_function_type const& Wj = (*Wjs)[j];
+            scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
+            Eigen::Matrix3d const& Fj      = (*Fjs)[j];
+            Eigen::Vector3d const& Xj      = (*Xjs)[j];
+            Eigen::Vector3d const& xj      = (*xjs)[j];
+            Eigen::Vector3d const Xkj      = X - Xj;
+            xk += (Fj * Xkj + xj) * Vj * Wkj;
+        }
+        return xk;
+    }
+
+    /**
+     * @brief
+     * Let x(X) be the 0th-order reproducible version of this interpolation
+     * field. We reformulate x(X) as x(X) = u(X) / v(X), where
+     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
+     * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
+     * This method returns v(X).
+     *
+     * @param X Material space position X
+     * @return v(X)
+     */
+    scalar_type get_v(Eigen::Vector3d const& X) const
     {
         scalar_type s = 0.;
 
@@ -173,7 +507,13 @@ struct fem_sph_interpolation_t
             scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
             s += Vj * Wkj;
         }
-        s = (1. / s);
+        return s;
+    }
+
+    scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
+    {
+        scalar_type s = v(X);
+        s             = (1. / s);
         return s;
     }
 
@@ -193,10 +533,10 @@ struct fem_sph_interpolation_t
         }
     }
 
-    scalar_type
-        sk; ///< Shepard coefficient for maintaing 0-th order reproducibility of this interpolation
-    Eigen::Vector3d Xk;                      ///< Point at which we evaluate this interpolation
-    index_type e;                            ///< Index of cell in which this interpolation exists
+    scalar_type sk;     ///< Shepard coefficient for maintaing 0-th order reproducibility of this
+                        ///< interpolation
+    Eigen::Vector3d Xk; ///< Point at which we evaluate this interpolation
+    index_type e;       ///< Index of cell in which this interpolation exists
     std::vector<cell_type> const* cells;     ///< The cells of the fem model
     std::vector<index_type> is;              ///< Indices of the fem basis functions that are active
     std::vector<Eigen::Vector3d> const* Xis; ///< Points of the mesh model

@@ -39,9 +39,9 @@ int main(int argc, char** argv)
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
     //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    beam_transform.scale(Eigen::Vector3d{0.1, 0.025, 0.1});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
-    sbs::scalar_type const support = 2.;
+    sbs::scalar_type const support = 1.;
     std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
 
     // Initialize soft body

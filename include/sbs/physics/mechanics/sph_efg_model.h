@@ -1,5 +1,5 @@
-#ifndef SBS_PHYSICS_MECHANICS_SPH_MESHLESS_MODEL_H
-#define SBS_PHYSICS_MECHANICS_SPH_MESHLESS_MODEL_H
+#ifndef SBS_PHYSICS_MECHANICS_SPH_EFG_MODEL_H
+#define SBS_PHYSICS_MECHANICS_SPH_EFG_MODEL_H
 
 #include "sbs/geometry/grid.h"
 #include "sbs/geometry/tetrahedral_domain.h"
@@ -15,31 +15,36 @@ namespace physics {
 namespace mechanics {
 
 template <class KernelType>
-class sph_meshless_model_t : public math::meshless_model_t<
-                                 Eigen::Vector3d,
-                                 Eigen::Vector3d,
-                                 math::differentiable::sph_basis_function_t<KernelType>>
+class sph_efg_model_t : public math::meshless_model_t<
+                            Eigen::Vector3d,
+                            Eigen::Vector3d,
+                            math::differentiable::sph_basis_function_t<KernelType>>
 {
   public:
     using kernel_function_type = KernelType;
-    using basis_function_type  = math::differentiable::sph_basis_function_t<kernel_function_type>;
+
+    using basis_function_type = math::differentiable::sph_basis_function_t<kernel_function_type>;
+
     using interpolation_function_type = math::sph_interpolation_t<kernel_function_type>;
+
     using deformation_gradient_function_type =
-        math::sph_nodal_deformation_gradient_op_t<kernel_function_type>;
+        math::sph_efg_deformation_gradient_op_t<kernel_function_type>;
+
     using base_type = math::meshless_model_t<
         Eigen::Vector3d,
         Eigen::Vector3d,
         math::differentiable::sph_basis_function_t<KernelType>>;
-    using self_type = sph_meshless_model_t<kernel_function_type>;
 
-    sph_meshless_model_t() = default;
-    sph_meshless_model_t(
+    using self_type = sph_efg_model_t<kernel_function_type>;
+
+    sph_efg_model_t() = default;
+    sph_efg_model_t(
         geometry::tetrahedral_domain_t const& domain,
         geometry::grid_t const& grid,
         scalar_type support);
 
-    sph_meshless_model_t(self_type const& other);
-    sph_meshless_model_t& operator=(self_type const& other);
+    sph_efg_model_t(self_type const& other);
+    sph_efg_model_t& operator=(self_type const& other);
 
     // Accessors
     geometry::tetrahedral_domain_t const& domain() const { return domain_; }
@@ -81,17 +86,23 @@ class sph_meshless_model_t : public math::meshless_model_t<
     geometry::grid_t grid_;                 ///< The particle sampling grid
     std::vector<scalar_type> Vis_;          ///< Shepard coefficients (nodal volume)
     std::vector<kernel_function_type> Wis_; ///< Nodal kernel functions
-    std::vector<Eigen::Matrix3d> Fis_;      ///< Deformation gradients at each point
+
+    std::vector<Eigen::Vector3d> Xks_; ///< Integration points
+    std::vector<Eigen::Vector3d> xks_; ///< Coefficients of integration points
+
+    std::vector<Eigen::Matrix3d> Fks_; ///< Deformation gradients at efg integration points
     std::vector<interpolation_function_type>
-        interpolation_fields_; ///< Interpolation fields at points
+        interpolation_fields_; ///< Interpolation fields at efg integration points
     std::vector<deformation_gradient_function_type>
-        deformation_gradient_functions_; ///< Nodal deformation gradient callable functors
+        deformation_gradient_functions_; ///< Nodal deformation gradient callable functors at efg
+                                         ///< integration points
+
     std::vector<std::vector<index_type>> particles_in_tet_; ///< Particles in each tetrahedron
     std::vector<index_type> particle_tets_; ///< The englobing tetrahedron of each particle
 };
 
 template <class KernelType>
-inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
+inline sph_efg_model_t<KernelType>::sph_efg_model_t(
     geometry::tetrahedral_domain_t const& domain,
     geometry::grid_t const& grid,
     scalar_type support)
@@ -99,7 +110,9 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
       grid_(grid),
       Vis_(),
       Wis_(),
-      Fis_(),
+      Xks_(),
+      xks_(),
+      Fks_(),
       interpolation_fields_(),
       deformation_gradient_functions_(),
       particles_in_tet_(),
@@ -137,7 +150,7 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
     for (auto i = 0u; i < this->point_count(); ++i)
     {
         Eigen::Vector3d const& Xi = this->point(i);
-        kernel_function_type Wi(Xi, h);
+        kernel_function_type Wi(autodiff::Vector3dual(Xi), h);
         Wis.push_back(Wi);
 
         std::vector<index_type> nodes = this->in_support_of_nodes(Xi);
@@ -155,7 +168,8 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
         scalar_type const density =
             std::accumulate(Njs.begin(), Njs.end(), 0., [&](scalar_type sum, index_type const Nj) {
                 kernel_function_type const& Wj = Wis[Nj];
-                scalar_type const W            = Wj(Xi);
+                auto const dualW               = Wj(autodiff::Vector3dual(Xi));
+                scalar_type const W            = static_cast<scalar_type>(dualW);
                 return sum + W;
             });
         scalar_type const Vi = 1. / density;
@@ -192,7 +206,7 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
 }
 
 template <class KernelType>
-inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(self_type const& other)
+inline sph_efg_model_t<KernelType>::sph_efg_model_t(self_type const& other)
     : base_type(other),
       domain_(other.domain_),
       grid_(other.grid_),
@@ -228,8 +242,7 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(self_type const& o
 }
 
 template <class KernelType>
-inline sph_meshless_model_t<KernelType>&
-sph_meshless_model_t<KernelType>::operator=(self_type const& other)
+inline sph_efg_model_t<KernelType>& sph_efg_model_t<KernelType>::operator=(self_type const& other)
 {
     base_type::operator=(other);
 
@@ -266,8 +279,8 @@ sph_meshless_model_t<KernelType>::operator=(self_type const& other)
 }
 
 template <class KernelType>
-inline typename sph_meshless_model_t<KernelType>::interpolation_function_type
-sph_meshless_model_t<KernelType>::interpolation_field_at(Eigen::Vector3d const& X) const
+inline typename sph_efg_model_t<KernelType>::interpolation_function_type
+sph_efg_model_t<KernelType>::interpolation_field_at(Eigen::Vector3d const& X) const
 {
     Eigen::Vector3d const Xi            = X;
     std::vector<index_type> const nodes = this->in_support_of_nodes(X);
@@ -283,8 +296,7 @@ sph_meshless_model_t<KernelType>::interpolation_field_at(Eigen::Vector3d const& 
 }
 
 template <class KernelType>
-inline std::vector<index_type> const&
-sph_meshless_model_t<KernelType>::neighbours(index_type i) const
+inline std::vector<index_type> const& sph_efg_model_t<KernelType>::neighbours(index_type i) const
 {
     interpolation_function_type const& sph_interpolation = interpolation_field_at(i);
     return sph_interpolation.js;
@@ -294,4 +306,4 @@ sph_meshless_model_t<KernelType>::neighbours(index_type i) const
 } // namespace physics
 } // namespace sbs
 
-#endif // SBS_PHYSICS_MECHANICS_SPH_MESHLESS_MODEL_H
+#endif // SBS_PHYSICS_MECHANICS_SPH_EFG_MODEL_H

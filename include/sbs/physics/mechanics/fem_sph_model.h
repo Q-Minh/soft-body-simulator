@@ -217,7 +217,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
     for (auto j = 0u; j < sph_model_.point_count(); ++j)
     {
         Eigen::Vector3d const& Xj = sph_model_.point(j);
-        kernel_function_type Wj(autodiff::Vector3dual(Xj), h);
+        kernel_function_type Wj(Xj, h);
         Wjs.push_back(Wj);
 
         std::vector<index_type> nodes = sph_model_.in_support_of_nodes(Xj);
@@ -235,7 +235,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
         scalar_type const density =
             std::accumulate(Nks.begin(), Nks.end(), 0., [&](scalar_type sum, index_type const Nk) {
                 kernel_function_type const& Wk = Wjs[Nk];
-                auto const dualW               = Wk(autodiff::Vector3dual(Xj));
+                auto const dualW               = Wk(Xj);
                 scalar_type const W            = static_cast<scalar_type>(dualW);
                 return sum + W;
             });

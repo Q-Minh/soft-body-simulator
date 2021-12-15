@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
+#include <sbs/geometry/transform.h>
 #include <sbs/math/kernels.h>
 #include <sbs/math/mapping.h>
 #include <sbs/math/quadrature.h>
@@ -131,14 +132,14 @@ int main(int argc, char** argv)
     simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 4u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
     //     Eigen::AngleAxisd(3.14159 / 20., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    // beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
-    sbs::scalar_type const support = 2.;
+    sbs::scalar_type const support = 1.1;
     std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
 
     // Initialize soft body
@@ -150,14 +151,33 @@ int main(int argc, char** argv)
     fem_mixed_model_type& mechanical_model = beam.get_mechanical_model();
     sbs::scalar_type const mass_density    = 3.;
 
+    // Variables for Dirichlet boundary condition imposition
+    std::vector<sbs::index_type> left_bs{};
+    std::vector<sbs::index_type> right_bs{};
+    std::vector<sbs::index_type> left_fixed_particles{};
+    std::vector<Eigen::Vector3d> left_dirichlet_positions{};
+    std::vector<sbs::index_type> right_fixed_particles{};
+    std::vector<Eigen::Vector3d> right_dirichlet_positions{};
+
     // Create FEM particles
     auto const fem_particle_index_offset = simulation.particles()[beam_idx].size();
     for (auto i = 0u; i < mechanical_model.dof_count(); ++i)
     {
         Eigen::Vector3d const& xi = mechanical_model.dof(i);
         sbs::physics::xpbd::particle_t p{xi};
-        // p.mass() = 0.;
         p.mass() = 1.;
+        sbs::index_type const idx =
+            static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
+        if (p.x0().x() < 0.)
+        {
+            left_fixed_particles.push_back(idx);
+            left_dirichlet_positions.push_back(p.x0());
+        }
+        if (p.x0().x() > 9.)
+        {
+            right_fixed_particles.push_back(idx);
+            right_dirichlet_positions.push_back(p.x0());
+        }
         simulation.add_particle(p, beam_idx);
     }
 
@@ -168,8 +188,19 @@ int main(int argc, char** argv)
     {
         Eigen::Vector3d const& xj = meshless_model.dof(j);
         sbs::physics::xpbd::particle_t p{xj};
-        // p.mass() = 0.;
         p.mass() = 1.;
+        sbs::index_type const idx =
+            static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
+        if (p.x0().x() < 0.)
+        {
+            left_fixed_particles.push_back(idx);
+            left_dirichlet_positions.push_back(p.x0());
+        }
+        if (p.x0().x() > 9.)
+        {
+            right_fixed_particles.push_back(idx);
+            right_dirichlet_positions.push_back(p.x0());
+        }
         simulation.add_particle(p, beam_idx);
     }
     beam.set_fem_particle_offset(fem_particle_index_offset);
@@ -177,43 +208,23 @@ int main(int argc, char** argv)
 
     beam.get_visual_model().update();
 
+    // Apply initial Dirichlet BCs
+    left_bs.resize(left_fixed_particles.size(), beam_idx);
+    right_bs.resize(right_fixed_particles.size(), beam_idx);
+
+    simulation.apply_dirichlet_boundary_conditions(
+        left_bs,
+        left_fixed_particles,
+        left_dirichlet_positions);
+
+    simulation.apply_dirichlet_boundary_conditions(
+        right_bs,
+        right_fixed_particles,
+        right_dirichlet_positions);
+
     // Create mass distribution
     auto const& domain   = mechanical_model.domain();
     auto const& topology = domain.topology();
-    /*for (auto t = 0u; t < topology.tetrahedron_count(); ++t)
-    {
-        std::vector<sbs::index_type> const& meshless_particles_in_tet =
-            mechanical_model.particles_in_tetrahedron(t);
-        bool const is_mixed_tet                 = !meshless_particles_in_tet.empty();
-        sbs::topology::tetrahedron_t const& tet = topology.tetrahedron(t);
-        auto N = is_mixed_tet ? meshless_particles_in_tet.size() : tet.vertex_indices().size();
-
-        sbs::scalar_type const det =
-            static_cast<sbs::scalar_type>(domain.barycentric_map(t).determinant());
-        sbs::scalar_type const Vtet = (1. / 6.) * std::abs(det);
-        sbs::scalar_type const M    = (Vtet * mass_density);
-        sbs::scalar_type const dM   = M / static_cast<sbs::scalar_type>(N);
-
-        std::vector<sbs::physics::xpbd::particle_t>& beam_particles =
-            simulation.particles()[beam_idx];
-        if (is_mixed_tet)
-        {
-            for (sbs::index_type const j : meshless_particles_in_tet)
-            {
-                sbs::physics::xpbd::particle_t& p =
-                    beam_particles[meshless_particle_index_offset + j];
-                p.mass() += dM;
-            }
-        }
-        else
-        {
-            for (sbs::index_type const i : tet.vertex_indices())
-            {
-                sbs::physics::xpbd::particle_t& p = beam_particles[fem_particle_index_offset + i];
-                p.mass() += dM;
-            }
-        }
-    }*/
 
     auto const alpha = simulation.simulation_parameters().compliance;
     auto const beta  = simulation.simulation_parameters().damping;
@@ -413,9 +424,9 @@ int main(int argc, char** argv)
      * Setup time integration technique
      */
     sbs::physics::xpbd::timestep_t timestep{};
-    timestep.dt()         = 0.016;
-    timestep.iterations() = 5u;
-    timestep.substeps()   = 2u;
+    timestep.dt()         = 0.005;
+    timestep.iterations() = 10u;
+    timestep.substeps()   = 4u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
@@ -429,38 +440,6 @@ int main(int argc, char** argv)
     renderer.camera().position().y   = 5.;
     renderer.camera().position().z   = 40.;
 
-    renderer.pickers.clear();
-    /*std::vector<sbs::common::shared_vertex_surface_mesh_i*> surfaces_to_pick{};
-     surfaces_to_pick.push_back(
-         reinterpret_cast<sbs::common::shared_vertex_surface_mesh_i*>(&beam.surface_mesh()));
-
-     sbs::rendering::picker_t fix_picker{&renderer, surfaces_to_pick};
-     fix_picker.should_picking_start = [](int button, int action, int mods) {
-         return (
-             button == GLFW_MOUSE_BUTTON_LEFT && mods == GLFW_MOD_CONTROL && action ==
-             GLFW_PRESS);
-     };
-     fix_picker.should_picking_stop = [](bool left_mouse_button_pressed,
-                                         bool right_mouse_button_pressed,
-                                         bool middle_mouse_button_pressed,
-                                         bool alt_key_pressed,
-                                         bool ctrl_key_pressed,
-                                         bool shift_key_pressed) {
-         return !ctrl_key_pressed;
-     };
-     fix_picker.should_pick = [](sbs::common::shared_vertex_surface_mesh_i* node) {
-         return true;
-     };
-     fix_picker.picked = [&](sbs::common::shared_vertex_surface_mesh_i* node, std::uint32_t vi) {
-         auto* tet_mesh_boundary =
-             reinterpret_cast<sbs::physics::tetrahedral_mesh_boundary_t*>(node);
-         auto const tvi                    = tet_mesh_boundary->from_surface_vertex(vi);
-         auto const tet_mesh               = tet_mesh_boundary->tetrahedral_mesh();
-         sbs::physics::xpbd::particle_t& p = simulation.particles()[beam_idx][tvi];
-         p.mass()                          = p.fixed() ? 1. : 0.;
-     };
-
-     renderer.pickers.push_back(fix_picker);*/
     bool should_render_points{false};
     bool should_render_active_fem_nodes{false};
     renderer.on_new_imgui_frame = [&](sbs::physics::xpbd::simulation_t& s) {
@@ -582,6 +561,44 @@ int main(int argc, char** argv)
             // sbs::scalar_type const Vd        = dof_volume(mechanical_model);
             // std::string const dof_volume_str = "Dof volume: " + std::to_string(Vd);
             // ImGui::Text(dof_volume_str.c_str());
+
+            static sbs::scalar_type translation = 0.f;
+            static float translation_speed      = 0.01f;
+            ImGui::InputFloat(
+                "Translation speed##Physics",
+                &translation_speed,
+                0.01f,
+                0.1f,
+                "%.2f");
+
+            ImGui::Button("Translate##Physics");
+            if (ImGui::IsItemActive())
+            {
+                translation += static_cast<sbs::scalar_type>(translation_speed);
+                std::vector<Eigen::Vector3d> const dirichlet_boundary_conditions =
+                    sbs::geometry::translate(
+                        right_dirichlet_positions,
+                        Eigen::Vector3d{translation, 0., 0.});
+
+                simulation.apply_dirichlet_boundary_conditions(
+                    right_bs,
+                    right_fixed_particles,
+                    dirichlet_boundary_conditions);
+            }
+            ImGui::Button("Untranslate##Physics");
+            if (ImGui::IsItemActive())
+            {
+                translation -= static_cast<sbs::scalar_type>(translation_speed);
+                std::vector<Eigen::Vector3d> const dirichlet_boundary_conditions =
+                    sbs::geometry::translate(
+                        right_dirichlet_positions,
+                        Eigen::Vector3d{translation, 0., 0.});
+
+                simulation.apply_dirichlet_boundary_conditions(
+                    right_bs,
+                    right_fixed_particles,
+                    dirichlet_boundary_conditions);
+            }
         }
 
         static std::vector<sbs::scalar_type> neighbour_distribution{};

@@ -173,7 +173,8 @@ template <class InterpolationFunctionType>
 void interpolated_embedded_surface_t<InterpolationFunctionType>::prepare_vertices_for_rendering()
 {
     std::vector<float> cpu_buffer{};
-    cpu_buffer.reserve(vertices_.size() * 9u);
+    // Vertex based rendering
+    /*cpu_buffer.reserve(vertices_.size() * 9u);
     for (auto const& v : vertices_)
     {
         cpu_buffer.push_back(static_cast<float>(v.position.x()));
@@ -185,6 +186,30 @@ void interpolated_embedded_surface_t<InterpolationFunctionType>::prepare_vertice
         cpu_buffer.push_back(v.color.x());
         cpu_buffer.push_back(v.color.y());
         cpu_buffer.push_back(v.color.z());
+    }*/
+
+    // Face based rendering
+    cpu_buffer.reserve(indices_.size() * 9u);
+    for (auto i = 0u; i < indices_.size(); i += 3u)
+    {
+        auto const v1 = indices_[i];
+        auto const v2 = indices_[i + 1u];
+        auto const v3 = indices_[i + 2u];
+
+        std::array<index_type, 3u> const vis{v1, v2, v3};
+        for (auto const vi : vis)
+        {
+            vertex_type const& v = vertices_[vi];
+            cpu_buffer.push_back(static_cast<float>(v.position.x()));
+            cpu_buffer.push_back(static_cast<float>(v.position.y()));
+            cpu_buffer.push_back(static_cast<float>(v.position.z()));
+            cpu_buffer.push_back(static_cast<float>(v.normal.x()));
+            cpu_buffer.push_back(static_cast<float>(v.normal.y()));
+            cpu_buffer.push_back(static_cast<float>(v.normal.z()));
+            cpu_buffer.push_back(v.color.x());
+            cpu_buffer.push_back(v.color.y());
+            cpu_buffer.push_back(v.color.z());
+        }
     }
     this->transfer_vertices_for_rendering(std::move(cpu_buffer));
 }
@@ -194,7 +219,12 @@ void interpolated_embedded_surface_t<InterpolationFunctionType>::prepare_indices
 {
     std::vector<unsigned int> index_buffer{};
     index_buffer.reserve(indices_.size());
-    std::copy(indices_.begin(), indices_.end(), std::back_inserter(index_buffer));
+    // Vertex based rendering
+    //std::copy(indices_.begin(), indices_.end(), std::back_inserter(index_buffer));
+    // Face based rendering
+    index_buffer.resize(indices_.size());
+    std::iota(index_buffer.begin(), index_buffer.end(), 0u);
+
     this->transfer_indices_for_rendering(std::move(index_buffer));
 }
 

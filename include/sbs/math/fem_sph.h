@@ -78,37 +78,8 @@ struct fem_sph_interpolation_t
 
     Eigen::Vector3d eval(Eigen::Vector3d const& X, scalar_type s) const
     {
-        auto const& cell = (*cells)[e];
-
-        Eigen::Vector3d xk{0., 0., 0.};
-
-        // sum_i x_i phi_i(X)
-        for (auto r = 0u; r < cell.node_count(); ++r)
-        {
-            auto const i       = cell.node(r);
-            bool const has_phi = (*has_basis_function)[i];
-            if (has_phi)
-            {
-                auto const& phi           = cell.phi(r);
-                Eigen::Vector3d const& xi = (*xis)[i];
-                xk += xi * phi(X);
-            }
-        }
-        // sum_j (F_j (X_k - X_j) + x_j) phi_j(X)
-        for (index_type const j : js)
-        {
-            scalar_type const& Vj          = (*Vjs)[j];
-            kernel_function_type const& Wj = (*Wjs)[j];
-            scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
-            Eigen::Matrix3d const& Fj      = (*Fjs)[j];
-            Eigen::Vector3d const& Xj      = (*Xjs)[j];
-            Eigen::Vector3d const& xj      = (*xjs)[j];
-            Eigen::Vector3d const Xkj      = X - Xj;
-            xk += Vj * (Fj * Xkj + xj) * Wkj;
-        }
-        // xk = sk * (sum_i x_i phi_i(X) + sum_j (F_j (X_k - X_j) + x_j) phi_j(X))
-        xk = s * xk;
-        return xk;
+        Eigen::Vector3d const u = get_u(X);
+        return s * u;
     }
 
     /**
@@ -519,7 +490,7 @@ struct fem_sph_interpolation_t
 
     scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
     {
-        scalar_type s = v(X);
+        scalar_type s = get_v(X);
         s             = (1. / s);
         return s;
     }

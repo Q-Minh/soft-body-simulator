@@ -123,16 +123,16 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance                  = 1e-12;
-    simulation.simulation_parameters().damping                     = 1e-2;
+    simulation.simulation_parameters().compliance                  = 1e-5;
+    simulation.simulation_parameters().damping                     = 1e-1;
     simulation.simulation_parameters().collision_compliance        = 1e-4;
     simulation.simulation_parameters().collision_damping           = 1e-2;
-    simulation.simulation_parameters().poisson_ratio               = 0.45;
-    simulation.simulation_parameters().young_modulus               = 1e6;
+    simulation.simulation_parameters().poisson_ratio               = 0.4;
+    simulation.simulation_parameters().young_modulus               = 1e8;
     simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 4u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(4u, 4u, 4u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
@@ -140,7 +140,7 @@ int main(int argc, char** argv)
     // beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 1.1;
-    std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
+    std::array<unsigned int, 3u> const resolution{4u, 4u, 4u};
 
     // Initialize soft body
     auto const beam_idx = simulation.add_body();
@@ -173,7 +173,7 @@ int main(int argc, char** argv)
             left_fixed_particles.push_back(idx);
             left_dirichlet_positions.push_back(p.x0());
         }
-        if (p.x0().x() > 9.)
+        if (p.x0().x() > 1.)
         {
             right_fixed_particles.push_back(idx);
             right_dirichlet_positions.push_back(p.x0());
@@ -196,7 +196,7 @@ int main(int argc, char** argv)
             left_fixed_particles.push_back(idx);
             left_dirichlet_positions.push_back(p.x0());
         }
-        if (p.x0().x() > 9.)
+        if (p.x0().x() > 1.)
         {
             right_fixed_particles.push_back(idx);
             right_dirichlet_positions.push_back(p.x0());
@@ -627,17 +627,13 @@ int main(int argc, char** argv)
             for (auto j = 0; j < meshless_model.dof_count(); ++j)
             {
                 auto const& p = particles[meshless_particle_index_offset + j];
-                std::array<float, 9u> const vertex_attributes{
+                std::array<float, 3u> const vertex_position{
                     static_cast<float>(p.x().x()),
                     static_cast<float>(p.x().y()),
-                    static_cast<float>(p.x().z()),
-                    0.f,
-                    0.f,
-                    0.f,
-                    1.f,
-                    0.f,
-                    0.f};
-                renderer.add_point(vertex_attributes);
+                    static_cast<float>(p.x().z())};
+                std::array<float, 3u> const vertex_normal{0.f, 0.f, 0.f};
+                std::array<float, 3u> const vertex_color{1.f, 0.f, 0.f};
+                renderer.add_point(vertex_position, vertex_normal, vertex_color);
             }
         }
         if (should_render_active_fem_nodes)
@@ -648,20 +644,25 @@ int main(int argc, char** argv)
                 if (mechanical_model.has_basis_function(i))
                 {
                     auto const& p = particles[fem_particle_index_offset + i];
-                    std::array<float, 9u> const vertex_attributes{
+                    std::array<float, 3u> const vertex_position{
                         static_cast<float>(p.x().x()),
                         static_cast<float>(p.x().y()),
-                        static_cast<float>(p.x().z()),
-                        0.f,
-                        0.f,
-                        0.f,
-                        1.f,
-                        0.f,
-                        0.f};
-                    renderer.add_point(vertex_attributes);
+                        static_cast<float>(p.x().z())};
+                    std::array<float, 3u> const vertex_normal{0.f, 0.f, 0.f};
+                    std::array<float, 3u> const vertex_color{1.f, 0.f, 0.f};
+                    renderer.add_point(vertex_position, vertex_normal, vertex_color);
                 }
             }
         }
+        renderer.clear_lines();
+        std::array<float, 3u> const p1{0.f, 0.f, 0.f};
+        std::array<float, 3u> const n1{0.f, 0.f, 1.f};
+        std::array<float, 3u> const c1{1.f, 0.f, 0.f};
+
+        std::array<float, 3u> const p2{0.f, 1.f, 0.f};
+        std::array<float, 3u> const n2{0.f, 0.f, 1.f};
+        std::array<float, 3u> const c2{1.f, 0.f, 0.f};
+        renderer.add_line(p1, n1, c1, p2, n2, c2);
     };
 
     renderer.launch();

@@ -29,6 +29,10 @@ renderer_t::renderer_t(
       should_render_points_(),
       point_vbo_(),
       point_vao_(),
+      lines_(),
+      should_render_lines_(),
+      line_vbo_(),
+      line_vao_(),
       rendered_objects_()
 {
     initialize();
@@ -83,6 +87,9 @@ bool renderer_t::initialize()
 
     glGenVertexArrays(1, &point_vao_);
     glGenBuffers(1, &point_vbo_);
+
+    glGenVertexArrays(1, &line_vao_);
+    glGenBuffers(1, &line_vbo_);
 
     auto const create_objects_for_opengl =
         [](std::vector<std::unique_ptr<physics::body::body_t>> const& bodies) {
@@ -186,6 +193,9 @@ void renderer_t::launch()
         if (should_render_points_)
             render_points();
 
+        if (should_render_lines_)
+            render_lines();
+
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -224,12 +234,14 @@ void renderer_t::close()
     glfwTerminate();
 }
 
-void renderer_t::add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point)
+void renderer_t::add_point(
+    std::array<float, 3u> const& position,
+    std::array<float, 3u> const& normal,
+    std::array<float, 3u> const& color)
 {
-    std::copy(
-        xyz_nxnynz_rgb_point.begin(),
-        xyz_nxnynz_rgb_point.end(),
-        std::back_inserter(points_));
+    std::copy(position.begin(), position.end(), std::back_inserter(points_));
+    std::copy(normal.begin(), normal.end(), std::back_inserter(points_));
+    std::copy(color.begin(), color.end(), std::back_inserter(points_));
     should_render_points_ = true;
 }
 
@@ -237,6 +249,30 @@ void renderer_t::clear_points()
 {
     points_.clear();
     should_render_points_ = true;
+}
+
+void renderer_t::add_line(
+    std::array<float, 3u> const& p1,
+    std::array<float, 3u> const& n1,
+    std::array<float, 3u> const& c1,
+    std::array<float, 3u> const& p2,
+    std::array<float, 3u> const& n2,
+    std::array<float, 3u> const& c2)
+{
+    std::copy(p1.begin(), p1.end(), std::back_inserter(lines_));
+    std::copy(n1.begin(), n1.end(), std::back_inserter(lines_));
+    std::copy(c1.begin(), c1.end(), std::back_inserter(lines_));
+
+    std::copy(p2.begin(), p2.end(), std::back_inserter(lines_));
+    std::copy(n2.begin(), n2.end(), std::back_inserter(lines_));
+    std::copy(c2.begin(), c2.end(), std::back_inserter(lines_));
+    should_render_lines_ = true;
+}
+
+void renderer_t::clear_lines()
+{
+    lines_.clear();
+    should_render_lines_ = true;
 }
 
 void renderer_t::add_rendered_object(std::unique_ptr<common::renderable_node_t> rendered_object)
@@ -514,6 +550,71 @@ void renderer_t::render_points()
     glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(num_vertices));
 
     should_render_points_ = false;
+}
+
+void renderer_t::render_lines()
+{
+    shader_t const& shader = wireframe_shader_;
+    shader.use();
+
+    auto const position_attribute_location = get_position_attribute_location(shader);
+    auto const normal_attribute_location   = get_normal_attribute_location(shader);
+    auto const color_attribute_location    = get_color_attribute_location(shader);
+
+    /**
+     * Setup lights and view/projection
+     */
+    update_shader_view_projection_uniforms(shader);
+
+    glBindVertexArray(line_vao_);
+    glBindBuffer(GL_ARRAY_BUFFER, line_vbo_);
+
+    auto constexpr num_bytes_per_float = sizeof(float);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        lines_.size() * num_bytes_per_float,
+        lines_.data(),
+        GL_DYNAMIC_DRAW);
+
+    auto const num_vertices           = lines_.size() / 9u;
+    auto constexpr size_of_one_vertex = 3u * num_bytes_per_float /* x,y,z coordinates */ +
+                                        3u * num_bytes_per_float /* nx,ny,nz normal components */ +
+                                        3u * num_bytes_per_float /* r,g,b colors */;
+    auto constexpr stride_between_vertices = size_of_one_vertex;
+    auto constexpr vertex_position_offset  = 0u;
+    auto constexpr vertex_normal_offset    = vertex_position_offset + 3u * num_bytes_per_float;
+    auto constexpr vertex_color_offset     = vertex_normal_offset + 3u * num_bytes_per_float;
+
+    glVertexAttribPointer(
+        position_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_position_offset));
+    glEnableVertexAttribArray(position_attribute_location);
+
+    glVertexAttribPointer(
+        normal_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_normal_offset));
+    glEnableVertexAttribArray(normal_attribute_location);
+
+    glVertexAttribPointer(
+        color_attribute_location,
+        3u,
+        GL_FLOAT,
+        GL_FALSE,
+        stride_between_vertices,
+        reinterpret_cast<void*>(vertex_color_offset));
+    glEnableVertexAttribArray(color_attribute_location);
+
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(num_vertices));
+
+    should_render_lines_ = false;
 }
 
 void renderer_t::transfer_vertices_to_gpu(

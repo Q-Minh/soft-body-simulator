@@ -102,8 +102,20 @@ class renderer_t : public renderer_base_t
     camera_t const& camera() const { return camera_; }
     camera_t& camera() { return camera_; }
 
-    void add_point(std::array<float, 9u> const& xyz_nxnynz_rgb_point);
+    void add_point(
+        std::array<float, 3u> const& position,
+        std::array<float, 3u> const& normal,
+        std::array<float, 3u> const& color);
     void clear_points();
+
+    void add_line(
+        std::array<float, 3u> const& p1,
+        std::array<float, 3u> const& n1,
+        std::array<float, 3u> const& c1,
+        std::array<float, 3u> const& p2,
+        std::array<float, 3u> const& n2,
+        std::array<float, 3u> const& c2);
+    void clear_lines();
 
     void add_rendered_object(std::unique_ptr<common::renderable_node_t> rendered_object);
     std::unique_ptr<common::renderable_node_t> const& rendered_object(index_type i) const
@@ -155,6 +167,8 @@ class renderer_t : public renderer_base_t
 
     void render_points();
 
+    void render_lines();
+
     void transfer_vertices_to_gpu(
         unsigned int VBO,
         int position_attribute_location,
@@ -190,6 +204,11 @@ class renderer_t : public renderer_base_t
     bool should_render_points_;
     unsigned int point_vbo_;
     unsigned int point_vao_;
+
+    std::vector<float> lines_;
+    bool should_render_lines_;
+    unsigned int line_vbo_;
+    unsigned int line_vao_;
 
     std::vector<std::unique_ptr<common::renderable_node_t>> rendered_objects_;
 };

@@ -337,6 +337,13 @@ struct fem_sph_interpolation_t
             Eigen::Vector3d const& gradWj     = Wj.grad(X);
             Eigen::Matrix3d const& hessian_Wj = Wj.hessian(X);
 
+            // Description of indices:
+            // j: meshless node indices
+            // k: index of component of the vector-valued function u(X)
+            // s: index of the component of independent variable X to differentiate against for
+            // first-order r: index of the component of independent variable X to differentiate
+            // against for second-order m: index of column of deformation gradient in the matrix
+            // vector product Fj * (X - Xj)
             Eigen::Matrix3d const dX_dX = Eigen::Matrix3d::Identity();
             for (int k = 0; k < 3; ++k)
             {

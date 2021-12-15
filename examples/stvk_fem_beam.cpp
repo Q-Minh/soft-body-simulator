@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
+#include <sbs/geometry/transform.h>
 #include <sbs/math/mapping.h>
 #include <sbs/math/quadrature.h>
 #include <sbs/physics/body/environment_body.h>
@@ -31,17 +32,17 @@ int main(int argc, char** argv)
      */
     sbs::physics::xpbd::simulation_t simulation{};
     simulation.simulation_parameters().compliance           = 1e-2;
-    simulation.simulation_parameters().damping              = 1e-4;
+    simulation.simulation_parameters().damping              = 1e-2;
     simulation.simulation_parameters().collision_compliance = 1e-4;
     simulation.simulation_parameters().collision_damping    = 1e-2;
-    simulation.simulation_parameters().poisson_ratio        = 0.45;
-    simulation.simulation_parameters().young_modulus        = 1e6;
+    simulation.simulation_parameters().poisson_ratio        = 0.4;
+    simulation.simulation_parameters().young_modulus        = 1e8;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 3u, 3u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
-    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    // beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry = sbs::common::transform(beam_geometry, beam_transform);
 
     // Initialize soft body
@@ -55,14 +56,43 @@ int main(int argc, char** argv)
         *dynamic_cast<sbs::physics::body::linear_tetrahedral_fem_body_t*>(
             simulation.bodies()[beam_idx].get());
 
+    std::vector<sbs::index_type> left_bs{};
+    std::vector<sbs::index_type> right_bs{};
+    std::vector<sbs::index_type> left_fixed_particles{};
+    std::vector<Eigen::Vector3d> left_dirichlet_positions{};
+    std::vector<sbs::index_type> right_fixed_particles{};
+    std::vector<Eigen::Vector3d> right_dirichlet_positions{};
+
     auto& mechanical_model = beam.get_mechanical_model();
     for (auto i = 0u; i < mechanical_model.dof_count(); ++i)
     {
         Eigen::Vector3d const& Xi = mechanical_model.point(i).cast<sbs::scalar_type>();
         sbs::physics::xpbd::particle_t p{Xi};
         p.mass() = 1.;
+        if (p.x0().x() < 0.)
+        {
+            left_fixed_particles.push_back(i);
+            left_dirichlet_positions.push_back(p.x0());
+        }
+        if (p.x0().x() > 9.)
+        {
+            right_fixed_particles.push_back(i);
+            right_dirichlet_positions.push_back(p.x0());
+        }
         simulation.add_particle(p, beam_idx);
     }
+    left_bs.resize(left_fixed_particles.size(), beam_idx);
+    right_bs.resize(right_fixed_particles.size(), beam_idx);
+
+    simulation.apply_dirichlet_boundary_conditions(
+        left_bs,
+        left_fixed_particles,
+        left_dirichlet_positions);
+
+    simulation.apply_dirichlet_boundary_conditions(
+        right_bs,
+        right_fixed_particles,
+        right_dirichlet_positions);
 
     // Setup constraints
     for (auto e = 0u; e < mechanical_model.element_count(); ++e)
@@ -224,8 +254,8 @@ int main(int argc, char** argv)
      */
     sbs::physics::xpbd::timestep_t timestep{};
     timestep.dt()         = 0.016;
-    timestep.iterations() = 5u;
-    timestep.substeps()   = 2u;
+    timestep.iterations() = 10u;
+    timestep.substeps()   = 5u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(
@@ -319,6 +349,49 @@ int main(int argc, char** argv)
             std::string const num_constraints_str =
                 "Constraints: " + std::to_string(num_constraints);
             ImGui::Text(num_constraints_str.c_str());
+
+            static float angle          = 0.f;
+            static float rotation_speed = 1.f;
+            ImGui::InputFloat("Rotation speed##Physics", &rotation_speed, 0.01f, 0.1f, "%.2f");
+
+            ImGui::Button("Rotate right fixed side");
+            if (ImGui::IsItemActive())
+            {
+                angle += rotation_speed;
+                Eigen::Vector3d const rotation_axis = -Eigen::Vector3d::UnitX();
+                sbs::scalar_type const rotation_angle =
+                    static_cast<sbs::scalar_type>(angle) / 360. * 2. * 3.14159;
+                Eigen::AngleAxis<sbs::scalar_type> const angle_axis(rotation_angle, rotation_axis);
+
+                Eigen::Vector3d const origin =
+                    sbs::geometry::center_of_geometry(right_dirichlet_positions);
+                std::vector<Eigen::Vector3d> const dirichlet_boundary_conditions =
+                    sbs::geometry::rotate(right_dirichlet_positions, angle_axis, origin);
+
+                simulation.apply_dirichlet_boundary_conditions(
+                    right_bs,
+                    right_fixed_particles,
+                    dirichlet_boundary_conditions);
+            }
+            ImGui::Button("Unrotate right fixed side");
+            if (ImGui::IsItemActive())
+            {
+                angle -= rotation_speed;
+                Eigen::Vector3d const rotation_axis = -Eigen::Vector3d::UnitX();
+                sbs::scalar_type const rotation_angle =
+                    static_cast<sbs::scalar_type>(angle) / 360. * 2. * 3.14159;
+                Eigen::AngleAxis<sbs::scalar_type> const angle_axis(rotation_angle, rotation_axis);
+
+                Eigen::Vector3d const origin =
+                    sbs::geometry::center_of_geometry(right_dirichlet_positions);
+                std::vector<Eigen::Vector3d> const dirichlet_boundary_conditions =
+                    sbs::geometry::rotate(right_dirichlet_positions, angle_axis, origin);
+
+                simulation.apply_dirichlet_boundary_conditions(
+                    right_bs,
+                    right_fixed_particles,
+                    dirichlet_boundary_conditions);
+            }
         }
 
         ImGui::End();

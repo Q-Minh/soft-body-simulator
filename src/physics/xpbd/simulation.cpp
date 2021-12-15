@@ -49,6 +49,29 @@ void simulation_t::add_collision_constraint(std::unique_ptr<constraint_t> collis
     collision_constraints_.push_back(std::move(collision_constraint));
 }
 
+void simulation_t::apply_dirichlet_boundary_conditions(
+    std::vector<index_type> const& bs,
+    std::vector<index_type> const& is,
+    std::vector<Eigen::Vector3d> const& xis)
+{
+    assert(bs.size() == is.size());
+    assert(bs.size() == xis.size());
+
+    std::size_t const N = bs.size();
+    for (std::size_t n = 0u; n < N; ++n)
+    {
+        index_type const b        = bs[n];
+        index_type const i        = is[n];
+        Eigen::Vector3d const& xi = xis[n];
+        particle_t& pi            = particles_[b][i];
+        pi.mass()                 = 0.;
+        pi.x()                    = xi;
+        pi.xn()                   = xi;
+        pi.xi()                   = xi;
+        pi.v().setZero();
+    }
+}
+
 std::vector<std::vector<particle_t>> const& simulation_t::particles() const
 {
     return particles_;

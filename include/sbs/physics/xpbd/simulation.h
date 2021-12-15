@@ -4,8 +4,8 @@
 #include "sbs/aliases.h"
 #include "sbs/physics/body/body.h"
 #include "sbs/physics/collision/cd_system.h"
-#include "sbs/physics/xpbd/particle.h"
 #include "sbs/physics/xpbd/constraint.h"
+#include "sbs/physics/xpbd/particle.h"
 #include "sbs/physics/xpbd/simulation_parameters.h"
 
 #include <vector>
@@ -24,6 +24,10 @@ class simulation_t
     void add_constraint(std::unique_ptr<xpbd::constraint_t> constraint);
     void remove_constraint(index_type const constraint_idx);
     void add_collision_constraint(std::unique_ptr<xpbd::constraint_t> collision_constraint);
+    void apply_dirichlet_boundary_conditions(
+        std::vector<index_type> const& bs,
+        std::vector<index_type> const& is,
+        std::vector<Eigen::Vector3d> const& xis);
 
     std::vector<std::vector<particle_t>> const& particles() const;
     std::vector<std::vector<particle_t>>& particles();

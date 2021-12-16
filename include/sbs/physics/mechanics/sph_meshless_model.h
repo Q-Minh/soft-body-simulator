@@ -47,8 +47,6 @@ class sph_meshless_model_t : public math::meshless_model_t<
 
     scalar_type const& V(index_type i) const { return Vis_[i]; }
     kernel_function_type const& W(index_type i) const { return Wis_[i]; }
-    Eigen::Matrix3d const& F(index_type i) const { return Fis_[i]; }
-    Eigen::Matrix3d& F(index_type i) { return Fis_[i]; }
 
     interpolation_function_type const& interpolation_field_at(index_type i) const
     {
@@ -81,7 +79,6 @@ class sph_meshless_model_t : public math::meshless_model_t<
     geometry::grid_t grid_;                 ///< The particle sampling grid
     std::vector<scalar_type> Vis_;          ///< Shepard coefficients (nodal volume)
     std::vector<kernel_function_type> Wis_; ///< Nodal kernel functions
-    std::vector<Eigen::Matrix3d> Fis_;      ///< Deformation gradients at each point
     std::vector<interpolation_function_type>
         interpolation_fields_; ///< Interpolation fields at points
     std::vector<deformation_gradient_function_type>
@@ -99,7 +96,6 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
       grid_(grid),
       Vis_(),
       Wis_(),
-      Fis_(),
       interpolation_fields_(),
       deformation_gradient_functions_(),
       particles_in_tet_(),
@@ -167,7 +163,6 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
 
     this->Vis_ = Vis;
     this->Wis_ = Wis;
-    this->Fis_.resize(this->point_count(), Eigen::Matrix3d::Identity());
 
     this->interpolation_fields_.reserve(this->point_count());
     this->deformation_gradient_functions_.reserve(this->point_count());
@@ -180,8 +175,7 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(
             &(this->points()),
             &(this->dofs()),
             &(this->Vis_),
-            &(this->Wis_),
-            &(this->Fis_));
+            &(this->Wis_));
 
         this->interpolation_fields_.push_back(sph_interpolation);
         deformation_gradient_function_type sph_nodal_deformation_gradient(
@@ -198,7 +192,6 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(self_type const& o
       grid_(other.grid_),
       Vis_(other.Vis_),
       Wis_(other.Wis_),
-      Fis_(other.Fis_),
       interpolation_fields_(),
       deformation_gradient_functions_(),
       particles_in_tet_(other.particles_in_tet_),
@@ -216,8 +209,7 @@ inline sph_meshless_model_t<KernelType>::sph_meshless_model_t(self_type const& o
             &(this->points()),
             &(this->dofs()),
             &(this->Vis_),
-            &(this->Wis_),
-            &(this->Fis_));
+            &(this->Wis_));
         interpolation_fields_.push_back(interpolation);
 
         deformation_gradient_function_type deformation_gradient_function(
@@ -237,7 +229,6 @@ sph_meshless_model_t<KernelType>::operator=(self_type const& other)
     grid_   = other.grid_;
     Vis_    = other.Vis_;
     Wis_    = other.Wis_;
-    Fis_    = other.Fis_;
 
     interpolation_fields_.reserve(other.point_count());
     deformation_gradient_functions_.reserve(other.point_count());
@@ -251,8 +242,7 @@ sph_meshless_model_t<KernelType>::operator=(self_type const& other)
             &(this->points()),
             &(this->dofs()),
             &(this->Vis_),
-            &(this->Wis_),
-            &(this->Fis_));
+            &(this->Wis_));
         interpolation_fields_.push_back(interpolation);
 
         deformation_gradient_function_type deformation_gradient_function(
@@ -277,8 +267,7 @@ sph_meshless_model_t<KernelType>::interpolation_field_at(Eigen::Vector3d const& 
         &(this->points()),
         &(this->dofs()),
         &(this->Vis_),
-        &(this->Wis_),
-        &(this->Fis_));
+        &(this->Wis_));
     return sph_interpolation;
 }
 

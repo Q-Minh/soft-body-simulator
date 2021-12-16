@@ -22,9 +22,8 @@ struct sph_interpolation_t
         std::vector<Eigen::Vector3d> const* Xjs,
         std::vector<Eigen::Vector3d> const* xjs,
         std::vector<scalar_type> const* Vjs,
-        std::vector<kernel_function_type> const* Wjs,
-        std::vector<Eigen::Matrix3d> const* Fjs)
-        : sk(0.), Xk(Xk), js(js), Xjs(Xjs), xjs(xjs), Vjs(Vjs), Wjs(Wjs), Fjs(Fjs)
+        std::vector<kernel_function_type> const* Wjs)
+        : sk(0.), Xk(Xk), js(js), Xjs(Xjs), xjs(xjs), Vjs(Vjs), Wjs(Wjs)
     {
         sk = compute_shepard_coefficient(Xk);
     }
@@ -72,11 +71,10 @@ struct sph_interpolation_t
             scalar_type const& Vj          = (*Vjs)[j];
             Eigen::Vector3d const& Xj      = (*Xjs)[j];
             Eigen::Vector3d const& xj      = (*xjs)[j];
-            Eigen::Matrix3d const& Fj      = (*Fjs)[j];
             kernel_function_type const& Wj = (*Wjs)[j];
             scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
             Eigen::Vector3d const Xkj      = X - Xj;
-            x += Vj * (Fj * Xkj + xj) * Wkj;
+            x += Vj * xj * Wkj;
         }
         x = s * x;
 
@@ -113,7 +111,6 @@ struct sph_interpolation_t
     std::vector<scalar_type> const* Vjs;
     std::vector<Eigen::Vector3d> const* Xjs;
     std::vector<Eigen::Vector3d> const* xjs;
-    std::vector<Eigen::Matrix3d> const* Fjs;
     std::vector<kernel_function_type> const* Wjs;
 };
 

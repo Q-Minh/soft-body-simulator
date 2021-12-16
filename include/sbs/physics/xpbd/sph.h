@@ -106,7 +106,6 @@ inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::proje
     }
 
     this->project_positions_with_dampling(simulation, C, gradC, dt);
-    sph_model_.F(i_) = F;
 }
 
 template <class SphVisualModelType>

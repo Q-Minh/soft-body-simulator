@@ -21,6 +21,12 @@
 
 int main(int argc, char** argv)
 {
+    if (argc != 2)
+    {
+        std::cerr << "Usage: tester.exe <path/to/shader/directory/>\n";
+        return 1;
+    }
+
     /**
      * Setup simulation
      */
@@ -39,7 +45,7 @@ int main(int argc, char** argv)
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
     //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    beam_transform.scale(Eigen::Vector3d{1., 0.5, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 1.;
     std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
@@ -165,12 +171,6 @@ int main(int argc, char** argv)
     /**
      * Setup renderer
      */
-    if (argc != 2)
-    {
-        std::cerr << "Usage: tester.exe <path/to/shader/directory/>\n";
-        return 1;
-    }
-
     sbs::rendering::point_light_t point_light(0.f, 5.f, 0.f);
     sbs::rendering::directional_light_t directional_light(0.f, 0.f, -1.f);
     sbs::rendering::renderer_t renderer(simulation, point_light, directional_light);

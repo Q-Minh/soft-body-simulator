@@ -3,6 +3,7 @@
 #include <imgui/imgui.h>
 #include <implot/implot.h>
 #include <iostream>
+#include <sbs/geometry/curves.h>
 #include <sbs/geometry/get_simple_bar_model.h>
 #include <sbs/geometry/get_simple_plane_model.h>
 #include <sbs/geometry/transform.h>
@@ -29,77 +30,6 @@ using fem_model_type       = typename fem_mixed_model_type::fem_model_type;
 using meshless_model_type  = typename fem_mixed_model_type::meshless_model_type;
 using visual_model_type = sbs::physics::visual::fem_mixed_embedded_surface_t<fem_mixed_model_type>;
 using body_type         = sbs::physics::body::fem_mixed_body_t<fem_mixed_model_type>;
-
-sbs::scalar_type initial_volume(fem_mixed_model_type& body)
-{
-    sbs::scalar_type V{0.};
-    auto const& topology = body.domain().topology();
-    for (auto t = 0u; t < topology.tetrahedron_count(); ++t)
-    {
-        auto const v1 = topology.tetrahedron(t).v1();
-        auto const v2 = topology.tetrahedron(t).v2();
-        auto const v3 = topology.tetrahedron(t).v3();
-        auto const v4 = topology.tetrahedron(t).v4();
-
-        Eigen::Vector3d const& X1 = body.point(v1);
-        Eigen::Vector3d const& X2 = body.point(v2);
-        Eigen::Vector3d const& X3 = body.point(v3);
-        Eigen::Vector3d const& X4 = body.point(v4);
-
-        sbs::scalar_type const Vt = sbs::geometry::tetrahedron_volume(X1, X2, X3, X4);
-        V += Vt;
-    }
-    return V;
-}
-
-sbs::scalar_type dof_volume(fem_mixed_model_type& body)
-{
-    sbs::scalar_type V{0.};
-    auto const& topology = body.domain().topology();
-    for (auto t = 0u; t < topology.tetrahedron_count(); ++t)
-    {
-        auto const v1 = topology.tetrahedron(t).v1();
-        auto const v2 = topology.tetrahedron(t).v2();
-        auto const v3 = topology.tetrahedron(t).v3();
-        auto const v4 = topology.tetrahedron(t).v4();
-
-        Eigen::Vector3d const& x1 = body.dof(v1);
-        Eigen::Vector3d const& x2 = body.dof(v2);
-        Eigen::Vector3d const& x3 = body.dof(v3);
-        Eigen::Vector3d const& x4 = body.dof(v4);
-
-        sbs::scalar_type const Vt = sbs::geometry::tetrahedron_volume(x1, x2, x3, x4);
-        V += Vt;
-    }
-    return V;
-}
-
-sbs::scalar_type interpolated_volume(fem_mixed_model_type& body)
-{
-    sbs::scalar_type V{0.};
-    auto const& topology = body.domain().topology();
-    for (auto t = 0u; t < topology.tetrahedron_count(); ++t)
-    {
-        auto const v1 = topology.tetrahedron(t).v1();
-        auto const v2 = topology.tetrahedron(t).v2();
-        auto const v3 = topology.tetrahedron(t).v3();
-        auto const v4 = topology.tetrahedron(t).v4();
-
-        Eigen::Vector3d const& X1 = body.point(v1);
-        Eigen::Vector3d const& X2 = body.point(v2);
-        Eigen::Vector3d const& X3 = body.point(v3);
-        Eigen::Vector3d const& X4 = body.point(v4);
-
-        Eigen::Vector3d const& x1 = body.mixed_interpolation_field_at(X1).eval();
-        Eigen::Vector3d const& x2 = body.mixed_interpolation_field_at(X2).eval();
-        Eigen::Vector3d const& x3 = body.mixed_interpolation_field_at(X3).eval();
-        Eigen::Vector3d const& x4 = body.mixed_interpolation_field_at(X4).eval();
-
-        sbs::scalar_type const Vt = sbs::geometry::tetrahedron_volume(x1, x2, x3, x4);
-        V += Vt;
-    }
-    return V;
-}
 
 std::size_t num_boundary_tets(fem_mixed_model_type const& body)
 {
@@ -439,6 +369,14 @@ int main(int argc, char** argv)
     renderer.camera().position().x   = 0.;
     renderer.camera().position().y   = 5.;
     renderer.camera().position().z   = 40.;
+
+    std::vector<Eigen::Vector3d> control_points{};
+    control_points.push_back(Eigen::Vector3d{0., 0., 0.});
+    control_points.push_back(Eigen::Vector3d{1., 1., 0.});
+    control_points.push_back(Eigen::Vector3d{2., 0., 0.});
+    control_points.push_back(Eigen::Vector3d{2., 0., 0.});
+    control_points.push_back(Eigen::Vector3d{3., -1., 0.});
+    control_points.push_back(Eigen::Vector3d{4., 0., 0.});
 
     bool should_render_points{false};
     bool should_render_active_fem_nodes{false};

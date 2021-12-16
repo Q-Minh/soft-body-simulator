@@ -41,8 +41,11 @@ class stvk_fem_mixed_nodal_integration_constraint_t : public constraint_t
     scalar_type V_;                         ///< Nodal quadrature weight (volume based)
     index_type e_;                          ///< Index of cell in which this meshless node resides
     fem_mixed_model_type& fem_mixed_model_; ///< The mixed model
-    math::green_strain_op_t strain_op_;     ///< Strain functor
-    math::stvk_strain_energy_density_op_t
+    // math::green_strain_op_t strain_op_;     ///< Strain functor
+    // math::stvk_strain_energy_density_op_t
+    //     strain_energy_density_op_; ///< Strain energy density functor
+    math::small_strain_tensor_op_t strain_op_; ///< Strain functor
+    math::corotational_linear_elasticity_strain_energy_density_op_t
         strain_energy_density_op_; ///< Strain energy density functor
 
     std::size_t fem_particle_offset_;
@@ -118,11 +121,14 @@ inline void stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::pr
 
     auto const& deformation_gradient_op = fem_mixed_model_.mixed_deformation_gradient_function(j_);
     Eigen::Matrix3d const F             = deformation_gradient_op.eval();
-    Eigen::Matrix3d const E             = strain_op_(F);
-    scalar_type const Psi               = strain_energy_density_op_(E);
-    scalar_type const C                 = V_ * Psi;
+    // Eigen::Matrix3d const E             = strain_op_(F);
+    auto const [R, S]       = strain_op_.get_RS(F);
+    Eigen::Matrix3d const E = strain_op_(S);
+    scalar_type const Psi   = strain_energy_density_op_(E);
+    scalar_type const C     = V_ * Psi;
 
-    Eigen::Matrix3d const sigma = strain_energy_density_op_.stress(F, E);
+    // Eigen::Matrix3d const P = strain_energy_density_op_.stress(F, E);
+    Eigen::Matrix3d const P     = strain_energy_density_op_.stress(R, F);
     auto const [dFdxis, dFdxjs] = deformation_gradient_op.dFdx();
     assert(interpolation.is.size() == dFdxis.size());
     assert(interpolation.js.size() == dFdxjs.size());
@@ -133,17 +139,17 @@ inline void stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::pr
     for (auto a = 0u; a < dFdxis.size(); ++a)
     {
         Eigen::Vector3d grad{0., 0., 0.};
-        grad(0) = V_ * sigma.row(0).dot(dFdxis[a]);
-        grad(1) = V_ * sigma.row(1).dot(dFdxis[a]);
-        grad(2) = V_ * sigma.row(2).dot(dFdxis[a]);
+        grad(0) = V_ * P.row(0).dot(dFdxis[a]);
+        grad(1) = V_ * P.row(1).dot(dFdxis[a]);
+        grad(2) = V_ * P.row(2).dot(dFdxis[a]);
         gradC.push_back(grad);
     }
     for (auto a = 0u; a < dFdxjs.size(); ++a)
     {
         Eigen::Vector3d grad{};
-        grad(0) = V_ * sigma.row(0).dot(dFdxjs[a]);
-        grad(1) = V_ * sigma.row(1).dot(dFdxjs[a]);
-        grad(2) = V_ * sigma.row(2).dot(dFdxjs[a]);
+        grad(0) = V_ * P.row(0).dot(dFdxjs[a]);
+        grad(1) = V_ * P.row(1).dot(dFdxjs[a]);
+        grad(2) = V_ * P.row(2).dot(dFdxjs[a]);
         gradC.push_back(grad);
     }
 

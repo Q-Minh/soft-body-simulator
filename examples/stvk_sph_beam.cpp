@@ -39,7 +39,7 @@ int main(int argc, char** argv)
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
     //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{0.1, 0.025, 0.1});
+    beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 1.;
     std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
@@ -346,17 +346,13 @@ int main(int argc, char** argv)
             for (auto j = 0; j < mechanical_model.dof_count(); ++j)
             {
                 auto const& p = particles[j];
-                std::array<float, 9u> const vertex_attributes{
+                std::array<float, 3u> const vp{
                     static_cast<float>(p.x().x()),
                     static_cast<float>(p.x().y()),
-                    static_cast<float>(p.x().z()),
-                    0.f,
-                    0.f,
-                    0.f,
-                    1.f,
-                    0.f,
-                    0.f};
-                renderer.add_point(vertex_attributes);
+                    static_cast<float>(p.x().z())};
+                std::array<float, 3u> const vn{0.f, 0.f, 0.f};
+                std::array<float, 3u> const vc{1.f, 0.f, 0.f};
+                renderer.add_point(vp, vn, vc);
             }
         }
     };

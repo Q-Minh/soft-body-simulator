@@ -34,8 +34,11 @@ class stvk_sph_nodal_integration_constraint_t : public constraint_t
     index_type b_;                       ///< Index of sph body
     scalar_type V_;                      ///< Quadrature weight (nodal volume)
     sph_meshless_model_type& sph_model_; ///< The sph meshless mechanical model
-    math::green_strain_op_t strain_op_;  ///< The strain operator
-    math::stvk_strain_energy_density_op_t
+    // math::green_strain_op_t strain_op_;  ///< The strain operator
+    // math::stvk_strain_energy_density_op_t
+    //     strain_energy_density_op_; ///< The strain energy density operator
+    math::small_strain_tensor_op_t strain_op_; ///< The strain operator
+    math::corotational_linear_elasticity_strain_energy_density_op_t
         strain_energy_density_op_; ///< The strain energy density operator
 };
 
@@ -80,11 +83,14 @@ inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::proje
 
     auto const& deformation_gradient_op = sph_model_.deformation_gradient_function(i_);
     Eigen::Matrix3d const F             = deformation_gradient_op.eval();
-    Eigen::Matrix3d const E             = strain_op_(F);
-    scalar_type const Psi               = strain_energy_density_op_(E);
-    scalar_type const C                 = V_ * Psi;
+    // Eigen::Matrix3d const E             = strain_op_(F);
+    auto const [R, S]       = strain_op_.get_RS(F);
+    Eigen::Matrix3d const E = strain_op_(S);
+    scalar_type const Psi   = strain_energy_density_op_(E);
+    scalar_type const C     = V_ * Psi;
 
-    Eigen::Matrix3d const sigma               = strain_energy_density_op_.stress(F, E);
+    // Eigen::Matrix3d const P               = strain_energy_density_op_.stress(F, E);
+    Eigen::Matrix3d const P                   = strain_energy_density_op_.stress(R, F);
     std::vector<Eigen::Vector3d> const dFdxjs = deformation_gradient_op.dFdx();
     assert(js.size() == dFdxjs.size());
     std::vector<Eigen::Vector3d> gradC{};
@@ -93,9 +99,9 @@ inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::proje
     for (auto a = 0u; a < dFdxjs.size(); ++a)
     {
         Eigen::Vector3d grad{};
-        grad(0) = V_ * sigma.row(0).dot(dFdxjs[a]);
-        grad(1) = V_ * sigma.row(1).dot(dFdxjs[a]);
-        grad(2) = V_ * sigma.row(2).dot(dFdxjs[a]);
+        grad(0) = V_ * P.row(0).dot(dFdxjs[a]);
+        grad(1) = V_ * P.row(1).dot(dFdxjs[a]);
+        grad(2) = V_ * P.row(2).dot(dFdxjs[a]);
         gradC.push_back(grad);
     }
 

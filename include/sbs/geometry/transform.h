@@ -19,6 +19,11 @@ std::vector<Eigen::Vector3d> rotate(
     Eigen::AngleAxis<scalar_type> const& angle_axis,
     Eigen::Vector3d const& origin);
 
+std::vector<Eigen::Vector3d> scale(
+    std::vector<Eigen::Vector3d> const& points,
+    Eigen::Vector3d const& origin,
+    Eigen::Vector3d const& scaling_coefficients);
+
 } // namespace geometry
 } // namespace sbs
 

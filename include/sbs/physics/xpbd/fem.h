@@ -41,8 +41,10 @@ class stvk_tetrahedral_quadrature_strain_constraint_t : public constraint_t
     interpolation_function_type interpolation_function_;
     scalar_type wg_;
     Eigen::Vector3d Xg_;
-    math::green_strain_op_t strain_func_;
-    math::stvk_strain_energy_density_op_t strain_energy_func_;
+    // math::green_strain_op_t strain_func_;
+    // math::stvk_strain_energy_density_op_t strain_energy_func_;
+    math::small_strain_tensor_op_t strain_func_;
+    math::corotational_linear_elasticity_strain_energy_density_op_t strain_energy_func_;
 };
 
 template <class CellType>
@@ -98,11 +100,15 @@ inline void stvk_tetrahedral_quadrature_strain_constraint_t<CellType>::project_p
 
     deformation_gradient_function_type deformation_gradient_func(interpolation_function_);
     Eigen::Matrix3d const F = deformation_gradient_func.eval(Xg_);
-    Eigen::Matrix3d const E = strain_func_(F);
-    scalar_type const Psi   = strain_energy_func_(E);
+    auto const [R, S]       = strain_func_.get_RS(F);
+    Eigen::Matrix3d const E = strain_func_(S);
+    // Eigen::Matrix3d const E = strain_func_(F);
+    scalar_type const Psi = strain_energy_func_(E);
+    // scalar_type const Psi   = strain_energy_func_(E);
 
-    scalar_type const C     = wg_ * Psi;
-    Eigen::Matrix3d const P = strain_energy_func_.stress(F, E);
+    scalar_type const C = wg_ * Psi;
+    // Eigen::Matrix3d const P = strain_energy_func_.stress(F, E);
+    Eigen::Matrix3d const P = strain_energy_func_.stress(R, F);
 
     std::vector<Eigen::Vector3d> const dFdxis = deformation_gradient_func.dFdx(Xg_);
     assert(dFdxis.size() == this->js().size());

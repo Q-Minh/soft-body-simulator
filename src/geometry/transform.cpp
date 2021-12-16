@@ -1,5 +1,7 @@
 #include "sbs/geometry/transform.h"
 
+#include "..\..\include\sbs\geometry\transform.h"
+
 #include <Eigen/Geometry>
 
 namespace sbs {
@@ -47,6 +49,26 @@ std::vector<Eigen::Vector3d> rotate(
     }
 
     return rotated_points;
+}
+
+std::vector<Eigen::Vector3d> scale(
+    std::vector<Eigen::Vector3d> const& points,
+    Eigen::Vector3d const& origin,
+    Eigen::Vector3d const& scaling_coefficients)
+{
+    std::vector<Eigen::Vector3d> scaled_points{};
+    scaled_points.reserve(points.size());
+
+    auto const& sx = scaling_coefficients.x();
+    auto const& sy = scaling_coefficients.y();
+    auto const& sz = scaling_coefficients.z();
+
+    for (Eigen::Vector3d const& p : points)
+    {
+        Eigen::Vector3d const scaled_point{sx * p.x(), sy * p.y(), sz * p.z()};
+        scaled_points.push_back(scaled_point);
+    }
+    return scaled_points;
 }
 
 } // namespace geometry

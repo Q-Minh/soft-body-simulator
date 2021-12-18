@@ -43,6 +43,9 @@ class fem_sph_model_t
         typename base_type::cell_type,
         kernel_function_type>;
 
+    using efg_mixed_deformation_gradient_function_type = math::
+        fem_sph_efg_deformation_gradient_op_t<typename base_type::cell_type, kernel_function_type>;
+
     using self_type = fem_sph_model_t<KernelFunctionType>;
 
     fem_sph_model_t() = default;
@@ -64,6 +67,13 @@ class fem_sph_model_t
     Eigen::Matrix3d const& F(index_type j) const { return Fjs_[j]; }
     Eigen::Matrix3d& F(index_type j) { return Fjs_[j]; }
 
+    Eigen::Matrix3d const& Fk(index_type k) const { return Fks_[k]; }
+    Eigen::Matrix3d& Fk(index_type k) { return Fks_[k]; }
+
+    Eigen::Vector3d const& Xk(index_type k) const { return Xks_[k]; }
+    Eigen::Vector3d const& xk(index_type k) const { return xks_[k]; }
+    Eigen::Vector3d& xk(index_type k) { return xks_[k]; }
+
     fem_interpolation_function_type const& fem_interpolation_field_at(index_type e) const
     {
         return fem_interpolation_fields_[e];
@@ -76,6 +86,14 @@ class fem_sph_model_t
     {
         return mixed_interpolation_fields_[j];
     }
+    mixed_interpolation_function_type const& efg_mixed_interpolation_field_at(index_type k) const
+    {
+        return efg_mixed_interpolation_fields_[k];
+    }
+    mixed_interpolation_function_type& efg_mixed_interpolation_field_at(index_type k)
+    {
+        return efg_mixed_interpolation_fields_[k];
+    }
     mixed_interpolation_function_type mixed_interpolation_field_at(Eigen::Vector3d const& X);
 
     mixed_deformation_gradient_function_type const&
@@ -83,14 +101,19 @@ class fem_sph_model_t
     {
         return mixed_deformation_gradient_functions_[j];
     }
+    efg_mixed_deformation_gradient_function_type const&
+    efg_mixed_deformation_gradient_function(index_type k) const
+    {
+        return efg_mixed_deformation_gradient_functions_[k];
+    }
 
     std::vector<index_type> const& particles_in_tetrahedron(index_type const ti) const
     {
         return particles_in_tet_[ti];
     }
-    index_type englobing_tetrahedron_of_particle(index_type const j) const
+    index_type tetrahedron_of_integration_point(index_type const j) const
     {
-        return particle_tets_[j];
+        return efg_point_tets_[j];
     }
     bool is_mixed_cell(index_type const e) const { return !particles_in_tet_[e].empty(); }
 
@@ -107,6 +130,10 @@ class fem_sph_model_t
     }
     std::size_t num_sph_nodes() const { return sph_model_.dof_count(); }
     std::size_t total_dof_count() const { return num_active_nodes() + sph_model_.dof_count(); }
+    std::size_t efg_integration_point_count() const { return Xks_.size(); }
+
+    // Mutators
+    void add_efg_integration_point(Eigen::Vector3d const& X);
 
   private:
     sph_model_type sph_model_; ///< SPH particles in the tetrahedral domain
@@ -120,14 +147,22 @@ class fem_sph_model_t
     std::vector<mixed_interpolation_function_type>
         mixed_interpolation_fields_; ///< Interpolation fields at SPH points
     std::vector<mixed_deformation_gradient_function_type>
-        mixed_deformation_gradient_functions_; ///< SPH nodal deformation gradient functions
+        mixed_deformation_gradient_functions_; ///< FEM-SPH nodal deformation gradient functions
 
     std::vector<std::vector<index_type>> particles_in_tet_; ///< Particles in each tetrahedron
-    std::vector<index_type> particle_tets_; ///< The englobing tetrahedron of each particle
+    std::vector<index_type> efg_point_tets_; ///< The englobing tetrahedron of each particle
     std::vector<bool> has_basis_function_;  ///< Marks active fem dofs vs inactive fem dofs
 
     std::vector<fem_interpolation_function_type>
         fem_interpolation_fields_; ///< Interpolations in interior tetrahedra
+
+    std::vector<Eigen::Vector3d> Xks_; ///< EFG integration points in mixed elements
+    std::vector<Eigen::Vector3d> xks_; ///< EFG integration points in world space
+    std::vector<Eigen::Matrix3d> Fks_; ///< Deformation gradients at EFG points
+    std::vector<mixed_interpolation_function_type>
+        efg_interpolation_fields_; ///< Mixed interpolation fields at EFG points
+    std::vector<efg_mixed_deformation_gradient_function_type>
+        efg_mixed_deformation_gradient_functions_; ///< FEM-SPH efg deformation gradient functions
 };
 
 template <class KernelFunctionType>
@@ -144,7 +179,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
       mixed_interpolation_fields_(),
       mixed_deformation_gradient_functions_(),
       particles_in_tet_(),
-      particle_tets_(),
+      efg_point_tets_(),
       has_basis_function_(),
       fem_interpolation_fields_()
 {
@@ -211,7 +246,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
     Njks.reserve(sph_model_.point_count());
 
     particles_in_tet_.resize(this->domain().topology().tetrahedron_count());
-    particle_tets_.reserve(sph_model_.point_count());
+    efg_point_tets_.reserve(sph_model_.point_count());
 
     // Create node shape functions and nodal neighbourhoods
     for (auto j = 0u; j < sph_model_.point_count(); ++j)
@@ -226,7 +261,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
         index_type const ti = this->domain().in_tetrahedron(Xj);
         assert(ti != std::numeric_limits<index_type>::max());
         particles_in_tet_[ti].push_back(j);
-        particle_tets_.push_back(ti);
+        efg_point_tets_.push_back(ti);
     }
     for (auto j = 0u; j < sph_model_.point_count(); ++j)
     {
@@ -256,7 +291,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(
     for (auto j = 0u; j < sph_model_.point_count(); ++j)
     {
         Eigen::Vector3d const& Xj = sph_model_.point(j);
-        index_type const ti       = particle_tets_[j];
+        index_type const ti       = efg_point_tets_[j];
         auto const& cell          = this->cell(ti);
 
         mixed_interpolation_function_type mixed_interpolation(
@@ -292,7 +327,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(self_type const& oth
       mixed_interpolation_fields_(),
       mixed_deformation_gradient_functions_(),
       particles_in_tet_(other.particles_in_tet_),
-      particle_tets_(other.particle_tets_),
+      efg_point_tets_(other.efg_point_tets_),
       has_basis_function_(other.has_basis_function_),
       fem_interpolation_fields_()
 {
@@ -303,7 +338,7 @@ inline fem_sph_model_t<KernelFunctionType>::fem_sph_model_t(self_type const& oth
         Eigen::Vector3d const& Xj = other.point(j);
         mixed_interpolation_function_type const& other_interpolation =
             other.mixed_interpolation_fields_[j];
-        index_type const ti = particle_tets_[j];
+        index_type const ti = efg_point_tets_[j];
         mixed_interpolation_function_type interpolation(
             Xj,
             ti,
@@ -348,7 +383,7 @@ fem_sph_model_t<KernelFunctionType>::operator=(self_type const& other)
     Wjs_                = other.Wjs_;
     Fjs_                = other.Fjs_;
     particles_in_tet_   = other.particles_in_tet_;
-    particle_tets_      = other.particle_tets_;
+    efg_point_tets_      = other.efg_point_tets_;
     has_basis_function_ = other.has_basis_function_;
 
     mixed_interpolation_fields_.reserve(other.sph_model_.point_count());
@@ -358,7 +393,7 @@ fem_sph_model_t<KernelFunctionType>::operator=(self_type const& other)
         Eigen::Vector3d const& Xj = other.sph_model_.point(j);
         mixed_interpolation_function_type const& other_interpolation =
             other.mixed_interpolation_fields_[j];
-        index_type const ti = particle_tets_[j];
+        index_type const ti = efg_point_tets_[j];
         auto const& cell    = this->cell(ti);
         mixed_interpolation_function_type interpolation(
             Xj,

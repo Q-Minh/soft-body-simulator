@@ -31,24 +31,24 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance                  = 1e-6;
-    simulation.simulation_parameters().damping                     = 1e-4;
-    simulation.simulation_parameters().collision_compliance        = 1e-4;
+    simulation.simulation_parameters().compliance                  = 1e-10;
+    simulation.simulation_parameters().damping                     = 0.;
+    simulation.simulation_parameters().collision_compliance        = 1e-6;
     simulation.simulation_parameters().collision_damping           = 1e-2;
     simulation.simulation_parameters().poisson_ratio               = 0.45;
     simulation.simulation_parameters().young_modulus               = 1e6;
     simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 4u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     // beam_transform.rotate(
     //     Eigen::AngleAxisd(3.14159 / 2., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    beam_transform.scale(Eigen::Vector3d{1., 0.5, 1.});
+    beam_transform.scale(Eigen::Vector3d{1., 0.5, 0.5});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
-    sbs::scalar_type const support = 1.;
-    std::array<unsigned int, 3u> const resolution{12u, 4u, 12u};
+    sbs::scalar_type const support = 1.3;
+    std::array<unsigned int, 3u> const resolution{12u, 4u, 4u};
 
     // Initialize soft body
     using kernel_function_type = sbs::math::poly6_kernel_t;
@@ -68,7 +68,7 @@ int main(int argc, char** argv)
     {
         Eigen::Vector3d const& Xi = mechanical_model.dof(i).cast<sbs::scalar_type>();
         sbs::physics::xpbd::particle_t p{Xi};
-        sbs::index_type const ti   = mechanical_model.englobing_tetrahedron_of_particle(i);
+        sbs::index_type const ti   = mechanical_model.tetrahedron_of_integration_point(i);
         auto const N               = mechanical_model.particles_in_tetrahedron(ti).size();
         sbs::scalar_type const det = static_cast<sbs::scalar_type>(
             mechanical_model.domain().barycentric_map(ti).determinant());
@@ -76,7 +76,14 @@ int main(int argc, char** argv)
         sbs::scalar_type const Vi   = Vtet / static_cast<sbs::scalar_type>(N);
         // sbs::scalar_type const Vi = mechanical_model.V(i);
         // p.mass() = mass_density * Vi;
-        p.mass() = 1.;
+        if (p.x0().x() < 0.)
+        {
+            p.mass() = 0.;
+        }
+        else
+        {
+            p.mass() = 1.;
+        }
         simulation.add_particle(p, beam_idx);
     }
     beam.get_visual_model().update();
@@ -94,7 +101,7 @@ int main(int argc, char** argv)
         // Use direct nodal integration with uniform volume based on particle
         // sampling in tetrahedron. If N particles shared the same tet, then
         // the volume of each particle is Vi = Volume(tet) / N.
-        sbs::index_type const ti   = mechanical_model.englobing_tetrahedron_of_particle(i);
+        sbs::index_type const ti   = mechanical_model.tetrahedron_of_integration_point(i);
         auto const N               = mechanical_model.particles_in_tetrahedron(ti).size();
         sbs::scalar_type const det = static_cast<sbs::scalar_type>(
             mechanical_model.domain().barycentric_map(ti).determinant());
@@ -102,7 +109,7 @@ int main(int argc, char** argv)
         sbs::scalar_type const Vi   = Vtet / static_cast<sbs::scalar_type>(N);
 
         auto constraint =
-            std::make_unique<sbs::physics::xpbd::stvk_sph_nodal_integration_constraint_t<
+            std::make_unique<sbs::physics::xpbd::sph_integration_constraint_t<
                 meshless_model_type>>(alpha, beta, i, beam_idx, Vi, mechanical_model, E, nu);
         simulation.add_constraint(std::move(constraint));
     }
@@ -196,7 +203,7 @@ int main(int argc, char** argv)
      */
     sbs::physics::xpbd::timestep_t timestep{};
     timestep.dt()         = 0.016;
-    timestep.iterations() = 5u;
+    timestep.iterations() = 7u;
     timestep.substeps()   = 2u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 

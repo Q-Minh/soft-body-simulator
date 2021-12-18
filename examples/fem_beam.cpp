@@ -31,18 +31,18 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance           = 1e-2;
-    simulation.simulation_parameters().damping              = 1e-2;
-    simulation.simulation_parameters().collision_compliance = 1e-4;
+    simulation.simulation_parameters().compliance           = 1e-10;
+    simulation.simulation_parameters().damping              = 0.;
+    simulation.simulation_parameters().collision_compliance = 1e-6;
     simulation.simulation_parameters().collision_damping    = 1e-2;
-    simulation.simulation_parameters().poisson_ratio        = 0.4;
-    simulation.simulation_parameters().young_modulus        = 1e8;
+    simulation.simulation_parameters().poisson_ratio        = 0.45;
+    simulation.simulation_parameters().young_modulus        = 1e6;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 3u, 3u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 4u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
-    // beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+     beam_transform.scale(Eigen::Vector3d{1., 0.5, 0.5});
     beam_geometry = sbs::common::transform(beam_geometry, beam_transform);
 
     // Initialize soft body
@@ -74,11 +74,11 @@ int main(int argc, char** argv)
             left_fixed_particles.push_back(i);
             left_dirichlet_positions.push_back(p.x0());
         }
-        if (p.x0().x() > 9.)
-        {
-            right_fixed_particles.push_back(i);
-            right_dirichlet_positions.push_back(p.x0());
-        }
+        //if (p.x0().x() > 9.)
+        //{
+        //    right_fixed_particles.push_back(i);
+        //    right_dirichlet_positions.push_back(p.x0());
+        //}
         simulation.add_particle(p, beam_idx);
     }
     left_bs.resize(left_fixed_particles.size(), beam_idx);
@@ -254,8 +254,8 @@ int main(int argc, char** argv)
      */
     sbs::physics::xpbd::timestep_t timestep{};
     timestep.dt()         = 0.016;
-    timestep.iterations() = 10u;
-    timestep.substeps()   = 5u;
+    timestep.iterations() = 5u;
+    timestep.substeps()   = 2u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(

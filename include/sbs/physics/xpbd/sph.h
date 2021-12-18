@@ -12,15 +12,15 @@ namespace physics {
 namespace xpbd {
 
 template <class SphMeshlessModelType>
-class stvk_sph_nodal_integration_constraint_t : public constraint_t
+class sph_integration_constraint_t : public constraint_t
 {
   public:
     using sph_meshless_model_type = SphMeshlessModelType;
 
-    stvk_sph_nodal_integration_constraint_t(
+    sph_integration_constraint_t(
         scalar_type alpha,
         scalar_type beta,
-        index_type ni,
+        index_type k,
         index_type bi,
         scalar_type Vi,
         sph_meshless_model_type& sph_model,
@@ -30,7 +30,7 @@ class stvk_sph_nodal_integration_constraint_t : public constraint_t
     virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
 
   private:
-    index_type i_;                       ///< Index of sph node
+    index_type k_;                       ///< Index of integration point
     index_type b_;                       ///< Index of sph body
     scalar_type V_;                      ///< Quadrature weight (nodal volume)
     sph_meshless_model_type& sph_model_; ///< The sph meshless mechanical model
@@ -43,25 +43,24 @@ class stvk_sph_nodal_integration_constraint_t : public constraint_t
 };
 
 template <class SphMeshlessModelType>
-inline stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::
-    stvk_sph_nodal_integration_constraint_t(
-        scalar_type alpha,
-        scalar_type beta,
-        index_type ni,
-        index_type bi,
-        scalar_type Vi,
-        sph_meshless_model_type& sph_model,
-        scalar_type E,
-        scalar_type nu)
+inline sph_integration_constraint_t<SphMeshlessModelType>::sph_integration_constraint_t(
+    scalar_type alpha,
+    scalar_type beta,
+    index_type k,
+    index_type bi,
+    scalar_type Vi,
+    sph_meshless_model_type& sph_model,
+    scalar_type E,
+    scalar_type nu)
     : constraint_t(alpha, beta),
-      i_(ni),
+      k_(k),
       b_(bi),
       V_(Vi),
       sph_model_(sph_model),
       strain_op_(),
       strain_energy_density_op_(E, nu)
 {
-    std::vector<index_type> const js = sph_model_.neighbours(i_);
+    std::vector<index_type> const js = sph_model_.neighbours(k_);
     std::vector<index_type> bis{};
     bis.resize(js.size(), b_);
     this->set_indices(js);
@@ -69,7 +68,7 @@ inline stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::
 }
 
 template <class SphMeshlessModelType>
-inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::project_positions(
+inline void sph_integration_constraint_t<SphMeshlessModelType>::project_positions(
     simulation_t& simulation,
     scalar_type dt)
 {
@@ -81,7 +80,7 @@ inline void stvk_sph_nodal_integration_constraint_t<SphMeshlessModelType>::proje
         sph_model_.dof(j)         = xj;
     }
 
-    auto const& deformation_gradient_op = sph_model_.deformation_gradient_function(i_);
+    auto const& deformation_gradient_op = sph_model_.deformation_gradient_function(k_);
     Eigen::Matrix3d const F             = deformation_gradient_op.eval();
     // Eigen::Matrix3d const E             = strain_op_(F);
     auto const [R, S]       = strain_op_.get_RS(F);

@@ -39,7 +39,7 @@ int main(int argc, char** argv)
     simulation.simulation_parameters().young_modulus        = 1e6;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 3u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 12u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
     beam_transform.rotate(

@@ -13,7 +13,6 @@
 #include <sbs/physics/body/environment_body.h>
 #include <sbs/physics/body/fem_mixed_body.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
-//#include <sbs/physics/mechanics/fem_sph_model.h>
 #include <sbs/physics/mechanics/fem_sph_efg_model.h>
 #include <sbs/physics/xpbd/contact_handler.h>
 #include <sbs/physics/xpbd/fem.h>
@@ -26,7 +25,6 @@
 #include <sbs/rendering/renderer.h>
 
 using kernel_function_type = sbs::math::poly6_kernel_t;
-// using fem_mixed_model_type = sbs::physics::mechanics::fem_sph_model_t<kernel_function_type>;
 using fem_mixed_model_type = sbs::physics::mechanics::fem_sph_efg_model_t<kernel_function_type>;
 using fem_model_type       = typename fem_mixed_model_type::fem_model_type;
 using meshless_model_type  = typename fem_mixed_model_type::meshless_model_type;
@@ -64,12 +62,12 @@ int main(int argc, char** argv)
     simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 3u, 12u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(16u, 4u, 4u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
-    beam_transform.rotate(
-        Eigen::AngleAxisd(3.14159 / 6., Eigen::Vector3d{0., 0., 1.}.normalized()));
-    //beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    //beam_transform.rotate(
+    //    Eigen::AngleAxisd(3.14159 / 16., Eigen::Vector3d{0., 0., 1.}.normalized()));
+    // beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 1.1;
     std::array<unsigned int, 3u> const resolution{8u, 4u, 4u};
@@ -100,11 +98,11 @@ int main(int argc, char** argv)
         p.mass() = 1.;
         sbs::index_type const idx =
             static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
-        // if (p.x0().x() < 0.)
-        //{
-        //     left_fixed_particles.push_back(idx);
-        //     left_dirichlet_positions.push_back(p.x0());
-        // }
+        if (p.x0().x() < 0.)
+        {
+            left_fixed_particles.push_back(idx);
+            left_dirichlet_positions.push_back(p.x0());
+        }
         // if (p.x0().x() > 5.)
         //{
         //     right_fixed_particles.push_back(idx);
@@ -123,11 +121,11 @@ int main(int argc, char** argv)
         p.mass() = 1.;
         sbs::index_type const idx =
             static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
-        // if (p.x0().x() < 0.)
-        //{
-        //     left_fixed_particles.push_back(idx);
-        //     left_dirichlet_positions.push_back(p.x0());
-        // }
+        if (p.x0().x() < 0.)
+        {
+            left_fixed_particles.push_back(idx);
+            left_dirichlet_positions.push_back(p.x0());
+        }
         // if (p.x0().x() > 5.)
         //{
         //     right_fixed_particles.push_back(idx);
@@ -464,18 +462,6 @@ int main(int argc, char** argv)
             std::string const num_constraints_str =
                 "Constraints: " + std::to_string(num_constraints);
             ImGui::Text(num_constraints_str.c_str());
-
-            // sbs::scalar_type const V     = interpolated_volume(mechanical_model);
-            // std::string const volume_str = "Volume: " + std::to_string(V);
-            // ImGui::Text(volume_str.c_str());
-
-            // sbs::scalar_type const V0         = initial_volume(mechanical_model);
-            // std::string const rest_volume_str = "Rest volume: " + std::to_string(V0);
-            // ImGui::Text(rest_volume_str.c_str());
-
-            // sbs::scalar_type const Vd        = dof_volume(mechanical_model);
-            // std::string const dof_volume_str = "Dof volume: " + std::to_string(Vd);
-            // ImGui::Text(dof_volume_str.c_str());
 
             static sbs::scalar_type translation = 0.f;
             static float translation_speed      = 0.01f;

@@ -33,7 +33,8 @@ struct fem_sph_efg_interpolation_t
         std::vector<Eigen::Vector3d> const* Xjs,
         std::vector<Eigen::Vector3d>* xjs,
         std::vector<scalar_type> const* Vjs,
-        std::vector<kernel_function_type> const* Wjs)
+        std::vector<kernel_function_type> const* Wjs,
+        Eigen::Matrix3d const* Fk)
         : sk(0.),
           Xk(Xk),
           e(e),
@@ -45,7 +46,8 @@ struct fem_sph_efg_interpolation_t
           Xjs(Xjs),
           xjs(xjs),
           Vjs(Vjs),
-          Wjs(Wjs)
+          Wjs(Wjs),
+          Fk(Fk)
     {
         sk = compute_shepard_coefficient(Xk);
         compute_is();
@@ -85,7 +87,7 @@ struct fem_sph_efg_interpolation_t
      * Normally, the gradient/jacobian of a 3d vector valued function w.r.t. to a 3d parameter
      * should yield a 3x3 matrix. However, in this particular case, the jacobian becomes the
      * identity matrix scaled by (sk * phi_i) or (sk * Vj * Wkj), since dxk/dxk = I, and we have
-     * that xk = (sk * sum_i x_i phi_i) + (sk * sum_j Vj (Fj*Xkj + xj) Wkj). As such, we return only
+     * that xk = (sk * sum_i x_i phi_i) + (sk * sum_j Vj xj Wkj). As such, we return only
      * the scalars sk * Vj * Wkj for all neighbour nodes.
      * @return
      */
@@ -123,7 +125,7 @@ struct fem_sph_efg_interpolation_t
      * @brief
      * Let x(X) be the 0th-order reproducible version of this interpolation
      * field. We reformulate x(X) as x(X) = u(X) / v(X), where
-     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
+     * u(X) = \sum_i x_i \phi_i (X) + \sum_j x_j \phi_j (X),
      * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
      * This method returns u(X).
      *
@@ -148,14 +150,15 @@ struct fem_sph_efg_interpolation_t
                 xk += xi * phi(X);
             }
         }
-        // sum_j (F_j (X_k - X_j) + x_j) phi_j(X)
+        // sum_j (x_j) phi_j(X)
         for (index_type const j : js)
         {
             scalar_type const& Vj          = (*Vjs)[j];
             kernel_function_type const& Wj = (*Wjs)[j];
             scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
             Eigen::Vector3d const& xj      = (*xjs)[j];
-            xk += xj * Vj * Wkj;
+            Eigen::Vector3d const& Xj      = (*Xjs)[j];
+            xk += (xj + (*Fk) * (X - Xj)) * Vj * Wkj;
         }
         return xk;
     }
@@ -164,7 +167,7 @@ struct fem_sph_efg_interpolation_t
      * @brief
      * Let x(X) be the 0th-order reproducible version of this interpolation
      * field. We reformulate x(X) as x(X) = u(X) / v(X), where
-     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
+     * u(X) = \sum_i x_i \phi_i (X) + \sum_j x_j \phi_j (X),
      * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
      * This method returns v(X).
      *
@@ -173,7 +176,7 @@ struct fem_sph_efg_interpolation_t
      */
     scalar_type get_v(Eigen::Vector3d const& X) const
     {
-        scalar_type s = 0.;
+        scalar_type v = 0.;
 
         // sum_i phi_i(X)
         auto const& cell = (*cells)[e];
@@ -184,7 +187,7 @@ struct fem_sph_efg_interpolation_t
             if (has_phi)
             {
                 auto const& phi = cell.phi(r);
-                s += phi(X);
+                v += phi(X);
             }
         }
         // sum_j phi_j(X)
@@ -193,9 +196,9 @@ struct fem_sph_efg_interpolation_t
             scalar_type const& Vj          = (*Vjs)[j];
             kernel_function_type const& Wj = (*Wjs)[j];
             scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
-            s += Vj * Wkj;
+            v += Vj * Wkj;
         }
-        return s;
+        return v;
     }
 
     scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
@@ -235,18 +238,20 @@ struct fem_sph_efg_interpolation_t
     std::vector<Eigen::Vector3d>* xjs;            ///< Dofs of the meshless model
     std::vector<scalar_type> const* Vjs;          ///< Volumes of the meshless model
     std::vector<kernel_function_type> const* Wjs; ///< Kernels of the meshless nodes
+    Eigen::Matrix3d const* Fk;                    ///< Deformation gradient in cell
 };
 
 template <class FemCellType, class KernelFunctionType = poly6_kernel_t>
-struct fem_sph_interpolation_t : public fem_sph_efg_interpolation_t<FemCellType, KernelFunctionType>
+struct fem_sph_nodal_interpolation_t
+    : public fem_sph_efg_interpolation_t<FemCellType, KernelFunctionType>
 {
     using cell_type            = FemCellType;
     using kernel_function_type = KernelFunctionType;
     using base_type            = fem_sph_efg_interpolation_t<FemCellType, KernelFunctionType>;
-    using self_type            = fem_sph_interpolation_t<FemCellType, KernelFunctionType>;
+    using self_type            = fem_sph_nodal_interpolation_t<FemCellType, KernelFunctionType>;
 
-    fem_sph_interpolation_t() = default;
-    fem_sph_interpolation_t(
+    fem_sph_nodal_interpolation_t() = default;
+    fem_sph_nodal_interpolation_t(
         Eigen::Vector3d const& Xk,
         // FEM parameters
         index_type e,
@@ -261,12 +266,13 @@ struct fem_sph_interpolation_t : public fem_sph_efg_interpolation_t<FemCellType,
         std::vector<scalar_type> const* Vjs,
         std::vector<kernel_function_type> const* Wjs,
         std::vector<Eigen::Matrix3d>* Fjs)
-        : base_type(Xk, e, cells, Xis, xis, has_basis_function, js, Xjs, xjs, Vjs, Wjs), Fjs(Fjs)
+        : base_type(Xk, e, cells, Xis, xis, has_basis_function, js, Xjs, xjs, Vjs, Wjs, nullptr),
+          Fjs(Fjs)
     {
     }
 
-    fem_sph_interpolation_t(self_type const& other) = default;
-    fem_sph_interpolation_t& operator=(self_type const& other) = default;
+    fem_sph_nodal_interpolation_t(self_type const& other) = default;
+    fem_sph_nodal_interpolation_t& operator=(self_type const& other) = default;
 
     /**
      * @brief
@@ -594,7 +600,7 @@ struct fem_sph_nodal_deformation_gradient_op_t
 {
     using cell_type             = FemCellType;
     using kernel_function_type  = KernelFunctionType;
-    using interpolation_op_type = fem_sph_interpolation_t<cell_type, kernel_function_type>;
+    using interpolation_op_type = fem_sph_nodal_interpolation_t<cell_type, kernel_function_type>;
 
     fem_sph_nodal_deformation_gradient_op_t(
         index_type k,

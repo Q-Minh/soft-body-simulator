@@ -37,7 +37,7 @@ class fem_sph_model_t
         math::fem_interpolation_t<typename base_type::cell_type>;
 
     using mixed_interpolation_function_type =
-        math::fem_sph_interpolation_t<typename base_type::cell_type, kernel_function_type>;
+        math::fem_sph_nodal_interpolation_t<typename base_type::cell_type, kernel_function_type>;
 
     using mixed_deformation_gradient_function_type = math::fem_sph_nodal_deformation_gradient_op_t<
         typename base_type::cell_type,

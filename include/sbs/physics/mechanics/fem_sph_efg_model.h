@@ -113,6 +113,7 @@ class fem_sph_efg_model_t : public math::tetrahedral_fem_model_t<Eigen::Vector3d
         mixed_interpolation_fields_; ///< Interpolation fields at EFG points
     std::vector<mixed_deformation_gradient_function_type>
         mixed_deformation_gradient_functions_; ///< Deformation gradient functions at EFG points
+    std::vector<Eigen::Matrix3d> Fks_;         ///> Deformation gradients at EFG points
 
     std::vector<std::vector<index_type>> particles_in_tet_; ///< Particles in each tetrahedron
     std::vector<bool> has_basis_function_; ///< Marks active fem dofs vs inactive fem dofs
@@ -140,7 +141,8 @@ inline fem_sph_efg_model_t<KernelFunctionType>::fem_sph_efg_model_t(
       has_basis_function_(),
       fem_interpolation_fields_(),
       efg_point_tets_(),
-      tet_to_efg_()
+      tet_to_efg_(),
+      Fks_()
 {
     // Initialize fem interpolation fields. mixed cells should not use their fem interpolation
     // fields
@@ -234,6 +236,7 @@ inline fem_sph_efg_model_t<KernelFunctionType>::fem_sph_efg_model_t(
     Xks_.reserve(boundary_tetrahedron_indices.size());
     efg_point_tets_.reserve(boundary_tetrahedron_indices.size());
     tet_to_efg_.resize(topology.tetrahedron_count(), std::numeric_limits<index_type>::max());
+    Fks_.reserve(boundary_tetrahedron_indices.size());
     for (index_type const ti : boundary_tetrahedron_indices)
     {
         index_type const k = static_cast<index_type>(Xks_.size());
@@ -246,6 +249,7 @@ inline fem_sph_efg_model_t<KernelFunctionType>::fem_sph_efg_model_t(
 
         Eigen::Vector3d const Xk = 0.25 * (X1 + X2 + X3 + X4);
         Xks_.push_back(Xk);
+        Fks_.push_back(Eigen::Matrix3d::Identity());
         efg_point_tets_.push_back(ti);
         tet_to_efg_[ti] = k;
 
@@ -262,7 +266,8 @@ inline fem_sph_efg_model_t<KernelFunctionType>::fem_sph_efg_model_t(
             &(sph_model_.points()),
             &(sph_model_.dofs()),
             &(this->Vjs_),
-            &(this->Wjs_));
+            &(this->Wjs_),
+            &Fks_[k]);
 
         this->mixed_interpolation_fields_.push_back(mixed_interpolation);
 
@@ -283,6 +288,7 @@ inline fem_sph_efg_model_t<KernelFunctionType>::fem_sph_efg_model_t(self_type co
       Xks_(other.Xks_),
       mixed_interpolation_fields_(),
       mixed_deformation_gradient_functions_(),
+      Fks_(other.Fks_),
       has_basis_function_(other.has_basis_function_),
       fem_interpolation_fields_(),
       efg_point_tets_(other.efg_point_tets_),
@@ -307,7 +313,8 @@ inline fem_sph_efg_model_t<KernelFunctionType>::fem_sph_efg_model_t(self_type co
             &(sph_model_.points()),
             &(sph_model_.dofs()),
             &(this->Vjs_),
-            &(this->Wjs_));
+            &(this->Wjs_),
+            &Fks_[k]);
         mixed_interpolation_fields_.push_back(interpolation);
 
         mixed_deformation_gradient_function_type deformation_gradient_function(
@@ -338,6 +345,7 @@ fem_sph_efg_model_t<KernelFunctionType>::operator=(self_type const& other)
     Vjs_                = other.Vjs_;
     Wjs_                = other.Wjs_;
     Xks_                = other.Xks_;
+    Fks_                = other.Fks_;
     has_basis_function_ = other.has_basis_function_;
     efg_point_tets_     = other.efg_point_tets_;
     tet_to_efg_         = other.tet_to_efg_;
@@ -361,7 +369,8 @@ fem_sph_efg_model_t<KernelFunctionType>::operator=(self_type const& other)
             &(sph_model_.points()),
             &(sph_model_.dofs()),
             &(this->Vjs_),
-            &(this->Wjs_));
+            &(this->Wjs_),
+            &Fks_[k]);
         mixed_interpolation_fields_.push_back(interpolation);
 
         mixed_deformation_gradient_function_type deformation_gradient_function(
@@ -388,7 +397,9 @@ template <class KernelFunctionType>
 inline typename fem_sph_efg_model_t<KernelFunctionType>::mixed_interpolation_function_type
 fem_sph_efg_model_t<KernelFunctionType>::mixed_interpolation_field_at(Eigen::Vector3d const& X)
 {
-    index_type const ti              = this->domain().in_tetrahedron(X);
+    index_type const ti = this->domain().in_tetrahedron(X);
+    index_type const k  = this->tet_to_efg_[ti];
+    assert(k != std::numeric_limits<index_type>::max());
     std::vector<index_type> const js = sph_model_.in_support_of_nodes(X);
 
     mixed_interpolation_function_type interpolation(
@@ -402,7 +413,8 @@ fem_sph_efg_model_t<KernelFunctionType>::mixed_interpolation_field_at(Eigen::Vec
         &(sph_model_.points()),
         &(sph_model_.dofs()),
         &(this->Vjs_),
-        &(this->Wjs_));
+        &(this->Wjs_),
+        &Fks_[k]);
 
     return interpolation;
 }

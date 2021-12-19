@@ -278,6 +278,15 @@ class tetrahedron_set_t : public triangle_set_t
     std::vector<vertex_t> boundary_vertices() const;
     std::vector<index_type> boundary_vertex_indices() const;
 
+    std::vector<tetrahedron_t> interior_tetrahedra() const;
+    std::vector<index_type> interior_tetrahedron_indices() const;
+    std::vector<triangle_t> interior_triangles() const;
+    std::vector<index_type> interior_triangle_indices() const;
+    std::vector<edge_t> interior_edges() const;
+    std::vector<index_type> interior_edge_indices() const;
+    std::vector<vertex_t> interior_vertices() const;
+    std::vector<index_type> interior_vertex_indices() const;
+
     std::vector<triangle_t> oriented_boundary_triangles() const;
 
     bool operator==(tetrahedron_set_t const& other) const;

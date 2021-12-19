@@ -63,7 +63,8 @@ struct poly6_kernel_t
         alpha = 315. / (64. * pi * h9);
     }
 
-    scalar_type operator()(Eigen::Vector3d const& X) const
+    scalar_type operator()(Eigen::Vector3d const& X) const { return eval(X); }
+    scalar_type eval(Eigen::Vector3d const& X) const
     {
         scalar_type const r    = (X - Xi).norm();
         scalar_type const r2   = r * r;

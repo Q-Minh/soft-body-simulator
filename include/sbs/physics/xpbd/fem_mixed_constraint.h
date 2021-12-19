@@ -11,7 +11,7 @@ namespace physics {
 namespace xpbd {
 
 template <class FemMixedModelType>
-class stvk_fem_mixed_nodal_integration_constraint_t : public constraint_t
+class stvk_fem_mixed_efg_integration_constraint_t : public constraint_t
 {
   public:
     using fem_mixed_model_type = FemMixedModelType;
@@ -20,7 +20,7 @@ class stvk_fem_mixed_nodal_integration_constraint_t : public constraint_t
     using interpolation_field_type =
         typename fem_mixed_model_type::mixed_interpolation_function_type;
 
-    stvk_fem_mixed_nodal_integration_constraint_t(
+    stvk_fem_mixed_efg_integration_constraint_t(
         scalar_type alpha,
         scalar_type beta,
         index_type nj,
@@ -35,7 +35,7 @@ class stvk_fem_mixed_nodal_integration_constraint_t : public constraint_t
 
     virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
 
-  private:
+  protected:
     index_type j_;                          ///< Meshless particle of mixed model
     index_type b_;                          ///< affected body in particles
     scalar_type V_;                         ///< Nodal quadrature weight (volume based)
@@ -53,8 +53,8 @@ class stvk_fem_mixed_nodal_integration_constraint_t : public constraint_t
 };
 
 template <class FemMixedModelType>
-inline stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::
-    stvk_fem_mixed_nodal_integration_constraint_t(
+inline stvk_fem_mixed_efg_integration_constraint_t<FemMixedModelType>::
+    stvk_fem_mixed_efg_integration_constraint_t(
         scalar_type alpha,
         scalar_type beta,
         index_type nj,
@@ -100,7 +100,7 @@ inline stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::
 }
 
 template <class FemMixedModelType>
-inline void stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::project_positions(
+inline void stvk_fem_mixed_efg_integration_constraint_t<FemMixedModelType>::project_positions(
     simulation_t& simulation,
     scalar_type dt)
 {
@@ -119,8 +119,8 @@ inline void stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::pr
         xjs[j]                    = xj;
     }
 
-    auto const& deformation_gradient_op = fem_mixed_model_.mixed_deformation_gradient_function(j_);
-    Eigen::Matrix3d const F             = deformation_gradient_op.eval();
+    auto& deformation_gradient_op = fem_mixed_model_.mixed_deformation_gradient_function(j_);
+    Eigen::Matrix3d const F       = deformation_gradient_op.eval();
     // Eigen::Matrix3d const E             = strain_op_(F);
     auto const [R, S]       = strain_op_.get_RS(F);
     Eigen::Matrix3d const E = strain_op_(S);
@@ -154,9 +154,44 @@ inline void stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::pr
     }
 
     this->project_positions_with_dampling(simulation, C, gradC, dt);
-
-    fem_mixed_model_.F(j_) = F;
 }
+
+template <class FemMixedModelType>
+class stvk_fem_mixed_nodal_integration_constraint_t
+    : public stvk_fem_mixed_efg_integration_constraint_t<FemMixedModelType>
+{
+  public:
+    using base_type = stvk_fem_mixed_efg_integration_constraint_t<FemMixedModelType>;
+
+    stvk_fem_mixed_nodal_integration_constraint_t(
+        scalar_type alpha,
+        scalar_type beta,
+        index_type nj,
+        index_type bj,
+        scalar_type Vj,
+        index_type e,
+        fem_mixed_model_type& fem_mixed_model,
+        scalar_type E,
+        scalar_type nu,
+        std::size_t fem_particle_offset,
+        std::size_t meshless_particle_offset)
+        : base_type(
+              alpha,
+              beta,
+              nj,
+              bj,
+              Vj,
+              e,
+              fem_mixed_model,
+              E,
+              nu,
+              fem_particle_offset,
+              meshless_particle_offset)
+    {
+    }
+
+    virtual void project_positions(simulation_t& simulation, scalar_type dt) override;
+};
 
 template <class FemMixedVisualModelType>
 class fem_mixed_collision_constraint_t : public constraint_t
@@ -280,6 +315,64 @@ inline void fem_mixed_collision_constraint_t<FemMixedVisualModelType>::project_p
     }
 
     this->project_positions_with_dampling(simulation, C, gradC, dt);
+}
+
+template <class FemMixedModelType>
+inline void stvk_fem_mixed_nodal_integration_constraint_t<FemMixedModelType>::project_positions(
+    simulation_t& simulation,
+    scalar_type dt)
+{
+    auto const& particles                   = simulation.particles()[b_];
+    interpolation_field_type& interpolation = fem_mixed_model_.mixed_interpolation_field_at(j_);
+    std::vector<Eigen::Vector3d>& xis       = *interpolation.xis;
+    std::vector<Eigen::Vector3d>& xjs       = *interpolation.xjs;
+    for (index_type const i : interpolation.is)
+    {
+        Eigen::Vector3d const& xi = particles[fem_particle_offset_ + i].xi();
+        xis[i]                    = xi;
+    }
+    for (index_type const j : interpolation.js)
+    {
+        Eigen::Vector3d const& xj = particles[meshless_particle_offset_ + j].xi();
+        xjs[j]                    = xj;
+    }
+
+    auto& deformation_gradient_op = fem_mixed_model_.mixed_deformation_gradient_function(j_);
+    Eigen::Matrix3d const F       = deformation_gradient_op.eval();
+    // Eigen::Matrix3d const E             = strain_op_(F);
+    auto const [R, S]       = strain_op_.get_RS(F);
+    Eigen::Matrix3d const E = strain_op_(S);
+    scalar_type const Psi   = strain_energy_density_op_(E);
+    scalar_type const C     = V_ * Psi;
+
+    // Eigen::Matrix3d const P = strain_energy_density_op_.stress(F, E);
+    Eigen::Matrix3d const P     = strain_energy_density_op_.stress(R, F);
+    auto const [dFdxis, dFdxjs] = deformation_gradient_op.dFdx();
+    assert(interpolation.is.size() == dFdxis.size());
+    assert(interpolation.js.size() == dFdxjs.size());
+
+    std::vector<Eigen::Vector3d> gradC{};
+    gradC.reserve(dFdxis.size() + dFdxjs.size());
+
+    for (auto a = 0u; a < dFdxis.size(); ++a)
+    {
+        Eigen::Vector3d grad{0., 0., 0.};
+        grad(0) = V_ * P.row(0).dot(dFdxis[a]);
+        grad(1) = V_ * P.row(1).dot(dFdxis[a]);
+        grad(2) = V_ * P.row(2).dot(dFdxis[a]);
+        gradC.push_back(grad);
+    }
+    for (auto a = 0u; a < dFdxjs.size(); ++a)
+    {
+        Eigen::Vector3d grad{};
+        grad(0) = V_ * P.row(0).dot(dFdxjs[a]);
+        grad(1) = V_ * P.row(1).dot(dFdxjs[a]);
+        grad(2) = V_ * P.row(2).dot(dFdxjs[a]);
+        gradC.push_back(grad);
+    }
+
+    this->project_positions_with_dampling(simulation, C, gradC, dt);
+    fem_mixed_model_.F(j_) = F;
 }
 
 } // namespace xpbd

@@ -39,10 +39,12 @@ int main(int argc, char** argv)
     simulation.simulation_parameters().young_modulus        = 1e6;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 4u, 4u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 3u, 12u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
-     beam_transform.scale(Eigen::Vector3d{1., 0.5, 0.5});
+    beam_transform.rotate(
+        Eigen::AngleAxisd(3.14159 / 6., Eigen::Vector3d{0., 0., 1.}.normalized()));
+    // beam_transform.scale(Eigen::Vector3d{1., 0.5, 0.5});
     beam_geometry = sbs::common::transform(beam_geometry, beam_transform);
 
     // Initialize soft body
@@ -69,16 +71,16 @@ int main(int argc, char** argv)
         Eigen::Vector3d const& Xi = mechanical_model.point(i).cast<sbs::scalar_type>();
         sbs::physics::xpbd::particle_t p{Xi};
         p.mass() = 1.;
-        if (p.x0().x() < 0.)
-        {
-            left_fixed_particles.push_back(i);
-            left_dirichlet_positions.push_back(p.x0());
-        }
-        //if (p.x0().x() > 9.)
+        // if (p.x0().x() < 0.)
         //{
-        //    right_fixed_particles.push_back(i);
-        //    right_dirichlet_positions.push_back(p.x0());
-        //}
+        //     left_fixed_particles.push_back(i);
+        //     left_dirichlet_positions.push_back(p.x0());
+        // }
+        // if (p.x0().x() > 9.)
+        //{
+        //     right_fixed_particles.push_back(i);
+        //     right_dirichlet_positions.push_back(p.x0());
+        // }
         simulation.add_particle(p, beam_idx);
     }
     left_bs.resize(left_fixed_particles.size(), beam_idx);

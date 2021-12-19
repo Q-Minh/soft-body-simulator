@@ -1325,6 +1325,98 @@ std::vector<index_type> tetrahedron_set_t::boundary_vertex_indices() const
     return boundary_vertex_indices;
 }
 
+std::vector<tetrahedron_t> tetrahedron_set_t::interior_tetrahedra() const
+{
+    std::vector<tetrahedron_t> interior_tets{};
+    for (tetrahedron_t const& t : tetrahedra_)
+    {
+        if (!is_boundary_tetrahedron(t))
+            interior_tets.push_back(t);
+    }
+    return interior_tets;
+}
+
+std::vector<index_type> tetrahedron_set_t::interior_tetrahedron_indices() const
+{
+    std::vector<index_type> interior_tet_indices{};
+    for (std::size_t i = 0u; i < tetrahedra_.size(); ++i)
+    {
+        index_type const ti = static_cast<index_type>(i);
+        if (!is_boundary_tetrahedron(ti))
+            interior_tet_indices.push_back(ti);
+    }
+    return interior_tet_indices;
+}
+
+std::vector<triangle_t> tetrahedron_set_t::interior_triangles() const
+{
+    std::vector<triangle_t> interior_tris{};
+    for (triangle_t const& f : triangles())
+    {
+        if (!is_boundary_triangle(f))
+            interior_tris.push_back(f);
+    }
+    return interior_tris;
+}
+
+std::vector<index_type> tetrahedron_set_t::interior_triangle_indices() const
+{
+    std::vector<index_type> interior_triangle_indices{};
+    for (std::size_t i = 0u; i < triangles().size(); ++i)
+    {
+        index_type const fi = static_cast<index_type>(i);
+        if (!is_boundary_triangle(fi))
+            interior_triangle_indices.push_back(fi);
+    }
+    return interior_triangle_indices;
+}
+
+std::vector<edge_t> tetrahedron_set_t::interior_edges() const
+{
+    std::vector<edge_t> interior_edge_list{};
+    for (edge_t const& e : edges())
+    {
+        if (!is_boundary_edge(e))
+            interior_edge_list.push_back(e);
+    }
+    return interior_edge_list;
+}
+
+std::vector<index_type> tetrahedron_set_t::interior_edge_indices() const
+{
+    std::vector<index_type> interior_edge_indices{};
+    for (std::size_t i = 0u; i < edges().size(); ++i)
+    {
+        index_type const ei = static_cast<index_type>(i);
+        if (!is_boundary_edge(ei))
+            interior_edge_indices.push_back(ei);
+    }
+    return interior_edge_indices;
+}
+
+std::vector<vertex_t> tetrahedron_set_t::interior_vertices() const
+{
+    std::vector<vertex_t> interior_vertex_list{};
+    for (vertex_t const& v : vertices())
+    {
+        if (!is_boundary_vertex(v))
+            interior_vertex_list.push_back(v);
+    }
+    return interior_vertex_list;
+}
+
+std::vector<index_type> tetrahedron_set_t::interior_vertex_indices() const
+{
+    std::vector<index_type> interior_vertex_indices{};
+    for (std::size_t i = 0u; i < vertices().size(); ++i)
+    {
+        index_type const vi = static_cast<index_type>(i);
+        if (!is_boundary_vertex(vi))
+            interior_vertex_indices.push_back(vi);
+    }
+    return interior_vertex_indices;
+}
+
 std::vector<triangle_t> tetrahedron_set_t::oriented_boundary_triangles() const
 {
     std::vector<triangle_t> oriented_boundary_tris{};

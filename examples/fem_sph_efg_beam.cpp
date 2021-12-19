@@ -13,7 +13,8 @@
 #include <sbs/physics/body/environment_body.h>
 #include <sbs/physics/body/fem_mixed_body.h>
 #include <sbs/physics/collision/brute_force_cd_system.h>
-#include <sbs/physics/mechanics/fem_sph_model.h>
+//#include <sbs/physics/mechanics/fem_sph_model.h>
+#include <sbs/physics/mechanics/fem_sph_efg_model.h>
 #include <sbs/physics/xpbd/contact_handler.h>
 #include <sbs/physics/xpbd/fem.h>
 #include <sbs/physics/xpbd/fem_mixed_constraint.h>
@@ -25,7 +26,8 @@
 #include <sbs/rendering/renderer.h>
 
 using kernel_function_type = sbs::math::poly6_kernel_t;
-using fem_mixed_model_type = sbs::physics::mechanics::fem_sph_model_t<kernel_function_type>;
+// using fem_mixed_model_type = sbs::physics::mechanics::fem_sph_model_t<kernel_function_type>;
+using fem_mixed_model_type = sbs::physics::mechanics::fem_sph_efg_model_t<kernel_function_type>;
 using fem_model_type       = typename fem_mixed_model_type::fem_model_type;
 using meshless_model_type  = typename fem_mixed_model_type::meshless_model_type;
 using visual_model_type = sbs::physics::visual::fem_mixed_embedded_surface_t<fem_mixed_model_type>;
@@ -53,21 +55,21 @@ int main(int argc, char** argv)
      * Setup simulation
      */
     sbs::physics::xpbd::simulation_t simulation{};
-    simulation.simulation_parameters().compliance                  = 1e-5;
-    simulation.simulation_parameters().damping                     = 1e-1;
-    simulation.simulation_parameters().collision_compliance        = 1e-4;
+    simulation.simulation_parameters().compliance                  = 1e-10;
+    simulation.simulation_parameters().damping                     = 0.;
+    simulation.simulation_parameters().collision_compliance        = 1e-6;
     simulation.simulation_parameters().collision_damping           = 1e-2;
-    simulation.simulation_parameters().poisson_ratio               = 0.4;
-    simulation.simulation_parameters().young_modulus               = 1e8;
+    simulation.simulation_parameters().poisson_ratio               = 0.45;
+    simulation.simulation_parameters().young_modulus               = 1e6;
     simulation.simulation_parameters().positional_penalty_strength = 4.;
 
     // Load geometry
-    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(8u, 4u, 4u);
+    sbs::common::geometry_t beam_geometry = sbs::geometry::get_simple_bar_model(12u, 3u, 12u);
     beam_geometry.set_color(255, 255, 0);
     Eigen::Affine3d beam_transform{Eigen::Translation3d(-1., 4., 2.)};
-    // beam_transform.rotate(
-    //     Eigen::AngleAxisd(3.14159 / 20., Eigen::Vector3d{0., 1., 0.2}.normalized()));
-    // beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
+    beam_transform.rotate(
+        Eigen::AngleAxisd(3.14159 / 6., Eigen::Vector3d{0., 0., 1.}.normalized()));
+    //beam_transform.scale(Eigen::Vector3d{1., 0.4, 1.});
     beam_geometry                  = sbs::common::transform(beam_geometry, beam_transform);
     sbs::scalar_type const support = 1.1;
     std::array<unsigned int, 3u> const resolution{8u, 4u, 4u};
@@ -98,16 +100,16 @@ int main(int argc, char** argv)
         p.mass() = 1.;
         sbs::index_type const idx =
             static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
-        if (p.x0().x() < 0.)
-        {
-            left_fixed_particles.push_back(idx);
-            left_dirichlet_positions.push_back(p.x0());
-        }
-        if (p.x0().x() > 5.)
-        {
-            right_fixed_particles.push_back(idx);
-            right_dirichlet_positions.push_back(p.x0());
-        }
+        // if (p.x0().x() < 0.)
+        //{
+        //     left_fixed_particles.push_back(idx);
+        //     left_dirichlet_positions.push_back(p.x0());
+        // }
+        // if (p.x0().x() > 5.)
+        //{
+        //     right_fixed_particles.push_back(idx);
+        //     right_dirichlet_positions.push_back(p.x0());
+        // }
         simulation.add_particle(p, beam_idx);
     }
 
@@ -121,16 +123,16 @@ int main(int argc, char** argv)
         p.mass() = 1.;
         sbs::index_type const idx =
             static_cast<sbs::index_type>(simulation.particles()[beam_idx].size());
-        if (p.x0().x() < 0.)
-        {
-            left_fixed_particles.push_back(idx);
-            left_dirichlet_positions.push_back(p.x0());
-        }
-        if (p.x0().x() > 5.)
-        {
-            right_fixed_particles.push_back(idx);
-            right_dirichlet_positions.push_back(p.x0());
-        }
+        // if (p.x0().x() < 0.)
+        //{
+        //     left_fixed_particles.push_back(idx);
+        //     left_dirichlet_positions.push_back(p.x0());
+        // }
+        // if (p.x0().x() > 5.)
+        //{
+        //     right_fixed_particles.push_back(idx);
+        //     right_dirichlet_positions.push_back(p.x0());
+        // }
         simulation.add_particle(p, beam_idx);
     }
     beam.set_fem_particle_offset(fem_particle_index_offset);
@@ -152,7 +154,7 @@ int main(int argc, char** argv)
         right_fixed_particles,
         right_dirichlet_positions);
 
-    // Create mass distribution
+    // Create constraints
     auto const& domain   = mechanical_model.domain();
     auto const& topology = domain.topology();
 
@@ -161,108 +163,83 @@ int main(int argc, char** argv)
     auto const nu    = simulation.simulation_parameters().poisson_ratio;
     auto const E     = simulation.simulation_parameters().young_modulus;
 
-    // Create constraints
     bool is_fully_mixed{true};
     std::size_t num_fully_meshed_cells{0u};
     std::size_t num_meshless_constraints{0u};
     std::size_t num_boundary_unmixed_tets{0u};
     std::size_t num_mixed_tets{0u};
+    // EFG constraints
+    for (auto k = 0u; k < mechanical_model.efg_integration_point_count(); ++k)
+    {
+        Eigen::Vector3d const& Xk = mechanical_model.integration_point(k);
+        sbs::index_type const e   = mechanical_model.tetrahedron_around_integration_point(k);
+        auto const& element       = mechanical_model.element(e);
+        sbs::scalar_type const det =
+            static_cast<sbs::scalar_type>(domain.barycentric_map(e).determinant());
+        sbs::scalar_type const Vtet = (1. / 6.) * det;
+
+        using constraint_type =
+            sbs::physics::xpbd::stvk_fem_mixed_efg_integration_constraint_t<fem_mixed_model_type>;
+
+        auto constraint = std::make_unique<constraint_type>(
+            alpha,
+            beta,
+            k,
+            beam_idx,
+            Vtet,
+            e,
+            mechanical_model,
+            E,
+            nu,
+            fem_particle_index_offset,
+            meshless_particle_index_offset);
+
+        simulation.add_constraint(std::move(constraint));
+    }
+    // FEM constraints
     for (auto e = 0u; e < mechanical_model.element_count(); ++e)
     {
-        bool const is_mixed_tet    = !mechanical_model.particles_in_tetrahedron(e).empty();
-        bool const is_boundary_tet = topology.is_boundary_tetrahedron(e);
+        bool const is_mixed_tet = mechanical_model.is_mixed_cell(e);
         if (is_mixed_tet)
-        {
-            using constraint_type =
-                sbs::physics::xpbd::stvk_fem_mixed_nodal_integration_constraint_t<
-                    fem_mixed_model_type>;
+            continue;
 
-            std::vector<sbs::index_type> const& meshless_particles_in_tet =
-                mechanical_model.particles_in_tetrahedron(e);
-            auto const N = meshless_particles_in_tet.size();
+        auto const& cell = mechanical_model.cell(e);
 
-            sbs::scalar_type const det =
-                static_cast<sbs::scalar_type>(domain.barycentric_map(e).determinant());
-            sbs::scalar_type const Vtet = (1. / 6.) * det;
-            sbs::scalar_type const Vj   = Vtet / static_cast<sbs::scalar_type>(N);
+        auto const v1 = cell.node(0u);
+        auto const v2 = cell.node(1u);
+        auto const v3 = cell.node(2u);
+        auto const v4 = cell.node(3u);
 
-            for (sbs::index_type const j : meshless_particles_in_tet)
-            {
-                auto constraint = std::make_unique<constraint_type>(
-                    alpha,
-                    beta,
-                    j,
-                    beam_idx,
-                    Vj,
-                    e,
-                    mechanical_model,
-                    E,
-                    nu,
-                    fem_particle_index_offset,
-                    meshless_particle_index_offset);
+        auto const& element = mechanical_model.element(e);
+        auto const& mapping = element.mapping();
+        sbs::math::tetrahedron_1point_constant_quadrature_rule_t<decltype(mapping)> quadrature_rule{
+            mapping};
 
-                simulation.add_constraint(std::move(constraint));
-                ++num_meshless_constraints;
-            }
-            ++num_mixed_tets;
-        }
-        else if (!is_boundary_tet)
-        {
-            is_fully_mixed = false;
-            ++num_fully_meshed_cells;
-            auto const& cell = mechanical_model.cell(e);
+        auto const& Xg = quadrature_rule.points.front().cast<sbs::scalar_type>();
+        auto const& wg = static_cast<sbs::scalar_type>(quadrature_rule.weights.front());
 
-            auto const v1 = cell.node(0u);
-            auto const v2 = cell.node(1u);
-            auto const v3 = cell.node(2u);
-            auto const v4 = cell.node(3u);
+        using constraint_type = sbs::physics::xpbd::stvk_tetrahedral_quadrature_strain_constraint_t<
+            typename fem_mixed_model_type::cell_type>;
 
-            auto const& element = mechanical_model.element(e);
-            auto const& mapping = element.mapping();
-            sbs::math::tetrahedron_1point_constant_quadrature_rule_t<decltype(mapping)>
-                quadrature_rule{mapping};
+        std::vector<sbs::index_type> is{v1, v2, v3, v4};
+        std::vector<sbs::index_type> bs{beam_idx, beam_idx, beam_idx, beam_idx};
 
-            auto const& Xg = quadrature_rule.points.front().cast<sbs::scalar_type>();
-            auto const& wg = static_cast<sbs::scalar_type>(quadrature_rule.weights.front());
+        auto const& interpolation_function = mechanical_model.fem_interpolation_field_at(e);
 
-            using constraint_type =
-                sbs::physics::xpbd::stvk_tetrahedral_quadrature_strain_constraint_t<
-                    typename fem_mixed_model_type::cell_type>;
+        auto constraint = std::make_unique<constraint_type>(
+            alpha,
+            beta,
+            fem_particle_index_offset,
+            is,
+            bs,
+            interpolation_function,
+            wg,
+            Xg,
+            E,
+            nu);
 
-            std::vector<sbs::index_type> is{v1, v2, v3, v4};
-            std::vector<sbs::index_type> bs{beam_idx, beam_idx, beam_idx, beam_idx};
-
-            auto const& interpolation_function = mechanical_model.fem_interpolation_field_at(e);
-
-            auto constraint = std::make_unique<constraint_type>(
-                alpha,
-                beta,
-                fem_particle_index_offset,
-                is,
-                bs,
-                interpolation_function,
-                wg,
-                Xg,
-                E,
-                nu);
-
-            simulation.add_constraint(std::move(constraint));
-        }
-        else
-        {
-            ++num_boundary_unmixed_tets;
-        }
+        simulation.add_constraint(std::move(constraint));
     }
-
-    if (is_fully_mixed)
-        std::cout << "Full hybrid model\n";
-    else
-        std::cout << "Partial hybrid model\n";
-
-    std::cout << "Num mesh element constraints: " << num_fully_meshed_cells << "\n";
-    std::cout << "Num meshless constraints: " << num_meshless_constraints << "\n";
-    std::cout << "Num boundary unmixed tets: " << num_boundary_unmixed_tets << "\n";
-    std::cout << "Num mixed tets: " << num_mixed_tets << "\n";
 
     beam.get_visual_model().set_color({1.f, 1.f, 0.f});
 
@@ -354,9 +331,9 @@ int main(int argc, char** argv)
      * Setup time integration technique
      */
     sbs::physics::xpbd::timestep_t timestep{};
-    timestep.dt()         = 0.005;
-    timestep.iterations() = 10u;
-    timestep.substeps()   = 4u;
+    timestep.dt()         = 0.016;
+    timestep.iterations() = 5u;
+    timestep.substeps()   = 2u;
     timestep.solver()     = std::make_unique<sbs::physics::xpbd::gauss_seidel_solver_t>();
 
     sbs::rendering::physics_timestep_throttler_t throttler(

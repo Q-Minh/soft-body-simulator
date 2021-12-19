@@ -26,6 +26,10 @@ add_executable(fem-sph-beam)
 target_sources(fem-sph-beam PRIVATE "fem_sph_beam.cpp")
 target_link_libraries(fem-sph-beam PRIVATE sbs::sbs)
 
+add_executable(fem-sph-efg-beam)
+target_sources(fem-sph-efg-beam PRIVATE "fem_sph_efg_beam.cpp")
+target_link_libraries(fem-sph-efg-beam PRIVATE sbs::sbs)
+
 add_executable(bezier-curve-swept-surface)
 target_sources(bezier-curve-swept-surface PRIVATE "bezier_curve_swept_surface.cpp")
 target_link_libraries(bezier-curve-swept-surface PRIVATE sbs::sbs)

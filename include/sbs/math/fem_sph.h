@@ -13,14 +13,14 @@ namespace sbs {
 namespace math {
 
 template <class FemCellType, class KernelFunctionType = poly6_kernel_t>
-struct fem_sph_interpolation_t
+struct fem_sph_efg_interpolation_t
 {
     using cell_type            = FemCellType;
     using kernel_function_type = KernelFunctionType;
-    using self_type            = fem_sph_interpolation_t<FemCellType, KernelFunctionType>;
+    using self_type            = fem_sph_efg_interpolation_t<FemCellType, KernelFunctionType>;
 
-    fem_sph_interpolation_t() = default;
-    fem_sph_interpolation_t(
+    fem_sph_efg_interpolation_t() = default;
+    fem_sph_efg_interpolation_t(
         Eigen::Vector3d const& Xk,
         // FEM parameters
         index_type e,
@@ -33,8 +33,7 @@ struct fem_sph_interpolation_t
         std::vector<Eigen::Vector3d> const* Xjs,
         std::vector<Eigen::Vector3d>* xjs,
         std::vector<scalar_type> const* Vjs,
-        std::vector<kernel_function_type> const* Wjs,
-        std::vector<Eigen::Matrix3d>* Fjs)
+        std::vector<kernel_function_type> const* Wjs)
         : sk(0.),
           Xk(Xk),
           e(e),
@@ -46,15 +45,14 @@ struct fem_sph_interpolation_t
           Xjs(Xjs),
           xjs(xjs),
           Vjs(Vjs),
-          Wjs(Wjs),
-          Fjs(Fjs)
+          Wjs(Wjs)
     {
         sk = compute_shepard_coefficient(Xk);
         compute_is();
     }
 
-    fem_sph_interpolation_t(self_type const& other) = default;
-    fem_sph_interpolation_t& operator=(self_type const& other) = default;
+    fem_sph_efg_interpolation_t(self_type const& other) = default;
+    fem_sph_efg_interpolation_t& operator=(self_type const& other) = default;
 
     Eigen::Vector3d operator()(Eigen::Vector3d const& X) const
     {
@@ -120,6 +118,155 @@ struct fem_sph_interpolation_t
         }
         return std::make_pair(dxdxis, dxdxjs);
     }
+
+    /**
+     * @brief
+     * Let x(X) be the 0th-order reproducible version of this interpolation
+     * field. We reformulate x(X) as x(X) = u(X) / v(X), where
+     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
+     * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
+     * This method returns u(X).
+     *
+     * @param X Material space position.
+     * @return u(X)
+     */
+    Eigen::Vector3d get_u(Eigen::Vector3d const& X) const
+    {
+        auto const& cell = (*cells)[e];
+
+        Eigen::Vector3d xk{0., 0., 0.};
+
+        // sum_i x_i phi_i(X)
+        for (auto r = 0u; r < cell.node_count(); ++r)
+        {
+            auto const i       = cell.node(r);
+            bool const has_phi = (*has_basis_function)[i];
+            if (has_phi)
+            {
+                auto const& phi           = cell.phi(r);
+                Eigen::Vector3d const& xi = (*xis)[i];
+                xk += xi * phi(X);
+            }
+        }
+        // sum_j (F_j (X_k - X_j) + x_j) phi_j(X)
+        for (index_type const j : js)
+        {
+            scalar_type const& Vj          = (*Vjs)[j];
+            kernel_function_type const& Wj = (*Wjs)[j];
+            scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
+            Eigen::Vector3d const& xj      = (*xjs)[j];
+            xk += xj * Vj * Wkj;
+        }
+        return xk;
+    }
+
+    /**
+     * @brief
+     * Let x(X) be the 0th-order reproducible version of this interpolation
+     * field. We reformulate x(X) as x(X) = u(X) / v(X), where
+     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
+     * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
+     * This method returns v(X).
+     *
+     * @param X Material space position X
+     * @return v(X)
+     */
+    scalar_type get_v(Eigen::Vector3d const& X) const
+    {
+        scalar_type s = 0.;
+
+        // sum_i phi_i(X)
+        auto const& cell = (*cells)[e];
+        for (auto r = 0u; r < cell.node_count(); ++r)
+        {
+            auto const i       = cell.node(r);
+            bool const has_phi = (*has_basis_function)[i];
+            if (has_phi)
+            {
+                auto const& phi = cell.phi(r);
+                s += phi(X);
+            }
+        }
+        // sum_j phi_j(X)
+        for (index_type const j : js)
+        {
+            scalar_type const& Vj          = (*Vjs)[j];
+            kernel_function_type const& Wj = (*Wjs)[j];
+            scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
+            s += Vj * Wkj;
+        }
+        return s;
+    }
+
+    scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
+    {
+        scalar_type s = get_v(X);
+        s             = (1. / s);
+        return s;
+    }
+
+    void compute_is()
+    {
+        is.clear();
+
+        auto const& cell = (*cells)[e];
+        for (auto r = 0u; r < cell.node_count(); ++r)
+        {
+            auto const i       = cell.node(r);
+            bool const has_phi = (*has_basis_function)[i];
+            if (has_phi)
+            {
+                is.push_back(i);
+            }
+        }
+    }
+
+    scalar_type sk;     ///< Shepard coefficient for maintaing 0-th order reproducibility of this
+                        ///< interpolation
+    Eigen::Vector3d Xk; ///< Point at which we evaluate this interpolation
+    index_type e;       ///< Index of cell in which this interpolation exists
+    std::vector<cell_type> const* cells;     ///< The cells of the fem model
+    std::vector<index_type> is;              ///< Indices of the fem basis functions that are active
+    std::vector<Eigen::Vector3d> const* Xis; ///< Points of the mesh model
+    std::vector<Eigen::Vector3d>* xis;       ///< Dofs of the mesh model
+    std::vector<bool> const* has_basis_function;  ///< Flags for if a dof is active or not
+    std::vector<index_type> js;                   ///< indices of meshless neighbours
+    std::vector<Eigen::Vector3d> const* Xjs;      ///< Points of the meshless model
+    std::vector<Eigen::Vector3d>* xjs;            ///< Dofs of the meshless model
+    std::vector<scalar_type> const* Vjs;          ///< Volumes of the meshless model
+    std::vector<kernel_function_type> const* Wjs; ///< Kernels of the meshless nodes
+};
+
+template <class FemCellType, class KernelFunctionType = poly6_kernel_t>
+struct fem_sph_interpolation_t : public fem_sph_efg_interpolation_t<FemCellType, KernelFunctionType>
+{
+    using cell_type            = FemCellType;
+    using kernel_function_type = KernelFunctionType;
+    using base_type            = fem_sph_efg_interpolation_t<FemCellType, KernelFunctionType>;
+    using self_type            = fem_sph_interpolation_t<FemCellType, KernelFunctionType>;
+
+    fem_sph_interpolation_t() = default;
+    fem_sph_interpolation_t(
+        Eigen::Vector3d const& Xk,
+        // FEM parameters
+        index_type e,
+        std::vector<cell_type> const* cells,
+        std::vector<Eigen::Vector3d> const* Xis,
+        std::vector<Eigen::Vector3d>* xis,
+        std::vector<bool> const* has_basis_function,
+        // SPH parameters
+        std::vector<index_type> const& js,
+        std::vector<Eigen::Vector3d> const* Xjs,
+        std::vector<Eigen::Vector3d>* xjs,
+        std::vector<scalar_type> const* Vjs,
+        std::vector<kernel_function_type> const* Wjs,
+        std::vector<Eigen::Matrix3d>* Fjs)
+        : base_type(Xk, e, cells, Xis, xis, has_basis_function, js, Xjs, xjs, Vjs, Wjs), Fjs(Fjs)
+    {
+    }
+
+    fem_sph_interpolation_t(self_type const& other) = default;
+    fem_sph_interpolation_t& operator=(self_type const& other) = default;
 
     /**
      * @brief
@@ -406,17 +553,6 @@ struct fem_sph_interpolation_t
         return std::make_tuple(v, gradv, Hv);
     }
 
-    /**
-     * @brief
-     * Let x(X) be the 0th-order reproducible version of this interpolation
-     * field. We reformulate x(X) as x(X) = u(X) / v(X), where
-     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
-     * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
-     * This method returns u(X).
-     *
-     * @param X Material space position.
-     * @return u(X)
-     */
     Eigen::Vector3d get_u(Eigen::Vector3d const& X) const
     {
         auto const& cell = (*cells)[e];
@@ -450,82 +586,7 @@ struct fem_sph_interpolation_t
         return xk;
     }
 
-    /**
-     * @brief
-     * Let x(X) be the 0th-order reproducible version of this interpolation
-     * field. We reformulate x(X) as x(X) = u(X) / v(X), where
-     * u(X) = \sum_i x_i \phi_i (X) + \sum_j (x_j + F_j (X - X_j) ) \phi_j (X),
-     * v(X) = \sum_i \phi_i (X) + \sum_j \phi_j (X).
-     * This method returns v(X).
-     *
-     * @param X Material space position X
-     * @return v(X)
-     */
-    scalar_type get_v(Eigen::Vector3d const& X) const
-    {
-        scalar_type s = 0.;
-
-        // sum_i phi_i(X)
-        auto const& cell = (*cells)[e];
-        for (auto r = 0u; r < cell.node_count(); ++r)
-        {
-            auto const i       = cell.node(r);
-            bool const has_phi = (*has_basis_function)[i];
-            if (has_phi)
-            {
-                auto const& phi = cell.phi(r);
-                s += phi(X);
-            }
-        }
-        // sum_j phi_j(X)
-        for (index_type const j : js)
-        {
-            scalar_type const& Vj          = (*Vjs)[j];
-            kernel_function_type const& Wj = (*Wjs)[j];
-            scalar_type const Wkj          = static_cast<scalar_type>(Wj(X));
-            s += Vj * Wkj;
-        }
-        return s;
-    }
-
-    scalar_type compute_shepard_coefficient(Eigen::Vector3d const& X) const
-    {
-        scalar_type s = get_v(X);
-        s             = (1. / s);
-        return s;
-    }
-
-    void compute_is()
-    {
-        is.clear();
-
-        auto const& cell = (*cells)[e];
-        for (auto r = 0u; r < cell.node_count(); ++r)
-        {
-            auto const i       = cell.node(r);
-            bool const has_phi = (*has_basis_function)[i];
-            if (has_phi)
-            {
-                is.push_back(i);
-            }
-        }
-    }
-
-    scalar_type sk;     ///< Shepard coefficient for maintaing 0-th order reproducibility of this
-                        ///< interpolation
-    Eigen::Vector3d Xk; ///< Point at which we evaluate this interpolation
-    index_type e;       ///< Index of cell in which this interpolation exists
-    std::vector<cell_type> const* cells;     ///< The cells of the fem model
-    std::vector<index_type> is;              ///< Indices of the fem basis functions that are active
-    std::vector<Eigen::Vector3d> const* Xis; ///< Points of the mesh model
-    std::vector<Eigen::Vector3d>* xis;       ///< Dofs of the mesh model
-    std::vector<bool> const* has_basis_function;  ///< Flags for if a dof is active or not
-    std::vector<index_type> js;                   ///< indices of meshless neighbours
-    std::vector<Eigen::Vector3d> const* Xjs;      ///< Points of the meshless model
-    std::vector<Eigen::Vector3d>* xjs;            ///< Dofs of the meshless model
-    std::vector<scalar_type> const* Vjs;          ///< Volumes of the meshless model
-    std::vector<kernel_function_type> const* Wjs; ///< Kernels of the meshless nodes
-    std::vector<Eigen::Matrix3d>* Fjs;            ///< Deformation gradients at the meshless nodes
+    std::vector<Eigen::Matrix3d>* Fjs; ///< Deformation gradients at the meshless nodes
 };
 
 template <class FemCellType, class KernelFunctionType = poly6_kernel_t>
@@ -706,22 +767,21 @@ struct fem_sph_efg_deformation_gradient_op_t
 {
     using cell_type             = FemCellType;
     using kernel_function_type  = KernelFunctionType;
-    using interpolation_op_type = fem_sph_interpolation_t<cell_type, kernel_function_type>;
+    using interpolation_op_type = fem_sph_efg_interpolation_t<cell_type, kernel_function_type>;
 
     fem_sph_efg_deformation_gradient_op_t(
         std::vector<Eigen::Vector3d> const* Xks,
-        std::vector<Eigen::Vector3d> const* xjs,
         index_type k,
         interpolation_op_type const& interpolation_op)
         : Xks(Xks),
-          xks(xks),
           k(k),
           interpolation_op(interpolation_op),
-          gradWkjs(),
-          gradphis(),
-          Lfem(),
-          Lsph(),
-          Lsphinv(),
+          phi_is(),
+          phi_js(),
+          gradphi_is(),
+          gradphi_js(),
+          corrected_gradphi_is(),
+          corrected_gradphi_js(),
           Lk()
     {
         // precompute correction matrix L and shape function derivatives
@@ -730,12 +790,12 @@ struct fem_sph_efg_deformation_gradient_op_t
 
     void store_L_and_grads()
     {
-        gradWkjs.clear();
-        gradphis.clear();
-
-        Lfem.setZero();
-        Lsph.setZero();
-        Lsphinv.setZero();
+        phi_is.clear();
+        phi_js.clear();
+        gradphi_is.clear();
+        gradphi_js.clear();
+        corrected_gradphi_is.clear();
+        corrected_gradphi_js.clear();
         Lk.setZero();
 
         auto const& Xis                = *interpolation_op.Xis;
@@ -745,7 +805,10 @@ struct fem_sph_efg_deformation_gradient_op_t
 
         Eigen::Vector3d const& Xk = (*Xks)[k];
 
-        // sum_i \nabla phi_i(X)
+        // Precompute gradients
+        scalar_type sum_phi_i_phi_j = 0.;
+        Eigen::Vector3d sum_gradphi_i_gradphi_j{0., 0., 0.};
+
         for (auto r = 0u; r < cell.node_count(); ++r)
         {
             auto const i       = cell.node(r);
@@ -754,42 +817,85 @@ struct fem_sph_efg_deformation_gradient_op_t
             {
                 auto const& phi               = cell.phi(r);
                 Eigen::Vector3d const gradphi = phi.grad(Xk);
-                gradphis.push_back(gradphi);
 
                 Eigen::Vector3d const& Xi = Xis[i];
-                Eigen::Vector3d const Xik = Xi - Xk;
-                Lfem += gradphi * Xik.transpose();
+                scalar_type const phi_i   = phi.eval(Xk);
+
+                phi_is.push_back(phi_i);
+                gradphi_is.push_back(gradphi);
+                sum_phi_i_phi_j += phi_i;
+                sum_gradphi_i_gradphi_j += gradphi;
             }
         }
-        assert(interpolation_op.is.size() == gradphis.size());
-        Eigen::Matrix3d const I = Eigen::Matrix3d::Identity();
-        Lfem                    = I - Lfem;
 
         std::vector<scalar_type> const& Vjs          = *interpolation_op.Vjs;
         std::vector<kernel_function_type> const& Wjs = *interpolation_op.Wjs;
+        std::vector<Eigen::Vector3d> const& Xjs      = *interpolation_op.Xjs;
 
-        // sum_j \nabla phi_j(X)
         auto const& js = interpolation_op.js;
         for (index_type const j : js)
         {
-            scalar_type const& Vj          = Vjs[j];
-            kernel_function_type const& Wj = Wjs[j];
-            scalar_type const Wkj          = static_cast<scalar_type>(Wj(Xk));
-            Eigen::Vector3d const& Xj      = Xjs[j];
+            scalar_type const& Vj         = Vjs[j];
+            kernel_function_type const& W = Wjs[j];
+            scalar_type const Wj          = W.eval(Xk);
 
-            Eigen::Vector3d gradWkj = Wj.grad(Xk);
-            gradWkjs.push_back(gradWkj);
+            scalar_type const phi_j       = Vj * Wj;
+            Eigen::Vector3d const gradWkj = W.grad(Xk);
+            Eigen::Vector3d const gradphi = Vj * gradWkj;
 
-            Eigen::Vector3d const Xjk = (Xj - Xk);
-            Lsph += Vj * gradWkj * Xjk.transpose();
+            phi_js.push_back(phi_j);
+            gradphi_js.push_back(gradphi);
+            sum_phi_i_phi_j += phi_j;
+            sum_gradphi_i_gradphi_j += gradphi;
+        }
+
+        // Correct the gradients
+        scalar_type const squared_sum_phi_i_phi_j = (sum_phi_i_phi_j * sum_phi_i_phi_j);
+        scalar_type const shepard_coefficient     = 1. / squared_sum_phi_i_phi_j;
+
+        for (auto a = 0u; a < gradphi_is.size(); ++a)
+        {
+            Eigen::Vector3d const corrected_gradphi_i =
+                shepard_coefficient *
+                ((gradphi_is[a] * sum_phi_i_phi_j) - (phi_is[a] * sum_gradphi_i_gradphi_j));
+
+            corrected_gradphi_is.push_back(corrected_gradphi_i);
+        }
+        for (auto a = 0u; a < gradphi_js.size(); ++a)
+        {
+            Eigen::Vector3d const corrected_gradphi_j =
+                shepard_coefficient *
+                ((gradphi_js[a] * sum_phi_i_phi_j) - (phi_js[a] * sum_gradphi_i_gradphi_j));
+
+            corrected_gradphi_js.push_back(corrected_gradphi_j);
+        }
+
+        // Compute correction matrix L
+        Eigen::Matrix3d Linv{};
+        Linv.setZero();
+        assert(corrected_gradphi_is.size() == interpolation_op.is.size());
+        for (auto a = 0u; a < gradphi_is.size(); ++a)
+        {
+            index_type const i                       = interpolation_op.is[a];
+            Eigen::Vector3d const& Xi                = Xis[i];
+            Eigen::Vector3d const& corrected_gradphi = corrected_gradphi_is[a];
+            Eigen::Vector3d const Xik                = Xi - Xk;
+            Linv += corrected_gradphi * Xik.transpose();
+        }
+        assert(corrected_gradphi_js.size() == interpolation_op.js.size());
+        for (auto a = 0u; a < corrected_gradphi_js.size(); ++a)
+        {
+            index_type const j                       = js[a];
+            Eigen::Vector3d const& Xj                = Xjs[j];
+            Eigen::Vector3d const& corrected_gradphi = corrected_gradphi_js[a];
+            Eigen::Vector3d const Xjk                = Xj - Xk;
+            Linv += corrected_gradphi * Xjk.transpose();
         }
 #ifdef _DEBUG
-        scalar_type const det = Lsph.determinant();
+        scalar_type const det = Linv.determinant();
         assert(std::abs(det) > sbs::eps());
 #endif
-        Lsphinv = Lsph.inverse();
-
-        Lk = Lfem * Lsphinv;
+        Lk = Linv.inverse();
     }
 
     Eigen::Matrix3d eval() const
@@ -798,28 +904,23 @@ struct fem_sph_efg_deformation_gradient_op_t
         std::vector<index_type> const& js       = interpolation_op.js;
         std::vector<Eigen::Vector3d> const& xis = *interpolation_op.xis;
         std::vector<Eigen::Vector3d> const& xjs = *interpolation_op.xjs;
-        std::vector<scalar_type> const& Vjs     = *interpolation_op.Vjs;
 
-        Eigen::Vector3d const& xk = (*xks)[k];
         Eigen::Matrix3d F{};
         F.setZero();
 
         for (auto a = 0u; a < is.size(); ++a)
         {
-            index_type const i             = is[a];
-            Eigen::Vector3d const& gradphi = gradphis[a];
-            Eigen::Vector3d const& xi      = xis[i];
-            Eigen::Vector3d const xik      = xi - xk;
-            F += xik * gradphi.transpose();
+            index_type const i                       = is[a];
+            Eigen::Vector3d const& corrected_gradphi = corrected_gradphi_is[a];
+            Eigen::Vector3d const& xi                = xis[i];
+            F += xi * (Lk * corrected_gradphi).transpose();
         }
         for (auto a = 0u; a < js.size(); ++a)
         {
-            index_type const j             = js[a];
-            Eigen::Vector3d const& gradWkj = gradWkjs[a];
-            scalar_type const& Vj          = Vjs[j];
-            Eigen::Vector3d const& xj      = xjs[j];
-            Eigen::Vector3d const xjk      = xj - xk;
-            F += xjk * (Vj * Lk * gradWkj).transpose();
+            index_type const j                       = js[a];
+            Eigen::Vector3d const& corrected_gradphi = corrected_gradphi_js[a];
+            Eigen::Vector3d const& xj                = xjs[j];
+            F += xj * (Lk * corrected_gradphi).transpose();
         }
 
         return F;
@@ -832,9 +933,8 @@ struct fem_sph_efg_deformation_gradient_op_t
      */
     std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> dFdx() const
     {
-        std::vector<index_type> const& is   = interpolation_op.is;
-        std::vector<index_type> const& js   = interpolation_op.js;
-        std::vector<scalar_type> const& Vjs = *interpolation_op.Vjs;
+        std::vector<index_type> const& is = interpolation_op.is;
+        std::vector<index_type> const& js = interpolation_op.js;
 
         std::vector<Eigen::Vector3d> dFdxis{};
         dFdxis.resize(is.size(), Eigen::Vector3d{0., 0., 0.});
@@ -843,36 +943,34 @@ struct fem_sph_efg_deformation_gradient_op_t
 
         for (auto a = 0u; a < is.size(); ++a)
         {
-            index_type const i             = is[a];
-            Eigen::Vector3d const& gradphi = gradphis[a];
-            dFdxis[a]                      = gradphi;
+            index_type const i                       = is[a];
+            Eigen::Vector3d const& corrected_gradphi = corrected_gradphi_is[a];
+            dFdxis[a]                                = Lk * corrected_gradphi;
         }
         for (auto a = 0u; a < js.size(); ++a)
         {
-            index_type const j = js[a];
+            index_type const j                      = js[a];
+            Eigen::Vector3d const corrected_gradphi = corrected_gradphi_js[a];
 
-            Eigen::Vector3d const& gradWkj = gradWkjs[a];
-            scalar_type const& Vj          = Vjs[j];
-            Eigen::Vector3d const grad     = Lk * Vj * gradWkj;
-
-            dFdxjs[a] = grad;
+            dFdxjs[a] = Lk * corrected_gradphi;
         }
 
         return std::make_pair(dFdxis, dFdxjs);
     }
 
     std::vector<Eigen::Vector3d> const* Xks; ///< EFG integration points
-    std::vector<Eigen::Vector3d> const* xjs; ///< EFG integration points in world space
 
-    index_type k;                                  ///< Index of the sph node
-    interpolation_op_type const& interpolation_op; ///< The mixed sph+fem interpolation
-    std::vector<Eigen::Vector3d> gradWkjs;         ///< Cached sph kernel gradients
-    std::vector<Eigen::Vector3d> gradphis;         ///< Cached fem basis function gradients
-                                                   ///< in this interpolation
-    Eigen::Matrix3d Lfem;    ///< 3x3 fem contribution to the correction matrix
-    Eigen::Matrix3d Lsph;    ///< 3x3 sph contribution to the correction matrix
-    Eigen::Matrix3d Lsphinv; ///< Inverse of Lsph
-    Eigen::Matrix3d Lk;      ///< Lsph^-1 * Lfem
+    index_type k;                                      ///< Index of the sph node
+    interpolation_op_type const& interpolation_op;     ///< The mixed sph+fem interpolation
+    std::vector<scalar_type> phi_is;                   ///< Precomputed FEM basis functions
+    std::vector<scalar_type> phi_js;                   ///< Precomputed SPH basis functions
+    std::vector<Eigen::Vector3d> gradphi_is;           ///< Cached fem basis function gradients
+                                                       ///< in this interpolation
+    std::vector<Eigen::Vector3d> gradphi_js;           ///< Cached sph basis function gradients
+                                                       ///< in this interpolation
+    std::vector<Eigen::Vector3d> corrected_gradphi_is; ///< Corrected FEM basis function gradients
+    std::vector<Eigen::Vector3d> corrected_gradphi_js; ///< Corrected SPH basis function gradients
+    Eigen::Matrix3d Lk;                                ///< Lsph^-1 * Lfem
 };
 
 } // namespace math
